@@ -23,8 +23,8 @@ export function divRound(n: number, d: number): number {
   return n < 0 && rounded !== 0 ? -rounded : rounded; // never return -0
 }
 
-/** Multiplies then divides using BigInt so large intermediates cannot lose precision. */
-function mulDivRound(a: number, b: number, d: number): number {
+/** a x b / d rounded half away from zero, using BigInt so large intermediates cannot lose precision. */
+export function mulDivRound(a: number, b: number, d: number): number {
   assertInt(a, 'operand');
   assertInt(b, 'operand');
   const product = BigInt(a) * BigInt(b);
