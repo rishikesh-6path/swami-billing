@@ -27,6 +27,7 @@ export type Route =
   | { name: 'bills'; voucherType?: string }
   | { name: 'bill'; id: number }
   | { name: 'audit' }
+  | { name: 'import' }
   | { name: 'settings'; section?: 'shop' | 'print' | 'users' | 'closing' | 'backup' }
   | { name: 'reports' }
   | {

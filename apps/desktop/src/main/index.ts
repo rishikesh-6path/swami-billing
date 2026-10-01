@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import {
   ValidationError,
@@ -212,6 +212,21 @@ if (!app.requestSingleInstanceLock()) {
       });
       return result.canceled ? null : (result.filePaths[0] ?? null);
     };
+    const chooseCsv = async () => {
+      // tests point this at a prepared file instead of opening the file window
+      const fixed = process.env['SHOPLEDGER_IMPORT_FILE'];
+      let path = fixed ?? null;
+      if (!path) {
+        const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
+          title: 'Choose your spreadsheet (CSV file)',
+          defaultPath: app.getPath('documents'),
+          filters: [{ name: 'Spreadsheet (CSV)', extensions: ['csv', 'txt'] }],
+          properties: ['openFile'],
+        });
+        path = result.canceled ? null : (result.filePaths[0] ?? null);
+      }
+      return path ? { name: basename(path), text: readFileSync(path, 'utf8') } : null;
+    };
     const chooseBackupFile = async () => {
       const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
         title: 'Choose a backup file',
@@ -265,6 +280,7 @@ if (!app.requestSingleInstanceLock()) {
       clock,
       chooseFolder,
       chooseBackupFile,
+      chooseCsv,
       restoreFrom,
       db: opened.db,
       dbPath: opened.path,

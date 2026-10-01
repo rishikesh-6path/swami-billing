@@ -173,10 +173,16 @@ export function importItemsCsv(db: Db, text: string): ImportResult {
 }
 
 /** Imports customers and suppliers. The Type column decides the group: "supplier" goes to creditors, anything else to debtors. */
-export function importPartiesCsv(db: Db, text: string): ImportResult {
+export function importPartiesCsv(
+  db: Db,
+  text: string,
+  defaultKind: 'customer' | 'supplier' = 'customer',
+): ImportResult {
   return eachRow(text, ['name'], (f) => {
     transaction(db, () => {
-      const supplier = /supplier|creditor|vendor/i.test(f['type'] ?? '');
+      const supplier = f['type']
+        ? /supplier|creditor|vendor/i.test(f['type'])
+        : defaultKind === 'supplier';
       const group = db
         .prepare('SELECT id FROM account_group WHERE name = ?')
         .get(supplier ? 'Sundry Creditors' : 'Sundry Debtors');
@@ -198,3 +204,20 @@ export function importPartiesCsv(db: Db, text: string): ImportResult {
     });
   });
 }
+
+/** Example sheets people can download, edit and import. Quoted so commas in names are safe. */
+export const IMPORT_SAMPLES = {
+  items: [
+    'Name,Alias,Group,Unit,HSN,GST %,Price,MRP,Opening stock,Opening rate,Min stock',
+    'GI Clamp 1/2 inch,1500,Plumbing,Pcs,7307,18,45,50,100,30,20',
+    '"Wire 1.5 sq mm, red",2201,Electrical,Roll,8544,18,1450,1600,12,1100,3',
+  ].join('\n'),
+  customers: [
+    'Name,Phone,GSTIN,State,Address,Credit days,Opening balance,Dr/Cr',
+    'Ayappan Electricals,9876543210,,33,"12 Main Road, Salem",15,2500,Dr',
+  ].join('\n'),
+  suppliers: [
+    'Name,Phone,GSTIN,State,Address,Credit days,Opening balance,Dr/Cr',
+    'Sri Murugan Traders,9812345678,27AAPFU0939F1ZV,27,"Market Street, Pune",30,15000,Cr',
+  ].join('\n'),
+} as const;

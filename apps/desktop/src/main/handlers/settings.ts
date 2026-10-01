@@ -1,5 +1,8 @@
 import {
+  IMPORT_SAMPLES,
   ValidationError,
+  importItemsCsv,
+  importPartiesCsv,
   changePin,
   checkBackupFile,
   closeDay,
@@ -50,6 +53,8 @@ export const settingsHandlers: Pick<
   | 'books.lock'
   | 'books.unlock'
   | 'books.closeYear'
+  | 'import.run'
+  | 'import.sample'
   | 'backup.status'
   | 'backup.run'
   | 'backup.chooseFolder'
@@ -120,6 +125,18 @@ export const settingsHandlers: Pick<
     closeFinancialYear(ctx.db, req.fyId, audit(ctx));
     return years(ctx);
   },
+  'import.run': async (req, ctx) => {
+    const file = await ctx.chooseCsv();
+    if (!file) return { cancelled: true, fileName: '', created: 0, skipped: [] };
+    const result =
+      req.kind === 'items'
+        ? importItemsCsv(ctx.db, file.text)
+        : importPartiesCsv(ctx.db, file.text, req.kind === 'suppliers' ? 'supplier' : 'customer');
+    return { cancelled: false, fileName: file.name, ...result };
+  },
+  'import.sample': async (req, ctx) => ({
+    saved: await ctx.saveText(`sample-${req.kind}.csv`, `${IMPORT_SAMPLES[req.kind]}\n`),
+  }),
   'backup.status': (_req, ctx) => backupStatus(ctx.db, ctx.backupPlace),
   'backup.run': (_req, ctx) => {
     const clock = ctx.clock();

@@ -30,8 +30,8 @@ P2-04 | done | Stock Journal, Physical Stock, voucher modify, cash/bank leg chec
 P2-05 | done | Demo data seeder + CSV import for items and parties | unit tests | P0-kickoff
 
 ## Phase 3 — Friendly desktop UI
-P3-01 | todo | IPC contract + handlers + plain-language error mapping | contract tests |
-P3-02 | todo | App shell: login, first-run setup, home tiles, global shortcuts, status bar | E2E |
+P3-01 | done | IPC contract + handlers + plain-language error mapping | contract tests | P0-kickoff
+P3-02 | done | App shell: login, first-run setup, home tiles, global shortcuts, status bar | E2E | P0-kickoff
 P3-03 | done | Masters screens (keyboard-only) | E2E create item by keyboard | P0-kickoff
 P3-04 | done | Sales bill screen (grid, lookup, sundries, tax preview, settlement) | E2E keyboard-only 5-line bill | P0-kickoff
 P3-05 | done | Purchase, returns, receipt, payment, journal, contra, notes, stock journal, physical stock screens | E2E receipt then ledger | P0-kickoff

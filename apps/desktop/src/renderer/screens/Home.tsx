@@ -105,6 +105,9 @@ export function Home({
           <Tile title="Who Did What" onClick={() => router.go({ name: 'audit' })} />
         )}
         {session.user?.role === 'owner' && (
+          <Tile title="Add from a Spreadsheet" onClick={() => router.go({ name: 'import' })} />
+        )}
+        {session.user?.role === 'owner' && (
           <Tile title="Settings" onClick={() => router.go({ name: 'settings' })} />
         )}
         <Tile title="Reports" keyName="R" onClick={() => router.go({ name: 'reports' })} />

@@ -92,6 +92,14 @@ export interface ShopSettings {
   years: (FinancialYearRow & { current: boolean })[];
 }
 
+export interface ImportOutcome {
+  /** True when the person closed the file window without choosing a file. */
+  cancelled: boolean;
+  fileName: string;
+  created: number;
+  skipped: { row: number; reason: string }[];
+}
+
 export interface BackupStatus {
   folder: string;
   copyFolder: string | null;
@@ -571,6 +579,14 @@ export const contract = {
   'books.lock': ch<ShopSettings['books']>()('lock_books', z.object({ date: isoDate })),
   'books.unlock': ch<ShopSettings['books']>()('lock_books', none),
   'books.closeYear': ch<ShopSettings['years']>()('close_year', z.object({ fyId: id })),
+  'import.run': ch<ImportOutcome>()(
+    'manage_settings',
+    z.object({ kind: z.enum(['items', 'customers', 'suppliers']) }),
+  ),
+  'import.sample': ch<{ saved: string | null }>()(
+    'manage_settings',
+    z.object({ kind: z.enum(['items', 'customers', 'suppliers']) }),
+  ),
   'backup.status': ch<BackupStatus>()('user', none),
   'backup.run': ch<BackupStatus & { copied: boolean | null }>()('backup_restore', none),
   'backup.chooseFolder': ch<BackupStatus>()(

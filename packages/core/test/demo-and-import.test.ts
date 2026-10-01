@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { importItemsCsv, importPartiesCsv, parseCsv } from '../src/import/csv.ts';
+import { IMPORT_SAMPLES, importItemsCsv, importPartiesCsv, parseCsv } from '../src/import/csv.ts';
 import { seedDemoShop } from '../src/demo/seed.ts';
 import { balanceSheet } from '../src/reports/financials.ts';
 import { trialBalance } from '../src/reports/trial-balance.ts';
@@ -110,6 +110,30 @@ describe('importPartiesCsv', () => {
     });
     expect(f).toMatchObject({ groupName: 'Sundry Creditors', openingIsDr: false });
     expect(getAccount(db, a.id)!.phone).toBe('9840012345');
+  });
+});
+
+describe('import sample sheets', () => {
+  it('every downloadable sample imports cleanly, and the chosen kind decides the group', () => {
+    const db = freshDb();
+    expect(importItemsCsv(db, IMPORT_SAMPLES.items)).toEqual({ created: 2, skipped: [] });
+    expect(importPartiesCsv(db, IMPORT_SAMPLES.customers, 'customer')).toEqual({
+      created: 1,
+      skipped: [],
+    });
+    expect(importPartiesCsv(db, IMPORT_SAMPLES.suppliers, 'supplier')).toEqual({
+      created: 1,
+      skipped: [],
+    });
+    expect(listAccounts(db, { search: 'Murugan' })[0]).toMatchObject({
+      groupName: 'Sundry Creditors',
+      openingIsDr: false,
+    });
+    // a sheet with no Type column goes to the kind the person picked on screen
+    importPartiesCsv(db, 'Name\nVendor Without Type', 'supplier');
+    expect(listAccounts(db, { search: 'Vendor Without' })[0]).toMatchObject({
+      groupName: 'Sundry Creditors',
+    });
   });
 });
 

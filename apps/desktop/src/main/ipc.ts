@@ -47,6 +47,8 @@ export interface HandlerContext {
   clock: () => { date: string; time: string };
   /** Lets the user pick a folder; null if they cancelled. */
   chooseFolder: (title: string) => Promise<string | null>;
+  /** Lets the user pick a spreadsheet (CSV); null if they cancelled. */
+  chooseCsv: () => Promise<{ name: string; text: string } | null>;
   /** Lets the user pick a backup file; null if they cancelled. */
   chooseBackupFile: () => Promise<string | null>;
   /** Swaps the shop data for a backup and restarts the app. The caller must have checked the file. */
