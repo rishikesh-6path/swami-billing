@@ -17,3 +17,8 @@ export * from './reports/trial-balance.ts';
 export * from './reports/daybook.ts';
 export * from './reports/outstanding.ts';
 export * from './reports/registers.ts';
+export * from './reports/gst/common.ts';
+export * from './reports/gst/summary.ts';
+export * from './reports/gst/gstr1.ts';
+export * from './reports/gst/gstr3b.ts';
+export * from './reports/financials.ts';

@@ -8,6 +8,8 @@ import {
   type ItemVoucherType,
   type VoucherInput,
 } from '../../src/domain/posting/types.ts';
+import { balanceSheet } from '../../src/reports/financials.ts';
+import { gstSummary } from '../../src/reports/gst/summary.ts';
 import { trialBalance } from '../../src/reports/trial-balance.ts';
 import { count, seedShop, type Shop } from '../helpers/shop.ts';
 
@@ -183,6 +185,28 @@ describe('ledger invariants (KICKOFF section 6)', () => {
         const tb = trialBalance(db, { from: '2026-04-01', to: '2027-03-31' });
         expect(tb.totalDrPaise).toBe(tb.totalCrPaise);
         expect(tb.closingDrPaise).toBe(tb.closingCrPaise);
+        // the balance sheet always balances (any opening difference is shown as its own line)
+        const sheet = balanceSheet(db, { asOn: '2027-03-31' });
+        expect(sheet.totalAssetsPaise).toBe(sheet.totalLiabilitiesPaise);
+        expect(sheet.openingDifferencePaise).toBe(0); // seedShop enters no opening balances
+
+        // GST totals agree with the tax accounts in the ledger (net of returns and cancellations)
+        const gst = gstSummary(db, { from: '2026-04-01', to: '2027-03-31' });
+        const net = (account: string, creditPositive: boolean) => {
+          const credit = count(
+            db,
+            `SELECT COALESCE(SUM(j.cr_paise) - SUM(j.dr_paise), 0) AS n
+             FROM journal_line j JOIN account a ON a.id = j.account_id JOIN voucher v ON v.id = j.voucher_id
+             WHERE a.name = ? AND v.status = 'posted'`,
+            account,
+          );
+          return (creditPositive ? credit : -credit) + 0; // + 0 turns -0 into 0
+        };
+        expect(gst.outputTax.cgstPaise).toBe(net('Output CGST', true));
+        expect(gst.outputTax.sgstPaise).toBe(net('Output SGST', true));
+        expect(gst.outputTax.igstPaise).toBe(net('Output IGST', true));
+        expect(gst.inputTax.cgstPaise).toBe(net('Input CGST', false));
+        expect(gst.inputTax.igstPaise).toBe(net('Input IGST', false));
 
         // 2. stock status equals the net of live (non-cancelled) vouchers only
         const expectedStock = new Map<number, number>();
