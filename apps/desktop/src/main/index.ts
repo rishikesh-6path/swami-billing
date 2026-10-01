@@ -1,1 +1,63 @@
-export {};
+import { join } from 'node:path';
+import { app, BrowserWindow, shell } from 'electron';
+
+// E2E isolation: must be set before the single-instance lock is requested.
+const userDataOverride = process.env['SHOPLEDGER_USER_DATA'];
+if (userDataOverride) {
+  app.setPath('userData', userDataOverride);
+}
+
+let mainWindow: BrowserWindow | null = null;
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    show: false,
+    title: 'ShopLedger',
+    webPreferences: {
+      preload: join(import.meta.dirname, '../preload/index.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  });
+
+  win.once('ready-to-show', () => win.show());
+
+  // The app is fully offline: never open new windows or navigate away from the bundle.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    const devUrl = process.env['ELECTRON_RENDERER_URL'];
+    if (!(devUrl && url.startsWith(devUrl))) event.preventDefault();
+  });
+
+  const devUrl = process.env['ELECTRON_RENDERER_URL'];
+  if (devUrl) {
+    void win.loadURL(devUrl);
+  } else {
+    void win.loadFile(join(import.meta.dirname, '../renderer/index.html'));
+  }
+  return win;
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  void app.whenReady().then(() => {
+    mainWindow = createWindow();
+    console.log('[shopledger] window created');
+  });
+
+  app.on('window-all-closed', () => app.quit());
+}
