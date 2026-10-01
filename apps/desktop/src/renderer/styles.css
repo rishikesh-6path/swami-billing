@@ -421,3 +421,206 @@ kbd {
   min-height: 2.4rem;
   z-index: 10;
 }
+
+/* ---- typeahead ---- */
+.typeahead {
+  position: relative;
+}
+
+.typeahead input {
+  width: 100%;
+}
+
+.typeahead-list {
+  position: absolute;
+  z-index: 15;
+  left: 0;
+  top: 100%;
+  min-width: 100%;
+  width: max-content;
+  max-width: 44rem;
+  max-height: 20rem;
+  overflow: auto;
+  margin: 2px 0 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+}
+
+.typeahead-list li {
+  padding: 0.45rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.typeahead-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.opt-sub {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+/* ---- bill screen ---- */
+.voucher-page {
+  max-width: 96rem;
+  padding: 1rem 1.25rem 4rem;
+}
+
+.voucher-top {
+  display: grid;
+  grid-template-columns: minmax(18rem, 2fr) minmax(9rem, 1fr) minmax(11rem, 1fr) minmax(11rem, 1fr);
+  column-gap: 1rem;
+}
+
+.voucher-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.voucher-side {
+  position: sticky;
+  top: 1rem;
+}
+
+.bill-grid .cell-input {
+  width: 100%;
+  min-height: 2.6rem;
+  text-align: right;
+}
+
+.bill-grid .typeahead input {
+  min-height: 2.6rem;
+}
+
+.bill-grid td {
+  padding: 0.25rem 0.4rem;
+}
+
+.bill-grid .c-no {
+  width: 2.2rem;
+  color: var(--muted);
+}
+
+.bill-grid .c-qty {
+  width: 6.5rem;
+}
+
+.bill-grid .c-unit {
+  width: 4.5rem;
+}
+
+.bill-grid .c-price {
+  width: 7.5rem;
+}
+
+.bill-grid .c-disc {
+  width: 6.5rem;
+}
+
+.bill-grid .c-amt {
+  width: 8rem;
+}
+
+.muted-cell {
+  color: var(--muted);
+}
+
+.amount-cell {
+  font-weight: 650;
+}
+
+.cell-bad {
+  border-color: var(--danger);
+}
+
+.grid-actions {
+  margin: 0.75rem 0 1rem;
+}
+
+.field.wide {
+  grid-column: 1 / -1;
+}
+
+.totals {
+  margin: 0;
+}
+
+.totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.totals dt {
+  color: var(--muted);
+}
+
+.totals dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.totals .grand {
+  border-bottom: none;
+  padding-top: 0.75rem;
+}
+
+.totals .grand dt {
+  color: var(--text);
+  font-size: 1.2rem;
+  font-weight: 650;
+}
+
+.totals .grand dd {
+  font-size: 2rem;
+}
+
+.pick-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pick-list .btn {
+  width: 100%;
+  text-align: left;
+}
+
+.return-against {
+  max-width: 40rem;
+}
+
+/* the Item column takes whatever width the number columns leave */
+.bill-grid {
+  table-layout: fixed;
+}
+
+/* narrower windows: the total goes under the bill instead of beside it */
+@media (max-width: 1180px) {
+  .voucher-body {
+    grid-template-columns: 1fr;
+  }
+
+  .voucher-side {
+    position: static;
+  }
+
+  .voucher-top {
+    grid-template-columns: 1fr 1fr;
+  }
+}

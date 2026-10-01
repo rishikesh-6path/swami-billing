@@ -5,7 +5,9 @@ import { ToastProvider } from './components/ui.tsx';
 import { call } from './lib/api.ts';
 import { HotkeyProvider, useCurrentHints, useHotkeys } from './lib/hotkeys.tsx';
 import { RouterProvider, useRouter } from './lib/router.tsx';
+import { SessionProvider } from './lib/session.tsx';
 import { Home } from './screens/Home.tsx';
+import { VoucherRoute } from './screens/voucher/VoucherRoute.tsx';
 import { Login } from './screens/Login.tsx';
 import { Setup } from './screens/Setup.tsx';
 
@@ -18,6 +20,10 @@ function Screens({
 }) {
   const router = useRouter();
   useHotkeys({ Escape: router.back });
+  if (router.route.name === 'voucher') {
+    const { kind, editId } = router.route;
+    return <VoucherRoute key={`${kind}-${editId ?? 'new'}`} kind={kind} editId={editId} />;
+  }
   if (router.route.name === 'placeholder') {
     return (
       <main className="page">
@@ -72,9 +78,11 @@ export function App() {
     body = <Login shopName={session.company?.name ?? 'ShopLedger'} onDone={setSession} />;
   } else {
     body = (
-      <RouterProvider>
-        <Screens session={session} onSession={setSession} />
-      </RouterProvider>
+      <SessionProvider session={session}>
+        <RouterProvider>
+          <Screens session={session} onSession={setSession} />
+        </RouterProvider>
+      </SessionProvider>
     );
   }
 

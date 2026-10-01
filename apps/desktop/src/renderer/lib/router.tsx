@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-export type Route = { name: 'home' } | { name: 'placeholder'; title: string };
+export type ItemVoucherKind = 'sales' | 'purchase' | 'sales_return' | 'purchase_return';
+
+export type Route =
+  | { name: 'home' }
+  | { name: 'voucher'; kind: ItemVoucherKind; editId?: number }
+  | { name: 'placeholder'; title: string };
 
 interface RouterApi {
   route: Route;

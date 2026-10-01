@@ -1,0 +1,35 @@
+import { LoadState } from '../../components/ui.tsx';
+import { useCall } from '../../lib/api.ts';
+import { useRouter, type ItemVoucherKind } from '../../lib/router.tsx';
+import { ItemVoucher } from './ItemVoucher.tsx';
+
+/** Opens the bill screen empty, or filled with an existing bill when `editId` is given. */
+export function VoucherRoute({
+  kind,
+  editId,
+}: {
+  kind: ItemVoucherKind;
+  editId: number | undefined;
+}) {
+  if (editId === undefined) return <ItemVoucher kind={kind} />;
+  return <EditLoader kind={kind} editId={editId} />;
+}
+
+function EditLoader({ kind, editId }: { kind: ItemVoucherKind; editId: number }) {
+  const router = useRouter();
+  const detail = useCall('voucher.get', { id: editId });
+  return (
+    <LoadState state={detail}>
+      {detail.status === 'ready' && detail.data ? (
+        <ItemVoucher kind={kind} edit={detail.data} />
+      ) : (
+        <main className="page">
+          <p>That bill could not be found.</p>
+          <button type="button" className="btn" onClick={router.back}>
+            Go back
+          </button>
+        </main>
+      )}
+    </LoadState>
+  );
+}

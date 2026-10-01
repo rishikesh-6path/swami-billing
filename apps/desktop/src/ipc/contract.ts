@@ -1,5 +1,18 @@
 import { z } from 'zod';
-import type { Action, Company, Role } from '@shopledger/core';
+import type {
+  Action,
+  BillSundryRow,
+  Company,
+  ItemSearchRow,
+  PartyHit,
+  PostedVoucher,
+  Role,
+  SaleTypeRow,
+  SeriesRow,
+  VoucherDetail,
+  VoucherListRow,
+  VoucherPreview,
+} from '@shopledger/core';
 
 /**
  * The only boundary between the renderer and everything else. Every channel declares who may
@@ -40,6 +53,126 @@ export interface HomeSummary {
 
 const none = z.object({}).strict();
 
+const paise = z.number().int().min(0);
+
+const taxMode = z.enum(['local', 'interstate', 'exempt']);
+const itemVoucherType = z.enum(['sales', 'sales_return', 'purchase', 'purchase_return']);
+const entryVoucherType = z.enum([
+  'receipt',
+  'payment',
+  'journal',
+  'contra',
+  'debit_note',
+  'credit_note',
+]);
+
+const commonVoucher = {
+  date: isoDate,
+  seriesId: id.optional(),
+  narration: z.string().max(500).optional(),
+  broker: z.string().max(100).optional(),
+  refVoucherId: id.optional(),
+};
+
+const itemLine = z.object({
+  itemId: id,
+  qty: z.number().int().positive(),
+  unitId: id,
+  listPricePaise: paise,
+  discBp: z.number().int().min(0).max(10000).optional(),
+});
+
+/** A bill being typed: lines may be unfinished, so ids and quantities may still be zero. */
+const draftLine = z.object({
+  itemId: z.number().int().min(0),
+  qty: z.number().int().min(0),
+  unitId: z.number().int().min(0),
+  listPricePaise: paise,
+  discBp: z.number().int().min(0).max(10000).optional(),
+});
+
+const sundryInput = z.object({ billSundryId: id, amountPaise: paise });
+const settlementInput = z.object({ accountId: id, amountPaise: z.number().int().positive() });
+
+const itemVoucherFields = {
+  type: itemVoucherType,
+  ...commonVoucher,
+  partyAccountId: id,
+  saleTypeId: id.optional(),
+  taxMode,
+  sundries: z.array(sundryInput).max(20).optional(),
+  settlements: z.array(settlementInput).max(5).optional(),
+  roundOff: z.boolean().optional(),
+};
+export const itemVoucherInput = z.object({
+  ...itemVoucherFields,
+  lines: z.array(itemLine).min(1).max(200),
+});
+export const itemVoucherDraft = z.object({
+  ...itemVoucherFields,
+  partyAccountId: id.optional(),
+  lines: z.array(draftLine).max(200),
+});
+
+export const entryVoucherInput = z.object({
+  type: entryVoucherType,
+  ...commonVoucher,
+  partyAccountId: id.optional(),
+  entries: z
+    .array(
+      z.object({
+        accountId: id,
+        side: z.enum(['dr', 'cr']),
+        amountPaise: z.number().int().positive(),
+      }),
+    )
+    .min(2)
+    .max(50),
+});
+
+export const stockVoucherInput = z.union([
+  z.object({
+    type: z.literal('stock_journal'),
+    ...commonVoucher,
+    lines: z
+      .array(
+        z.object({
+          itemId: id,
+          qty: z.number().int().positive(),
+          unitId: id,
+          direction: z.enum(['in', 'out']),
+          ratePaise: paise.optional(),
+        }),
+      )
+      .min(1)
+      .max(100),
+  }),
+  z.object({
+    type: z.literal('physical_stock'),
+    ...commonVoucher,
+    lines: z
+      .array(z.object({ itemId: id, unitId: id, countedQty: z.number().int().min(0) }))
+      .min(1)
+      .max(500),
+  }),
+]);
+
+export const voucherInput = z.union([itemVoucherInput, entryVoucherInput, stockVoucherInput]);
+
+export interface VoucherScreenSetup {
+  today: string;
+  series: SeriesRow[];
+  defaultSeriesId: number;
+  nextNumber: number;
+  saleTypes: SaleTypeRow[];
+  sundries: BillSundryRow[];
+  brokers: string[];
+  /** Cash and bank accounts a customer can pay into (or we can pay from). */
+  paymentAccounts: { id: number; name: string }[];
+  cashAccountId: number;
+  shopStateCode: string;
+}
+
 export const contract = {
   'app.info': channel<typeof none, { dbPath: string; schemaVersion: number }>('public', none),
   'session.state': channel<typeof none, SessionState>('public', none),
@@ -74,6 +207,71 @@ export const contract = {
   'auth.logout': channel<typeof none, SessionState>('public', none),
   'lookup.states': channel<typeof none, { code: string; name: string }[]>('public', none),
   'home.summary': channel<typeof none, HomeSummary>('user', none),
+  'voucher.setup': channel<
+    z.ZodObject<{ type: z.ZodString; date: typeof isoDate }>,
+    VoucherScreenSetup
+  >('bill', z.object({ type: z.string(), date: isoDate })),
+  'item.search': channel<
+    z.ZodObject<{ text: z.ZodString; onDate: typeof isoDate; limit: z.ZodOptional<z.ZodNumber> }>,
+    ItemSearchRow[]
+  >(
+    'bill',
+    z.object({
+      text: z.string().max(100),
+      onDate: isoDate,
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+  ),
+  'party.search': channel<
+    z.ZodObject<{
+      text: z.ZodString;
+      kind: z.ZodEnum<{ customer: 'customer'; supplier: 'supplier'; any: 'any' }>;
+      asOn: typeof isoDate;
+    }>,
+    PartyHit[]
+  >(
+    'bill',
+    z.object({
+      text: z.string().max(100),
+      kind: z.enum(['customer', 'supplier', 'any']),
+      asOn: isoDate,
+    }),
+  ),
+  'voucher.preview': channel<typeof itemVoucherDraft, VoucherPreview>('bill', itemVoucherDraft),
+  'voucher.post': channel<typeof voucherInput, PostedVoucher>('bill', voucherInput),
+  'voucher.get': channel<z.ZodObject<{ id: typeof id }>, VoucherDetail | null>(
+    'bill',
+    z.object({ id }),
+  ),
+  'voucher.list': channel<
+    z.ZodObject<{
+      voucherType: z.ZodOptional<z.ZodString>;
+      from: z.ZodOptional<typeof isoDate>;
+      to: z.ZodOptional<typeof isoDate>;
+      partyId: z.ZodOptional<typeof id>;
+      search: z.ZodOptional<z.ZodString>;
+      includeCancelled: z.ZodOptional<z.ZodBoolean>;
+    }>,
+    VoucherListRow[]
+  >(
+    'bill',
+    z.object({
+      voucherType: z.string().optional(),
+      from: isoDate.optional(),
+      to: isoDate.optional(),
+      partyId: id.optional(),
+      search: z.string().max(100).optional(),
+      includeCancelled: z.boolean().optional(),
+    }),
+  ),
+  'voucher.cancel': channel<z.ZodObject<{ id: typeof id; reason: z.ZodString }>, null>(
+    'cancel_voucher',
+    z.object({ id, reason: z.string().max(300) }),
+  ),
+  'voucher.modify': channel<
+    z.ZodObject<{ id: typeof id; input: typeof voucherInput }>,
+    PostedVoucher
+  >('cancel_voucher', z.object({ id, input: voucherInput })),
 } as const;
 
 export type Channel = keyof typeof contract;

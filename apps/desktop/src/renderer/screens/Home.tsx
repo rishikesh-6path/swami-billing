@@ -18,8 +18,10 @@ export function Home({
   const info = useCall('app.info', {});
   const [help, setHelp] = useState(false);
   const signOut = () => void call('auth.logout', {}).then(onSession);
-  useHotkeys({ F1: () => setHelp(true), U: signOut });
-  useHints(['F1 Help', 'U Switch user']);
+  const open = (kind: 'sales' | 'purchase' | 'sales_return' | 'purchase_return') => () =>
+    router.go({ name: 'voucher', kind });
+  useHotkeys({ F1: () => setHelp(true), U: signOut, F8: open('sales'), F9: open('purchase') });
+  useHints(['F8 New sale', 'F9 New purchase', 'F1 Help', 'U Switch user']);
 
   return (
     <main className="page">
@@ -57,10 +59,12 @@ export function Home({
         )}
       </LoadState>
 
-      <p className="muted">More screens are added here as they are built.</p>
-      <Button onClick={() => router.go({ name: 'placeholder', title: 'Coming soon' })}>
-        Coming soon
-      </Button>
+      <div className="tiles">
+        <Tile title="New Sale" keyName="F8" onClick={open('sales')} />
+        <Tile title="New Purchase" keyName="F9" onClick={open('purchase')} />
+        <Tile title="Sales Return" onClick={open('sales_return')} />
+        <Tile title="Purchase Return" onClick={open('purchase_return')} />
+      </div>
 
       {help && (
         <InfoDialog title="Keys you can use" onClose={() => setHelp(false)}>
@@ -70,6 +74,12 @@ export function Home({
             </li>
             <li>
               <kbd>U</kbd> Switch user
+            </li>
+            <li>
+              <kbd>F8</kbd> New sale
+            </li>
+            <li>
+              <kbd>F9</kbd> New purchase
             </li>
           </ul>
           <details>
@@ -86,5 +96,22 @@ export function Home({
         </InfoDialog>
       )}
     </main>
+  );
+}
+
+function Tile({
+  title,
+  keyName,
+  onClick,
+}: {
+  title: string;
+  keyName?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className="tile" onClick={onClick}>
+      <span className="tile-title">{title}</span>
+      {keyName && <span className="tile-key">Press {keyName}</span>}
+    </button>
   );
 }

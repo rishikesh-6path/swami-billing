@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 type Handler = () => void;
 type Lookup = (key: string) => Handler | undefined;
@@ -61,16 +70,14 @@ export function HotkeyProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, []);
 
-  const api: HotkeyApi = {
-    add: (lookup) => {
-      layers.current.push(lookup);
-      return () => {
-        layers.current = layers.current.filter((l) => l !== lookup);
-      };
-    },
-    hints,
-    setHints,
-  };
+  // `add` must keep the same identity: layers register once and keep their stacking order.
+  const add = useCallback((lookup: Lookup) => {
+    layers.current.push(lookup);
+    return () => {
+      layers.current = layers.current.filter((l) => l !== lookup);
+    };
+  }, []);
+  const api = useMemo<HotkeyApi>(() => ({ add, hints, setHints }), [add, hints]);
   return <HotkeyContext.Provider value={api}>{children}</HotkeyContext.Provider>;
 }
 
