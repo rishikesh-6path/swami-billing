@@ -36,6 +36,8 @@ export function Home({
         }
       : {}),
     L: () => router.go({ name: 'report', kind: 'ledger' }),
+    A: () => router.go({ name: 'report', kind: 'outstanding' }),
+    I: () => router.go({ name: 'items' }),
     S: () => router.go({ name: 'report', kind: 'stock' }),
     G: () => router.go({ name: 'report', kind: 'itemLedger' }),
     R: () => router.go({ name: 'reports' }),
@@ -159,6 +161,9 @@ export function Home({
             </li>
             <li>
               <kbd>L</kbd> Account ledger, <kbd>S</kbd> Stock, <kbd>G</kbd> Item history
+            </li>
+            <li>
+              <kbd>A</kbd> Who owes whom (outstanding), <kbd>I</kbd> Items list
             </li>
             <li>
               <kbd>T</kbd> Trial balance, <kbd>B</kbd> Balance sheet, <kbd>V</kbd> GST summary

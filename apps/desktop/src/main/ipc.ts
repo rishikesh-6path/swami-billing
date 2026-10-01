@@ -36,6 +36,8 @@ export interface HandlerContext {
     html: string,
     opts: { size: 'a4' | 'thermal'; printerName?: string | undefined },
   ) => Promise<boolean>;
+  /** The printers Windows knows about, by name. */
+  listPrinters: () => Promise<string[]>;
   /** Renders HTML to a PDF and lets the user save it; returns the path, or null if cancelled. */
   savePdf: (
     html: string,

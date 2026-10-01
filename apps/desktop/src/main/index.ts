@@ -334,7 +334,17 @@ if (!app.requestSingleInstanceLock()) {
       stopBackups();
       if (shopDb) backupNow();
     };
+    const listPrinters = async () => {
+      const contents = mainWindow?.webContents;
+      if (!contents) return [];
+      try {
+        return (await contents.getPrintersAsync()).map((p) => p.name);
+      } catch {
+        return [];
+      }
+    };
     registerHandlers(ipcMain, handlers, {
+      listPrinters,
       backupPlace,
       clock,
       chooseFolder,

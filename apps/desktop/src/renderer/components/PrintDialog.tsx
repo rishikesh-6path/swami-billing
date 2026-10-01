@@ -82,6 +82,7 @@ export function PrintDialog({
           {preview.status === 'ready' && (
             <iframe
               title="Bill preview"
+              tabIndex={-1}
               className={`print-frame print-frame-${size}`}
               sandbox=""
               srcDoc={preview.data.html}

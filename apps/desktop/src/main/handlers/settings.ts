@@ -98,6 +98,7 @@ export const settingsHandlers: Pick<
   | 'books.closeYear'
   | 'narrations.get'
   | 'narrations.save'
+  | 'print.printers'
   | 'calc.eval'
   | 'import.run'
   | 'import.sample'
@@ -175,6 +176,7 @@ export const settingsHandlers: Pick<
   },
   'narrations.get': (req, ctx) => getNarrations(ctx.db, req.kind),
   'narrations.save': (req, ctx) => saveNarrations(ctx.db, req.kind, req.notes, audit(ctx)),
+  'print.printers': (_req, ctx) => ctx.listPrinters(),
   'calc.eval': (req) => ({ result: String(calculate(req.expression)) }),
   'import.run': async (req, ctx) => {
     const file = await ctx.chooseCsv();

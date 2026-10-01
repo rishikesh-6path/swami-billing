@@ -20,6 +20,8 @@ Home | R | Reports list
 Home | L | Account ledger
 Home | S | Stock report
 Home | G | Item history
+Home | A | Outstanding (who owes whom)
+Home | I | Items list with stock
 Home | T | Trial balance (owner)
 Home | B | Balance sheet (owner)
 Home | V | GST summary (owner)

@@ -594,6 +594,7 @@ export const contract = {
       notes: z.array(z.string().max(200)).max(50),
     }),
   ),
+  'print.printers': ch<string[]>()('manage_settings', none),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',

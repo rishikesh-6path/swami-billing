@@ -1,14 +1,6 @@
 import { useState } from 'react';
 import type { ShopSettings } from '../../../ipc/contract.ts';
-import {
-  Button,
-  Card,
-  LoadState,
-  Notice,
-  SelectField,
-  TextField,
-  useToast,
-} from '../../components/ui.tsx';
+import { Button, Card, LoadState, Notice, SelectField, useToast } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
 import { useHotkeys } from '../../lib/hotkeys.tsx';
 
@@ -24,6 +16,7 @@ export function PrintSection() {
 function PrintForm({ initial }: { initial: ShopSettings['print'] }) {
   const toast = useToast();
   const [form, setForm] = useState(initial);
+  const printers = useCall('print.printers', {});
   const [error, setError] = useState<string | null>(null);
   const save = () => {
     setError(null);
@@ -48,12 +41,26 @@ function PrintForm({ initial }: { initial: ShopSettings['print'] }) {
           <option value="a4">A4 sheet</option>
           <option value="thermal">Receipt roll (80 mm)</option>
         </SelectField>
-        <TextField
-          label="Printer name"
+        <SelectField
+          label="Printer"
           value={form.printer}
           onChange={(e) => setForm({ ...form, printer: e.target.value })}
-          hint="Leave empty to choose the printer each time. Type the name exactly as Windows shows it to print without asking."
-        />
+          hint={
+            printers.status === 'ready' && printers.data.length === 0
+              ? 'No printer was found on this computer. You can still save the bill as a PDF.'
+              : 'Choose one to print without being asked each time, or leave "Ask me each time".'
+          }
+        >
+          <option value="">Ask me each time</option>
+          {printers.status === 'ready' &&
+            [...new Set([...printers.data, ...(form.printer ? [form.printer] : [])])].map(
+              (name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ),
+            )}
+        </SelectField>
       </div>
       <label className="check">
         <input
