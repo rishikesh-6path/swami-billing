@@ -17,6 +17,7 @@ extraResources:
     filter:
       - '*.sql'
 win:
+  icon: build/icon.png
   executableName: ShopLedger
   artifactName: ShopLedger-Setup-${version}.${ext}
   target:
