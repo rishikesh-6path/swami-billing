@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import { seedDemoShop } from '@shopledger/core';
@@ -87,7 +88,48 @@ if (!app.requestSingleInstanceLock()) {
       const empty = opened.db.prepare('SELECT COUNT(*) AS n FROM user').get()?.['n'] === 0;
       if (empty) seedDemoShop(opened.db, { today: today() });
     }
-    registerHandlers(ipcMain, handlers, { db: opened.db, dbPath: opened.path, session, today });
+    // Exports go where the user chooses. Tests set SHOPLEDGER_EXPORT_DIR to skip the dialogs.
+    const exportDir = process.env['SHOPLEDGER_EXPORT_DIR'];
+    const saveText = async (defaultName: string, content: string) => {
+      if (exportDir) {
+        mkdirSync(exportDir, { recursive: true });
+        const path = join(exportDir, defaultName);
+        writeFileSync(path, content, 'utf8');
+        return path;
+      }
+      const result = await dialog.showSaveDialog(mainWindow ?? undefined!, {
+        title: 'Save report',
+        defaultPath: join(app.getPath('documents'), defaultName),
+        filters: [{ name: 'Spreadsheet (CSV)', extensions: ['csv'] }],
+      });
+      if (result.canceled || !result.filePath) return null;
+      writeFileSync(result.filePath, content, 'utf8');
+      return result.filePath;
+    };
+    const saveFiles = async (files: Record<string, string>) => {
+      let folder = exportDir;
+      if (!folder) {
+        const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
+          title: 'Choose a folder to save the files in',
+          defaultPath: app.getPath('documents'),
+          properties: ['openDirectory', 'createDirectory'],
+        });
+        if (result.canceled || !result.filePaths[0]) return null;
+        folder = result.filePaths[0];
+      }
+      mkdirSync(folder, { recursive: true });
+      for (const [name, content] of Object.entries(files))
+        writeFileSync(join(folder, name), content, 'utf8');
+      return folder;
+    };
+    registerHandlers(ipcMain, handlers, {
+      db: opened.db,
+      dbPath: opened.path,
+      session,
+      today,
+      saveText,
+      saveFiles,
+    });
     mainWindow = createWindow();
     console.log('[shopledger] window created');
   });

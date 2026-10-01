@@ -7,7 +7,31 @@ export type StockKind = 'stock_journal' | 'physical_stock';
 
 export type PartyKind = 'customer' | 'supplier';
 
+export type ReportKind =
+  | 'ledger'
+  | 'stock'
+  | 'itemLedger'
+  | 'trialBalance'
+  | 'dayBook'
+  | 'daySummary'
+  | 'outstanding'
+  | 'salesRegister'
+  | 'purchaseRegister'
+  | 'gstSummary'
+  | 'gstr1'
+  | 'gstr3b'
+  | 'profitAndLoss'
+  | 'balanceSheet';
+
 export type Route =
+  | { name: 'reports' }
+  | {
+      name: 'report';
+      kind: ReportKind;
+      accountId?: number;
+      accountName?: string;
+      side?: 'receivable' | 'payable';
+    }
   | { name: 'items' }
   | { name: 'item'; id?: number }
   | { name: 'parties'; kind: PartyKind }

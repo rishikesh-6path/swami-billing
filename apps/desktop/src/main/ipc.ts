@@ -27,6 +27,10 @@ export interface HandlerContext {
   session: Session;
   /** Today's date in India (YYYY-MM-DD). Can be fixed with SHOPLEDGER_TODAY for tests. */
   today: () => string;
+  /** Saves one text file (CSV) where the user chooses; returns the path, or null if they cancelled. */
+  saveText: (defaultName: string, content: string) => Promise<string | null>;
+  /** Saves several files into a folder the user chooses; returns the folder, or null if cancelled. */
+  saveFiles: (files: Record<string, string>) => Promise<string | null>;
   /** The signed-in user; throws if nobody is signed in (handlers on non-public channels). */
   user: () => SessionUser & { role: Role };
 }

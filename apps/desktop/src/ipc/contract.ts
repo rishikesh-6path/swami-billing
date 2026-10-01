@@ -4,6 +4,19 @@ import type {
   BillSundryRow,
   Company,
   AccountHit,
+  AccountLedger,
+  BalanceSheet,
+  DayBookRow,
+  DaySummary,
+  Gstr1,
+  Gstr3b,
+  GstSummary,
+  ItemLedger,
+  PartyOutstanding,
+  ProfitAndLoss,
+  Register,
+  StockStatus,
+  TrialBalance,
   AccountRow,
   ItemGroupRow,
   ItemRow,
@@ -43,6 +56,8 @@ export interface SessionUser {
 
 export interface SessionState {
   setupComplete: boolean;
+  /** The financial year containing today (1 April to 31 March), if one exists. */
+  financialYear: { startDate: string; endDate: string; label: string } | null;
   user: SessionUser | null;
   today: string;
   company: Company | null;
@@ -192,6 +207,47 @@ const partyFields = {
   openingBalancePaise: paise,
   openingIsDr: z.boolean(),
 };
+
+const period = { from: isoDate, to: isoDate };
+
+/** Every report the app can show. Which ones a user may open is checked in main, per kind. */
+export const reportRequest = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('ledger'), accountId: id, ...period }),
+  z.object({ kind: z.literal('stock'), asOn: isoDate, onlyProblems: z.boolean().optional() }),
+  z.object({ kind: z.literal('itemLedger'), itemId: id, ...period }),
+  z.object({ kind: z.literal('trialBalance'), ...period }),
+  z.object({ kind: z.literal('dayBook'), ...period }),
+  z.object({ kind: z.literal('daySummary'), date: isoDate }),
+  z.object({
+    kind: z.literal('outstanding'),
+    asOn: isoDate,
+    side: z.enum(['receivable', 'payable']),
+  }),
+  z.object({ kind: z.literal('salesRegister'), ...period }),
+  z.object({ kind: z.literal('purchaseRegister'), ...period }),
+  z.object({ kind: z.literal('gstSummary'), ...period }),
+  z.object({ kind: z.literal('gstr1'), ...period }),
+  z.object({ kind: z.literal('gstr3b'), ...period }),
+  z.object({ kind: z.literal('profitAndLoss'), ...period }),
+  z.object({ kind: z.literal('balanceSheet'), asOn: isoDate }),
+]);
+export type ReportRequest = z.infer<typeof reportRequest>;
+
+export type ReportResult =
+  | { kind: 'ledger'; data: AccountLedger }
+  | { kind: 'stock'; data: StockStatus }
+  | { kind: 'itemLedger'; data: ItemLedger }
+  | { kind: 'trialBalance'; data: TrialBalance }
+  | { kind: 'dayBook'; data: DayBookRow[] }
+  | { kind: 'daySummary'; data: DaySummary }
+  | { kind: 'outstanding'; data: PartyOutstanding[] }
+  | { kind: 'salesRegister'; data: Register }
+  | { kind: 'purchaseRegister'; data: Register }
+  | { kind: 'gstSummary'; data: GstSummary }
+  | { kind: 'gstr1'; data: Gstr1 }
+  | { kind: 'gstr3b'; data: Gstr3b }
+  | { kind: 'profitAndLoss'; data: ProfitAndLoss }
+  | { kind: 'balanceSheet'; data: BalanceSheet };
 
 export interface VoucherScreenSetup {
   today: string;
@@ -349,6 +405,11 @@ export const contract = {
     }),
   ),
   'party.delete': channel<z.ZodObject<{ id: typeof id }>, null>('edit_masters', z.object({ id })),
+  'report.run': channel<typeof reportRequest, ReportResult>('view_daily_reports', reportRequest),
+  'report.export': channel<typeof reportRequest, { saved: string | null }>(
+    'view_daily_reports',
+    reportRequest,
+  ),
   'account.search': channel<
     z.ZodObject<{
       text: z.ZodString;

@@ -7,6 +7,8 @@ import { HotkeyProvider, useCurrentHints, useHotkeys } from './lib/hotkeys.tsx';
 import { RouterProvider, useRouter } from './lib/router.tsx';
 import { SessionProvider } from './lib/session.tsx';
 import { Home } from './screens/Home.tsx';
+import { ReportScreen } from './screens/reports/ReportScreen.tsx';
+import { ReportsHub } from './screens/reports/ReportsHub.tsx';
 import { ItemForm } from './screens/masters/ItemForm.tsx';
 import { ItemList } from './screens/masters/ItemList.tsx';
 import { PartyForm } from './screens/masters/PartyForm.tsx';
@@ -26,6 +28,19 @@ function Screens({
 }) {
   const router = useRouter();
   useHotkeys({ Escape: router.back });
+  if (router.route.name === 'reports') return <ReportsHub />;
+  if (router.route.name === 'report') {
+    const r = router.route;
+    return (
+      <ReportScreen
+        key={`${r.kind}-${r.accountId ?? ''}`}
+        kind={r.kind}
+        accountId={r.accountId}
+        accountName={r.accountName}
+        side={r.side}
+      />
+    );
+  }
   if (router.route.name === 'items') return <ItemList />;
   if (router.route.name === 'item')
     return <ItemForm key={router.route.id ?? 'new'} id={router.route.id} />;

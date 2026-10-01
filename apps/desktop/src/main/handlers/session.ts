@@ -5,6 +5,7 @@ import {
   outstanding,
   stockStatus,
   currentSchemaVersion,
+  financialYearOn,
   getCompany,
   isSetupComplete,
   listUsers,
@@ -14,8 +15,10 @@ import type { Handlers, HandlerContext } from '../ipc.ts';
 import type { SessionState } from '../../ipc/contract.ts';
 
 export function sessionState(ctx: Omit<HandlerContext, 'user'>): SessionState {
+  const fy = financialYearOn(ctx.db, ctx.today());
   return {
     setupComplete: isSetupComplete(ctx.db),
+    financialYear: fy ? { startDate: fy.startDate, endDate: fy.endDate, label: fy.label } : null,
     user: ctx.session.user,
     today: ctx.today(),
     company: getCompany(ctx.db) ?? null,

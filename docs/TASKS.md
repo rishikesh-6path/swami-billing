@@ -35,7 +35,7 @@ P3-02 | todo | App shell: login, first-run setup, home tiles, global shortcuts, 
 P3-03 | done | Masters screens (keyboard-only) | E2E create item by keyboard | P0-kickoff
 P3-04 | done | Sales bill screen (grid, lookup, sundries, tax preview, settlement) | E2E keyboard-only 5-line bill | P0-kickoff
 P3-05 | done | Purchase, returns, receipt, payment, journal, contra, notes, stock journal, physical stock screens | E2E receipt then ledger | P0-kickoff
-P3-06 | todo | Report screens + exports | E2E |
+P3-06 | done | Report screens + exports | E2E | P0-kickoff
 P3-07 | todo | Voucher list, modify, cancel, audit viewer | E2E cancel verifies reversal |
 P3-08 | todo | Print: A4 invoice, 80 mm thermal, PDF | unit tests on HTML; manual printer check |
 

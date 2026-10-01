@@ -7,6 +7,8 @@ export interface Launched {
   app: ElectronApplication;
   page: Page;
   dbPath: string;
+  /** Where exports are written when `exportDir` was asked for. */
+  exportPath: string;
   close: () => Promise<void>;
 }
 
@@ -14,7 +16,9 @@ export interface Launched {
  * Starts ShopLedger against a fresh temporary database. With `demo`, a sample shop is loaded
  * (Owner PIN 1234, Staff PIN 1111). The date is pinned so results do not depend on the day.
  */
-export async function launch(options: { demo?: boolean; today?: string } = {}): Promise<Launched> {
+export async function launch(
+  options: { demo?: boolean; today?: string; exportDir?: boolean } = {},
+): Promise<Launched> {
   const dir = mkdtempSync(join(tmpdir(), 'shopledger-e2e-'));
   const dbPath = join(dir, 'shopledger.db');
   const runningAsRoot = process.platform === 'linux' && process.getuid?.() === 0;
@@ -29,6 +33,7 @@ export async function launch(options: { demo?: boolean; today?: string } = {}): 
       SHOPLEDGER_DB_PATH: dbPath,
       SHOPLEDGER_TODAY: options.today ?? '2026-10-15',
       ...(options.demo ? { SHOPLEDGER_DEMO: '1' } : {}),
+      ...(options.exportDir ? { SHOPLEDGER_EXPORT_DIR: join(dir, 'exports') } : {}),
     },
   });
   const page = await app.firstWindow();
@@ -37,6 +42,7 @@ export async function launch(options: { demo?: boolean; today?: string } = {}): 
     app,
     page,
     dbPath,
+    exportPath: join(dir, 'exports'),
     close: async () => {
       await app.close();
       rmSync(dir, { recursive: true, force: true });

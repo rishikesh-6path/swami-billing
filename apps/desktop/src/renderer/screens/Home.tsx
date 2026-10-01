@@ -27,6 +27,17 @@ export function Home({
   useHotkeys({
     F1: () => setHelp(true),
     U: signOut,
+    ...(session.user?.role === 'owner'
+      ? {
+          T: () => router.go({ name: 'report', kind: 'trialBalance' }),
+          B: () => router.go({ name: 'report', kind: 'balanceSheet' }),
+          V: () => router.go({ name: 'report', kind: 'gstSummary' }),
+        }
+      : {}),
+    L: () => router.go({ name: 'report', kind: 'ledger' }),
+    S: () => router.go({ name: 'report', kind: 'stock' }),
+    G: () => router.go({ name: 'report', kind: 'itemLedger' }),
+    R: () => router.go({ name: 'reports' }),
     F2: () => router.go({ name: 'item' }),
     F3: () => router.go({ name: 'party', kind: 'customer' }),
     F5: entry('payment'),
@@ -84,6 +95,7 @@ export function Home({
         <Tile title="Cash / Bank Transfer" onClick={entry('contra')} />
         <Tile title="Stock Journal" onClick={stock('stock_journal')} />
         <Tile title="Stock Count" onClick={stock('physical_stock')} />
+        <Tile title="Reports" keyName="R" onClick={() => router.go({ name: 'reports' })} />
         <Tile title="Items" keyName="F2 adds" onClick={() => router.go({ name: 'items' })} />
         <Tile
           title="Customers"
@@ -122,6 +134,16 @@ export function Home({
             </li>
             <li>
               <kbd>F3</kbd> Add a customer
+            </li>
+            <li>
+              <kbd>R</kbd> Reports
+            </li>
+            <li>
+              <kbd>L</kbd> Account ledger, <kbd>S</kbd> Stock, <kbd>G</kbd> Item history
+            </li>
+            <li>
+              <kbd>T</kbd> Trial balance, <kbd>B</kbd> Balance sheet, <kbd>V</kbd> GST summary
+              (owner)
             </li>
           </ul>
           <details>

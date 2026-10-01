@@ -684,3 +684,65 @@ tr.clickable {
 tr.clickable:hover td {
   background: var(--accent-soft);
 }
+
+/* ---- reports ---- */
+.report-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0 1.25rem;
+}
+
+.report-controls .field {
+  min-width: 14rem;
+}
+
+.row-bad td {
+  background: var(--danger-soft);
+}
+
+.row-warn td {
+  background: var(--warning-soft);
+}
+
+.wide-card {
+  grid-column: 1 / -1;
+}
+
+.bs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.bs-total {
+  font-size: 1.2rem;
+  border-top: 2px solid var(--text);
+  padding-top: 0.5rem;
+}
+
+/* printing: only the report, no buttons or key hints */
+@media print {
+  .status-bar,
+  .page-actions,
+  .report-controls,
+  .toast,
+  .btn {
+    display: none !important;
+  }
+
+  :root {
+    font-size: 12px;
+    background: #fff;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  table.data {
+    font-size: 11px;
+  }
+}
