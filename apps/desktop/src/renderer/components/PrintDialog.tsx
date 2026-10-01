@@ -53,7 +53,7 @@ export function PrintDialog({
       (e: unknown) => setError(e instanceof Error ? e.message : 'The PDF could not be saved.'),
     );
   };
-  useHotkeys({ Escape: onClose, Enter: print });
+  useHotkeys({ Escape: onClose, Enter: print }, true, true);
 
   return (
     <div className="overlay">

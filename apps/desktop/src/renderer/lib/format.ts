@@ -112,3 +112,20 @@ export const VOUCHER_LABELS: Record<string, string> = {
   stock_journal: 'Stock Journal',
   physical_stock: 'Physical Stock',
 };
+
+const SHOP_TIME = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kolkata',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/** An ISO time stamp (UTC, as stored) shown as shop time: "15-10-2026 14:05". */
+export function formatDateTime(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return SHOP_TIME.format(parsed).replace(',', '');
+}

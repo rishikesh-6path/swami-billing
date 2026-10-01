@@ -88,6 +88,8 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
             'Alt+C': () => (cancelled ? undefined : setAsking(true)),
             'Ctrl+P': () => (printable ? setPrinting(true) : undefined),
           },
+    true,
+    asking,
   );
   useHints(
     asking

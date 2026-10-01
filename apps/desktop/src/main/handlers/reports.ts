@@ -1,4 +1,5 @@
 import {
+  type Db,
   ValidationError,
   accountLedger,
   balanceSheet,
@@ -51,6 +52,20 @@ const NEEDS: Record<ReportRequest['kind'], Action> = {
   gstr3b: 'view_gst',
 };
 
+/** Staff may open the ledger of customers, suppliers, cash and bank only. */
+function staffMayOpenLedger(db: Db, accountId: number): boolean {
+  const row = db
+    .prepare(
+      `WITH RECURSIVE ok(id) AS (
+         SELECT id FROM account_group
+          WHERE name IN ('Sundry Debtors', 'Sundry Creditors', 'Cash-in-Hand', 'Bank Accounts')
+         UNION ALL SELECT g.id FROM account_group g JOIN ok ON g.parent_id = ok.id)
+       SELECT 1 AS found FROM account WHERE id = ? AND group_id IN (SELECT id FROM ok)`,
+    )
+    .get(accountId);
+  return row !== undefined;
+}
+
 function run(req: ReportRequest, ctx: HandlerContext): ReportResult {
   const user = ctx.user();
   if (!can(user.role, NEEDS[req.kind])) {
@@ -59,6 +74,9 @@ function run(req: ReportRequest, ctx: HandlerContext): ReportResult {
   const db = ctx.db;
   switch (req.kind) {
     case 'ledger':
+      if (!can(user.role, 'view_profit_and_loss') && !staffMayOpenLedger(db, req.accountId)) {
+        throw new ValidationError('This account is for the owner. Please ask the owner.');
+      }
       return { kind: 'ledger', data: accountLedger(db, req) };
     case 'stock':
       return {

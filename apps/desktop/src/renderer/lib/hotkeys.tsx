@@ -13,8 +13,14 @@ import {
 type Handler = () => void;
 type Lookup = (key: string) => Handler | undefined;
 
+interface Layer {
+  lookup: Lookup;
+  /** A modal layer (a dialog) keeps every key from reaching the screens underneath it. */
+  modal: boolean;
+}
+
 interface HotkeyApi {
-  add: (lookup: Lookup) => () => void;
+  add: (lookup: Lookup, modal: boolean) => () => void;
   hints: string[];
   setHints: (hints: string[]) => void;
 }
@@ -49,7 +55,7 @@ function isTyping(target: EventTarget | null): boolean {
  * Plain letters are never taken while the cursor is in a field.
  */
 export function HotkeyProvider({ children }: { children: ReactNode }) {
-  const layers = useRef<Lookup[]>([]);
+  const layers = useRef<Layer[]>([]);
   const [hints, setHints] = useState<string[]>([]);
 
   useEffect(() => {
@@ -57,14 +63,23 @@ export function HotkeyProvider({ children }: { children: ReactNode }) {
       const key = normaliseKey(e);
       const plainCharacter = key.length === 1 || key === 'Space';
       if (plainCharacter && isTyping(e.target)) return;
+      // Enter on a focused button or list presses that control, not a screen-wide shortcut
+      if (
+        key === 'Enter' &&
+        (e.target instanceof HTMLButtonElement || e.target instanceof HTMLSelectElement)
+      ) {
+        return;
+      }
       for (let i = layers.current.length - 1; i >= 0; i--) {
-        const handler = layers.current[i]?.(key);
+        const layer = layers.current[i];
+        const handler = layer?.lookup(key);
         if (handler) {
           e.preventDefault();
           e.stopPropagation();
           handler();
           return;
         }
+        if (layer?.modal) return;
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
@@ -72,10 +87,11 @@ export function HotkeyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // `add` must keep the same identity: layers register once and keep their stacking order.
-  const add = useCallback((lookup: Lookup) => {
-    layers.current.push(lookup);
+  const add = useCallback((lookup: Lookup, modal: boolean) => {
+    const layer = { lookup, modal };
+    layers.current.push(layer);
     return () => {
-      layers.current = layers.current.filter((l) => l !== lookup);
+      layers.current = layers.current.filter((l) => l !== layer);
     };
   }, []);
   const api = useMemo<HotkeyApi>(() => ({ add, hints, setHints }), [add, hints]);
@@ -89,7 +105,7 @@ function useApi(): HotkeyApi {
 }
 
 /** Registers keys for as long as the calling component is mounted (and `enabled`). */
-export function useHotkeys(keys: Record<string, Handler>, enabled = true): void {
+export function useHotkeys(keys: Record<string, Handler>, enabled = true, modal = false): void {
   const { add } = useApi();
   const latest = useRef(keys);
   // a layout effect, so a key pressed right after a render never sees the previous screen state
@@ -99,8 +115,8 @@ export function useHotkeys(keys: Record<string, Handler>, enabled = true): void 
   // also a layout effect: the layer exists the moment the screen is on display
   useLayoutEffect(() => {
     if (!enabled) return;
-    return add((key) => latest.current[key]);
-  }, [add, enabled]);
+    return add((key) => latest.current[key], modal);
+  }, [add, enabled, modal]);
 }
 
 /** Text for the status bar at the bottom: the keys that work on this screen. */

@@ -155,15 +155,17 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => confirmRef.current?.focus(), []);
-  useHotkeys({ Escape: onCancel, Y: onConfirm, N: onCancel });
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  // a destructive question starts on the safe answer, so a double tap of Enter cannot confirm it
+  useEffect(() => (danger ? cancelRef : confirmRef).current?.focus(), [danger]);
+  useHotkeys({ Escape: onCancel, Y: onConfirm, N: onCancel }, true, true);
   return (
     <div className="overlay">
       <div className="dialog" role="alertdialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         <div className="dialog-body">{children}</div>
         <div className="dialog-actions">
-          <Button variant="secondary" onClick={onCancel}>
+          <Button ref={cancelRef} variant="secondary" onClick={onCancel}>
             {cancelLabel}
           </Button>
           <Button ref={confirmRef} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
@@ -186,7 +188,7 @@ export function InfoDialog({
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => closeRef.current?.focus(), []);
-  useHotkeys({ Escape: onClose, Enter: onClose });
+  useHotkeys({ Escape: onClose, Enter: onClose }, true, true);
   return (
     <div className="overlay">
       <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>

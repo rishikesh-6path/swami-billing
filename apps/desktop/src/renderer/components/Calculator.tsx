@@ -10,7 +10,7 @@ export function Calculator({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
-  useHotkeys({ Escape: onClose, F10: onClose });
+  useHotkeys({ Escape: onClose, F10: onClose }, true, true);
 
   const work = () => {
     setError(null);

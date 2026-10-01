@@ -1,5 +1,7 @@
 import {
   ValidationError,
+  can,
+  transaction,
   createAccount,
   createItem,
   createItemGroup,
@@ -17,7 +19,16 @@ import {
   updateAccount,
   updateItem,
 } from '@shopledger/core';
-import type { Handlers } from '../ipc.ts';
+import type { HandlerContext, Handlers } from '../ipc.ts';
+
+const OPENINGS_FOR_OWNER =
+  'Opening balances and opening stock are entered by the owner. To add stock, make a purchase.';
+
+/** Staff cannot set or change opening balances or opening stock: they sit under every report. */
+function staffOpeningGuard(ctx: HandlerContext, changed: boolean): void {
+  if (changed && !can(ctx.user().role, 'edit_openings'))
+    throw new ValidationError(OPENINGS_FOR_OWNER);
+}
 
 export const masterHandlers: Pick<
   Handlers,
@@ -46,6 +57,13 @@ export const masterHandlers: Pick<
   'item.save': (req, ctx) => {
     const { id, taxRateBp, taxEffectiveFrom, isActive, ...fields } = req;
     const who = { userId: ctx.user().id };
+    const before = id === undefined ? undefined : getItem(ctx.db, id);
+    staffOpeningGuard(
+      ctx,
+      (fields.openingQty ?? before?.openingQty ?? 0) !== (before?.openingQty ?? 0) ||
+        (fields.openingRatePaise ?? before?.openingRatePaise ?? 0) !==
+          (before?.openingRatePaise ?? 0),
+    );
     if (id === undefined) {
       return createItem(
         ctx.db,
@@ -57,11 +75,14 @@ export const masterHandlers: Pick<
         who,
       );
     }
-    updateItem(ctx.db, id, { ...fields, ...(isActive !== undefined ? { isActive } : {}) }, who);
-    const current = getItem(ctx.db, id)?.rateBp;
-    if (taxRateBp !== undefined && taxRateBp !== current) {
-      setItemTaxRate(ctx.db, id, taxEffectiveFrom ?? ctx.today(), taxRateBp, who);
-    }
+    // the item and its new GST rate are saved together or not at all
+    transaction(ctx.db, () => {
+      updateItem(ctx.db, id, { ...fields, ...(isActive !== undefined ? { isActive } : {}) }, who);
+      const current = getItem(ctx.db, id)?.rateBp;
+      if (taxRateBp !== undefined && taxRateBp !== current) {
+        setItemTaxRate(ctx.db, id, taxEffectiveFrom ?? ctx.today(), taxRateBp, who);
+      }
+    });
     return id;
   },
   'item.delete': (req, ctx) => {
@@ -83,6 +104,12 @@ export const masterHandlers: Pick<
   'party.save': (req, ctx) => {
     const { id, kind, ...fields } = req;
     const who = { userId: ctx.user().id };
+    const before = id === undefined ? undefined : getAccount(ctx.db, id);
+    staffOpeningGuard(
+      ctx,
+      (fields.openingBalancePaise ?? before?.openingBalancePaise ?? 0) !==
+        (before?.openingBalancePaise ?? 0),
+    );
     if (id !== undefined) {
       updateAccount(ctx.db, id, fields, who);
       return id;

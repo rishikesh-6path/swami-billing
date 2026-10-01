@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { DataTable } from '../../components/DataTable.tsx';
 import { Button, LoadState, PageHeader } from '../../components/ui.tsx';
 import { useCall } from '../../lib/api.ts';
-import { formatDate } from '../../lib/format.ts';
+import { formatDateTime } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter } from '../../lib/router.tsx';
 
@@ -52,7 +52,7 @@ export function AuditScreen() {
           columns={[
             {
               header: 'When',
-              cell: (r) => `${formatDate(r.at.slice(0, 10))} ${r.at.slice(11, 16)}`,
+              cell: (r) => formatDateTime(r.at),
             },
             { header: 'Who', cell: (r) => r.userName ?? 'System' },
             { header: 'What happened', cell: (r) => ACTIONS[r.action] ?? r.action },

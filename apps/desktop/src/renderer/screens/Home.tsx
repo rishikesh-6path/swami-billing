@@ -17,6 +17,7 @@ export function Home({
   const summary = useCall('home.summary', {});
   const info = useCall('app.info', {});
   const [help, setHelp] = useState(false);
+  const isOwner = session.user?.role === 'owner';
   const signOut = () => void call('auth.logout', {}).then(onSession);
   const open = (kind: 'sales' | 'purchase' | 'sales_return' | 'purchase_return') => () =>
     router.go({ name: 'voucher', kind });
@@ -44,7 +45,7 @@ export function Home({
     F3: () => router.go({ name: 'party', kind: 'customer' }),
     F5: entry('payment'),
     F6: entry('receipt'),
-    F7: entry('journal'),
+    ...(isOwner ? { F7: entry('journal') } : {}),
     F8: open('sales'),
     F9: open('purchase'),
   });
@@ -96,10 +97,10 @@ export function Home({
         <Tile title="Purchase Return" onClick={open('purchase_return')} />
         <Tile title="Receipt (money in)" keyName="F6" onClick={entry('receipt')} />
         <Tile title="Payment (money out)" keyName="F5" onClick={entry('payment')} />
-        <Tile title="Journal Entry" keyName="F7" onClick={entry('journal')} />
+        {isOwner && <Tile title="Journal Entry" keyName="F7" onClick={entry('journal')} />}
         <Tile title="Cash / Bank Transfer" onClick={entry('contra')} />
-        <Tile title="Stock Journal" onClick={stock('stock_journal')} />
-        <Tile title="Stock Count" onClick={stock('physical_stock')} />
+        {isOwner && <Tile title="Stock Journal" onClick={stock('stock_journal')} />}
+        {isOwner && <Tile title="Stock Count" onClick={stock('physical_stock')} />}
         <Tile title="Find a Bill" keyName="D" onClick={() => router.go({ name: 'bills' })} />
         {session.user?.role === 'owner' && (
           <Tile title="Who Did What" onClick={() => router.go({ name: 'audit' })} />

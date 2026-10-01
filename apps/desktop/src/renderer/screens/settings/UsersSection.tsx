@@ -153,7 +153,7 @@ function PinDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
       (e: unknown) => setError(e instanceof Error ? e.message : 'The PIN could not be changed.'),
     );
   };
-  useHotkeys({ Escape: onClose });
+  useHotkeys({ Escape: onClose }, true, true);
   return (
     <div className="overlay">
       <form

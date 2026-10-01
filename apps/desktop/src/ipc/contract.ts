@@ -529,7 +529,7 @@ export const contract = {
   ),
   'voucher.cancel': channel<z.ZodObject<{ id: typeof id; reason: z.ZodString }>, null>(
     'cancel_voucher',
-    z.object({ id, reason: z.string().max(300) }),
+    z.object({ id, reason: z.string().trim().min(3).max(300) }),
   ),
   'voucher.modify': channel<
     z.ZodObject<{ id: typeof id; input: typeof voucherInput }>,
