@@ -159,7 +159,9 @@ describe('gstr1', () => {
       'b2cl.csv',
       'b2cs.csv',
       'cdnr.csv',
+      'cdnur.csv',
       'docs.csv',
+      'exemp.csv',
       'hsn.csv',
     ]);
     expect(files['b2b.csv']).toContain('33ABCDE1234F1Z5');

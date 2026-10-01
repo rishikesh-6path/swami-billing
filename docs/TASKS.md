@@ -17,14 +17,13 @@ P1-01 | dropped | Busy XML importer (masters) | standalone system | -
 P1-02 | dropped | Busy XML importer (vouchers) | standalone system | -
 P1-03 | done | Posting engine: sales, purchase, returns, entry vouchers, cancel with reversal | invariants §6 at 5,000 runs | P0-kickoff
 P1-04 | done | Account Ledger report | unit tests | P0-kickoff
-P1-05 | todo | Stock Status + Item Ledger | unit + invariant tests |
-P1-06 | todo | Trial Balance, Day Book, Day Summary, Outstanding, Sales/Purchase registers | unit + invariant tests |
-P1-07 | todo | GST Summary, GSTR-1 (tables 4, 7, 12, 13), GSTR-3B (3.1, 4) as CSV | unit tests, reviewer pass |
+P1-05 | done | Stock Status + Item Ledger | unit + invariant tests | P0-kickoff
+P1-06 | done | Trial Balance, Day Book, Day Summary, Outstanding, Sales/Purchase registers | unit + invariant tests | P0-kickoff
+P1-07 | done | GST Summary, GSTR-1 (tables 4, 7, 12, 13), GSTR-3B (3.1, 4) as CSV | unit tests, reviewer pass | P0-kickoff
 P1-08 | dropped | Busy reconciliation document | standalone system | -
-P1-09 | todo | P&L and Balance Sheet | balance sheet balances (property test) |
-
+P1-09 | done | P&L and Balance Sheet | balance sheet balances (property test) | P0-kickoff
 ## Phase 2 — Masters, users, remaining vouchers (core)
-P2-01 | todo | Masters CRUD with audit + alias-first item search | unit tests |
+P2-01 | done | Masters CRUD with audit + alias-first item search | unit tests | P0-kickoff
 P2-02 | todo | Financial year management, carry-forward, day close rules | unit tests |
 P2-03 | todo | Company profile, users, PIN (scrypt), roles, lockout, permissions | unit tests |
 P2-04 | todo | Stock Journal, Physical Stock, voucher modify, cash/bank leg checks, credit-note qty check | unit + invariant tests |

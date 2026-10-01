@@ -112,8 +112,14 @@ export function profitAndLoss(db: Db, args: { from: string; to: string }): Profi
     .map((a) => ({ accountId: a.id, name: a.name, amountPaise: net.get(a.id) ?? 0 }))
     .filter((l) => l.amountPaise !== 0);
 
-  const openingStockPaise = stockStatus(db, { asOn: previousDay(args.from) }).totalValuePaise;
-  const closingStockPaise = stockStatus(db, { asOn: args.to }).totalValuePaise;
+  const openingStockPaise = stockStatus(db, {
+    asOn: previousDay(args.from),
+    includeInactive: true,
+  }).totalValuePaise;
+  const closingStockPaise = stockStatus(db, {
+    asOn: args.to,
+    includeInactive: true,
+  }).totalValuePaise;
   const grossProfitPaise =
     sumOf(sales) +
     sumOf(directIncomes) +
@@ -184,7 +190,10 @@ export function balanceSheet(db: Db, args: { asOn: string }): BalanceSheet {
 
   const liabilities = sections('liability');
   const assets = sections('asset');
-  const closingStockPaise = stockStatus(db, { asOn: args.asOn }).totalValuePaise;
+  const closingStockPaise = stockStatus(db, {
+    asOn: args.asOn,
+    includeInactive: true,
+  }).totalValuePaise;
   const netProfitPaise = profitAndLoss(db, { from: BOOKS_START, to: args.asOn }).netProfitPaise;
 
   const assetTotal = assets.reduce((t, s) => t + s.totalPaise, 0) + closingStockPaise;

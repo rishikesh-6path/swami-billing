@@ -39,7 +39,7 @@ export function gstr3b(db: Db, period: GstPeriod): Gstr3b {
 
   const inter = new Map<string, { pos: string; taxablePaise: Paise; igstPaise: Paise }>();
   // 3.2 only breaks down supplies already shown in 3.1(a), i.e. taxable ones
-  for (const l of taxable.filter((l) => !isRegistered(l.gstin) && l.pos !== home)) {
+  for (const l of taxable.filter((l) => !isRegistered(l.gstin) && l.pos !== '' && l.pos !== home)) {
     const row = inter.get(l.pos) ?? { pos: l.pos, taxablePaise: 0, igstPaise: 0 };
     row.taxablePaise += l.sign * l.taxablePaise;
     row.igstPaise += l.sign * l.igstPaise;
@@ -69,21 +69,32 @@ export function gstr3b(db: Db, period: GstPeriod): Gstr3b {
 
 export function gstr3bToCsv(r: Gstr3b): string {
   const f = formatMoneyOrEmpty;
+  const t = r.taxableOutward;
   return toCsv(
-    ['Table', 'Description', 'Taxable value', 'Integrated tax', 'Central tax', 'State/UT tax'],
+    [
+      'Table',
+      'Description',
+      'Taxable value',
+      'Integrated tax',
+      'Central tax',
+      'State/UT tax',
+      'Total tax',
+    ],
     [
       [
         '3.1(a)',
         'Outward taxable supplies (other than zero rated, nil rated and exempted)',
-        f(r.taxableOutward.taxablePaise),
-        f(r.taxableOutward.igstPaise),
-        f(r.taxableOutward.cgstPaise),
-        f(r.taxableOutward.sgstPaise),
+        f(t.taxablePaise),
+        f(t.igstPaise),
+        f(t.cgstPaise),
+        f(t.sgstPaise),
+        f(t.igstPaise + t.cgstPaise + t.sgstPaise),
       ],
       [
         '3.1(c)',
         'Other outward supplies (nil rated, exempted)',
         f(r.nilExemptOutward.taxablePaise),
+        '',
         '',
         '',
         '',
@@ -95,9 +106,18 @@ export function gstr3bToCsv(r: Gstr3b): string {
         f(x.igstPaise),
         '',
         '',
+        f(x.igstPaise),
       ]),
-      ['4(A)(5)', 'All other ITC', '', f(r.itc.igstPaise), f(r.itc.cgstPaise), f(r.itc.sgstPaise)],
-      ['', 'Net tax payable (output tax minus ITC)', '', '', '', f(r.netTaxPayablePaise)],
+      [
+        '4(A)(5)',
+        'All other ITC',
+        '',
+        f(r.itc.igstPaise),
+        f(r.itc.cgstPaise),
+        f(r.itc.sgstPaise),
+        f(r.itc.igstPaise + r.itc.cgstPaise + r.itc.sgstPaise),
+      ],
+      ['', 'Net tax payable (output tax minus ITC)', '', '', '', '', f(r.netTaxPayablePaise)],
     ],
   );
 }

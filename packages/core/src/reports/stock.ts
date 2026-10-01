@@ -29,17 +29,17 @@ export interface StockStatus {
  */
 export function stockStatus(
   db: Db,
-  args: { asOn: string; groupId?: number; onlyProblems?: boolean },
+  args: { asOn: string; groupId?: number; onlyProblems?: boolean; includeInactive?: boolean },
 ): StockStatus {
   const items = db
     .prepare(
       `SELECT i.id, i.name, i.alias, i.opening_qty, i.opening_rate_paise, i.min_stock_qty,
               g.name AS group_name, u.name AS unit_name
        FROM item i JOIN item_group g ON g.id = i.group_id JOIN unit u ON u.id = i.unit_id
-       WHERE i.is_active = 1 AND (? IS NULL OR i.group_id = ?)
+       WHERE (i.is_active = 1 OR ? = 1) AND (? IS NULL OR i.group_id = ?)
        ORDER BY g.name, i.name`,
     )
-    .all(args.groupId ?? null, args.groupId ?? null);
+    .all(args.includeInactive ? 1 : 0, args.groupId ?? null, args.groupId ?? null);
 
   const moved = new Map<number, number>();
   for (const r of db
@@ -52,20 +52,22 @@ export function stockStatus(
     moved.set(Number(r['item_id']), Number(r['net']));
   }
 
-  // weighted-average cost basis: opening stock plus posted purchases up to the date
+  // weighted-average cost basis: opening stock plus purchases, less purchase returns at the price returned
   const purchased = new Map<number, { qty: Milli; cost: Paise }>();
   for (const r of db
     .prepare(
-      `SELECT m.item_id, m.qty_in, m.rate_paise
+      `SELECT m.item_id, v.voucher_type, m.qty_in, m.qty_out, m.rate_paise
        FROM stock_movement m JOIN voucher v ON v.id = m.voucher_id
-       WHERE v.status = 'posted' AND v.voucher_type = 'purchase' AND m.is_reversal = 0
-         AND m.date <= ?`,
+       WHERE v.status = 'posted' AND v.voucher_type IN ('purchase', 'purchase_return')
+         AND m.is_reversal = 0 AND m.date <= ?`,
     )
     .all(args.asOn)) {
     const id = Number(r['item_id']);
     const entry = purchased.get(id) ?? { qty: 0, cost: 0 };
-    entry.qty += Number(r['qty_in']);
-    entry.cost += lineAmount(Number(r['qty_in']), Number(r['rate_paise']));
+    const sign = r['voucher_type'] === 'purchase' ? 1 : -1;
+    const qty = Number(r['qty_in']) + Number(r['qty_out']);
+    entry.qty += sign * qty;
+    entry.cost += sign * lineAmount(qty, Number(r['rate_paise']));
     purchased.set(id, entry);
   }
 
@@ -74,8 +76,11 @@ export function stockStatus(
     const qty = Number(i['opening_qty']) + (moved.get(id) ?? 0);
     const openingQty = Math.max(Number(i['opening_qty']), 0);
     const bought = purchased.get(id) ?? { qty: 0, cost: 0 };
-    const basisQty = openingQty + bought.qty;
-    const basisCost = lineAmount(openingQty, Number(i['opening_rate_paise'])) + bought.cost;
+    const basisQty = Math.max(openingQty + bought.qty, 0);
+    const basisCost = Math.max(
+      lineAmount(openingQty, Number(i['opening_rate_paise'])) + bought.cost,
+      0,
+    );
     const onHand = Math.max(qty, 0);
     const valuePaise =
       basisQty > 0

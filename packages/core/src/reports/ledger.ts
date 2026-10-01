@@ -1,6 +1,7 @@
 import type { Db } from '../db/connection.ts';
 import type { Paise } from '../money.ts';
 import { formatBalance, formatMoneyOrEmpty, toCsv } from './csv.ts';
+import { financialYearStart, nominalAccountIds } from './periods.ts';
 
 export interface LedgerRow {
   voucherId: number;
@@ -41,15 +42,18 @@ export function accountLedger(
     .get(args.accountId);
   if (!account) throw new Error(`Account ${args.accountId} does not exist`);
 
+  // income and expense accounts start every financial year at zero
+  const isNominal = nominalAccountIds(db).has(args.accountId);
   const before = db
     .prepare(
       `SELECT COALESCE(SUM(j.dr_paise), 0) - COALESCE(SUM(j.cr_paise), 0) AS net
        FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
-       WHERE j.account_id = ? AND v.status = 'posted' AND v.date < ?`,
+       WHERE j.account_id = ? AND v.status = 'posted' AND v.date >= ? AND v.date < ?`,
     )
-    .get(args.accountId, args.from);
-  const masterOpening =
-    Number(account['opening_balance_paise']) * (account['opening_is_dr'] ? 1 : -1);
+    .get(args.accountId, isNominal ? financialYearStart(db, args.from) : '0000-01-01', args.from);
+  const masterOpening = isNominal
+    ? 0
+    : Number(account['opening_balance_paise']) * (account['opening_is_dr'] ? 1 : -1);
   const openingPaise = masterOpening + Number(before?.['net']);
 
   const movements = db

@@ -32,9 +32,10 @@ export function seedShop(): Shop {
   const db = freshDb();
   db.exec(`
     INSERT INTO financial_year (id, start_date, end_date) VALUES (1, '2026-04-01', '2027-03-31');
-    INSERT INTO account (id, name, group_id) VALUES
-      (11, 'AYAPPAN PIPE KUTTALAM', 12), (12, 'SELVAM TRADERS', 12), (13, 'GPAY SELVAM', 11),
-      (14, 'Discount Allowed', 9), (15, 'Freight Income', 8), (16, 'Packing Income', 8);
+    INSERT INTO setting (key, value) VALUES ('company.state_code', '33');
+    INSERT INTO account (id, name, group_id, state_code) VALUES
+      (11, 'AYAPPAN PIPE KUTTALAM', 12, '29'), (12, 'SELVAM TRADERS', 12, '29'), (13, 'GPAY SELVAM', 11, NULL),
+      (14, 'Discount Allowed', 9, NULL), (15, 'Freight Income', 8, NULL), (16, 'Packing Income', 8, NULL);
     INSERT INTO item_group (id, name) VALUES (1, 'GI FITTING');
     INSERT INTO item (id, name, alias, group_id, unit_id, hsn) VALUES
       (1, 'GI CLAMP', '1500', 1, 1, '73079990'),

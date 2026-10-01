@@ -70,37 +70,29 @@ export function gstSummary(db: Db, period: GstPeriod): GstSummary {
 }
 
 export function gstSummaryToCsv(s: GstSummary): string {
+  const f = formatMoneyOrEmpty;
   const rows = (label: string, list: RateRow[]) =>
     list.map((r) => [
       label,
       `${r.rateBp / 100}%`,
-      formatMoneyOrEmpty(r.taxablePaise),
-      formatMoneyOrEmpty(r.cgstPaise),
-      formatMoneyOrEmpty(r.sgstPaise),
-      formatMoneyOrEmpty(r.igstPaise),
+      f(r.taxablePaise),
+      f(r.cgstPaise),
+      f(r.sgstPaise),
+      f(r.igstPaise),
+      f(r.cgstPaise + r.sgstPaise + r.igstPaise),
     ]);
+  const total = (
+    label: string,
+    t: { cgstPaise: number; sgstPaise: number; igstPaise: number; totalPaise: number },
+  ) => [label, '', '', f(t.cgstPaise), f(t.sgstPaise), f(t.igstPaise), f(t.totalPaise)];
   return toCsv(
-    ['Side', 'Rate', 'Taxable value', 'CGST', 'SGST', 'IGST'],
+    ['Side', 'Rate', 'Taxable value', 'CGST', 'SGST', 'IGST', 'Total tax'],
     [
       ...rows('Sales (output)', s.output),
       ...rows('Purchases (input)', s.input),
-      [
-        'Tax on sales',
-        '',
-        '',
-        formatMoneyOrEmpty(s.outputTax.cgstPaise),
-        formatMoneyOrEmpty(s.outputTax.sgstPaise),
-        formatMoneyOrEmpty(s.outputTax.igstPaise),
-      ],
-      [
-        'Tax paid on purchases',
-        '',
-        '',
-        formatMoneyOrEmpty(s.inputTax.cgstPaise),
-        formatMoneyOrEmpty(s.inputTax.sgstPaise),
-        formatMoneyOrEmpty(s.inputTax.igstPaise),
-      ],
-      ['Net tax payable', '', '', '', '', formatMoneyOrEmpty(s.netPayablePaise)],
+      total('Tax on sales', s.outputTax),
+      total('Tax paid on purchases', s.inputTax),
+      ['Net tax payable', '', '', '', '', '', f(s.netPayablePaise)],
     ],
   );
 }

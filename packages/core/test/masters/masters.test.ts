@@ -31,6 +31,7 @@ import {
   listSaleTypes,
   listVoucherSeries,
 } from '../../src/masters/setup.ts';
+import { setSetting } from '../../src/settings.ts';
 import { isValidGstin } from '../../src/masters/validation.ts';
 import { count } from '../helpers/shop.ts';
 import { freshDb } from '../helpers/db.ts';
@@ -188,6 +189,7 @@ describe('items', () => {
     db.exec(
       "INSERT INTO financial_year (id, start_date, end_date) VALUES (1, '2026-04-01', '2027-03-31')",
     );
+    setSetting(db, 'company.state_code', '33');
     const id = createItem(db, {
       name: 'Clamp',
       groupId: group,

@@ -1,4 +1,5 @@
 import { transaction, type Db } from '../../db/connection.ts';
+import { getCompanyStateCode } from '../../settings.ts';
 import { computeItemVoucher, type ComputedVoucher } from './compute.ts';
 import {
   PostingError,
@@ -159,6 +160,8 @@ interface Header {
   input: VoucherInput;
   computed?: ComputedVoucher | undefined;
   totalPaise: number;
+  posStateCode?: string | null | undefined;
+  partyGstin?: string | null | undefined;
 }
 
 function insertHeader(db: Db, h: Header, now: string): number {
@@ -167,8 +170,8 @@ function insertHeader(db: Db, h: Header, now: string): number {
     .prepare(
       `INSERT INTO voucher (voucher_type, series_id, number, date, fy_id, party_account_id, sale_type_id,
          broker, narration, status, subtotal_paise, taxable_paise, tax_paise, round_off_paise, total_paise,
-         ref_voucher_id, created_by, created_at, modified_at, legacy_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ref_voucher_id, created_by, created_at, modified_at, legacy_ref, pos_state_code, party_gstin)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       h.type,
@@ -190,6 +193,8 @@ function insertHeader(db: Db, h: Header, now: string): number {
       now,
       now,
       h.input.legacyRef ?? null,
+      h.posStateCode ?? null,
+      h.partyGstin ?? null,
     );
   return Number(result.lastInsertRowid);
 }
@@ -240,6 +245,27 @@ function audit(
 
 function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean) {
   const rule = RULES[input.type];
+
+  // Place of supply and the party's GSTIN are frozen on the voucher (see migration 0004).
+  const home = getCompanyStateCode(db);
+  const party = row(db, 'SELECT gstin, state_code FROM account WHERE id = ?', input.partyAccountId);
+  if (!party) throw new PostingError(`Party account ${input.partyAccountId} does not exist`);
+  const partyState = party['state_code'] === null ? null : String(party['state_code']);
+  let posStateCode = home;
+  if (input.taxMode === 'interstate') {
+    if (!partyState) {
+      throw new PostingError("Please add the customer's state before making an interstate bill.");
+    }
+    if (partyState === home) {
+      throw new PostingError(
+        'This customer is in your own state, so the bill cannot be interstate.',
+      );
+    }
+    posStateCode = partyState;
+  } else if (input.taxMode === 'exempt') {
+    posStateCode = partyState ?? home;
+  }
+  const partyGstin = party['gstin'] === null ? null : String(party['gstin']);
   if (input.saleTypeId !== undefined) {
     const saleType = row(db, 'SELECT tax_mode FROM sale_type WHERE id = ?', input.saleTypeId);
     if (!saleType) throw new PostingError(`Sale type ${input.saleTypeId} does not exist`);
@@ -342,7 +368,7 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
       amountPaise: s.amountPaise,
     });
   }
-  return { computed, lines, sundryRows, drafts, settlements };
+  return { computed, lines, sundryRows, drafts, settlements, posStateCode, partyGstin };
 }
 
 /**
@@ -368,6 +394,8 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
           fyId,
           number,
           partyAccountId: input.partyAccountId,
+          posStateCode: built.posStateCode,
+          partyGstin: built.partyGstin,
           saleTypeId: input.saleTypeId ?? null,
           input,
           computed: built.computed,

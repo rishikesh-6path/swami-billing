@@ -1,6 +1,7 @@
 import type { Db } from '../db/connection.ts';
 import type { Paise } from '../money.ts';
 import { formatMoneyOrEmpty, toCsv } from './csv.ts';
+import { financialYearStart, nominalAccountIds } from './periods.ts';
 
 export interface TrialBalanceRow {
   accountId: number;
@@ -46,10 +47,20 @@ export function trialBalance(db: Db, args: { from: string; to: string }): TrialB
     }
     return map;
   };
+  const nominal = nominalAccountIds(db);
+  const yearStart = financialYearStart(db, args.from);
+  // real accounts carry every earlier movement forward; income and expense accounts only this year's
   const before = sums(
     `SELECT j.account_id, SUM(j.dr_paise) AS dr, SUM(j.cr_paise) AS cr
      FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
      WHERE v.status = 'posted' AND v.date < ? GROUP BY j.account_id`,
+    args.from,
+  );
+  const sinceYearStart = sums(
+    `SELECT j.account_id, SUM(j.dr_paise) AS dr, SUM(j.cr_paise) AS cr
+     FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
+     WHERE v.status = 'posted' AND v.date >= ? AND v.date < ? GROUP BY j.account_id`,
+    yearStart,
     args.from,
   );
   const during = sums(
@@ -64,9 +75,10 @@ export function trialBalance(db: Db, args: { from: string; to: string }): TrialB
   let openingDifference = 0;
   for (const a of accounts) {
     const id = Number(a['id']);
-    const prior = before.get(id) ?? { dr: 0, cr: 0 };
+    const isNominal = nominal.has(id);
+    const prior = (isNominal ? sinceYearStart : before).get(id) ?? { dr: 0, cr: 0 };
     const now = during.get(id) ?? { dr: 0, cr: 0 };
-    const openingPaise = Number(a['opening']) + prior.dr - prior.cr;
+    const openingPaise = (isNominal ? 0 : Number(a['opening'])) + prior.dr - prior.cr;
     openingDifference += Number(a['opening']);
     if (openingPaise === 0 && now.dr === 0 && now.cr === 0) continue;
     rows.push({
@@ -77,6 +89,29 @@ export function trialBalance(db: Db, args: { from: string; to: string }): TrialB
       drPaise: now.dr,
       crPaise: now.cr,
       closingPaise: openingPaise + now.dr - now.cr,
+    });
+  }
+  // Profit or loss of earlier years sits in the capital side; show it so the trial balance still balances.
+  const broughtForward = [...nominal].reduce((total, id) => {
+    const master = accounts.find((a) => Number(a['id']) === id);
+    const earlier = db
+      .prepare(
+        `SELECT COALESCE(SUM(j.dr_paise), 0) - COALESCE(SUM(j.cr_paise), 0) AS net
+         FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
+         WHERE j.account_id = ? AND v.status = 'posted' AND v.date < ?`,
+      )
+      .get(id, yearStart);
+    return total + Number(master?.['opening'] ?? 0) + Number(earlier?.['net']);
+  }, 0);
+  if (broughtForward !== 0) {
+    rows.push({
+      accountId: 0,
+      accountName: 'Profit and loss brought forward',
+      groupName: 'Capital Account',
+      openingPaise: broughtForward,
+      drPaise: 0,
+      crPaise: 0,
+      closingPaise: broughtForward,
     });
   }
   const sum = (pick: (r: TrialBalanceRow) => number) => rows.reduce((t, r) => t + pick(r), 0);

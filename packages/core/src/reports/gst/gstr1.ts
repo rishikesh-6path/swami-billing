@@ -41,8 +41,12 @@ export interface B2cRow {
 export interface NoteRow extends InvoiceRateRow {
   refDocNumber: string | null;
   refDate: string | null;
-  /** 'cdnr' for registered recipients, 'cdnur' otherwise. */
+  /** 'cdnr' for registered recipients, 'cdnur' for large inter-state notes to unregistered ones. */
   kind: 'cdnr' | 'cdnur';
+}
+export interface NilRatedRow {
+  description: string;
+  taxablePaise: Paise;
 }
 export interface HsnRow {
   hsn: string;
@@ -64,36 +68,38 @@ export interface DocumentsRow {
 }
 export interface Gstr1 {
   period: GstPeriod;
-  /** Table 4: supplies to registered persons. */
+  /** Table 4: taxable supplies to registered persons. */
   b2b: InvoiceRateRow[];
-  /** Table 5: inter-state supplies to unregistered persons above the large-invoice limit. */
+  /** Table 5: inter-state taxable supplies to unregistered persons above the large-invoice limit. */
   b2cl: InvoiceRateRow[];
-  /** Table 7: all other supplies to unregistered persons, by place of supply and rate. */
+  /**
+   * Table 7: all other taxable supplies to unregistered persons, by place of supply and rate.
+   * Credit notes against these invoices reduce the figures here and are not listed separately.
+   */
   b2cs: B2cRow[];
-  /** Table 9B: credit notes. */
+  /** Table 9B: credit notes to registered persons (cdnr) and against table 5 invoices (cdnur). */
   notes: NoteRow[];
+  /** Table 8: nil-rated and exempt supplies, net of returns. Nil-rated and exempt are not told apart. */
+  nilRated: NilRatedRow[];
   /** Table 12: HSN summary of outward supplies, net of returns. */
   hsn: HsnRow[];
   /** Table 13: documents issued, including cancelled numbers. */
   documents: DocumentsRow[];
 }
 
-const sumInto = <T extends B2cRow>(map: Map<string, T>, key: string, make: () => T, l: GstLine) => {
-  const row = map.get(key) ?? make();
-  row.taxablePaise += l.sign * l.taxablePaise;
-  row.cgstPaise += l.sign * l.cgstPaise;
-  row.sgstPaise += l.sign * l.sgstPaise;
-  row.igstPaise += l.sign * l.igstPaise;
-  map.set(key, row);
-};
-
 export function gstr1(db: Db, period: GstPeriod): Gstr1 {
   const home = companyStateCode(db);
-  const lines = gstLines(db, period).filter(
+  const all = gstLines(db, period).filter(
     (l) => l.voucherType === 'sales' || l.voucherType === 'sales_return',
   );
-  const invoices = lines.filter((l) => l.voucherType === 'sales');
-  const credit = lines.filter((l) => l.voucherType === 'sales_return');
+  const taxed = all.filter((l) => l.rateBp > 0);
+  const invoices = taxed.filter((l) => l.voucherType === 'sales');
+  const notes = taxed.filter((l) => l.voucherType === 'sales_return');
+
+  const isInterState = (l: GstLine) => l.pos !== '' && l.pos !== home;
+  // an invoice is "large" on its own value; a credit note follows the invoice it refers to
+  const isLarge = (l: GstLine) =>
+    isInterState(l) && (l.refTotalPaise ?? l.voucherTotalPaise) > B2C_LARGE_LIMIT_PAISE;
 
   const perInvoiceRate = (src: GstLine[]) => {
     const map = new Map<string, InvoiceRateRow>();
@@ -124,43 +130,58 @@ export function gstr1(db: Db, period: GstPeriod): Gstr1 {
     return [...map.values()];
   };
 
-  const registered = invoices.filter((l) => isRegistered(l.gstin));
-  const unregistered = invoices.filter((l) => !isRegistered(l.gstin));
-  const isLarge = (l: GstLine) => l.pos !== home && l.voucherTotalPaise > B2C_LARGE_LIMIT_PAISE;
+  const registeredInvoices = invoices.filter((l) => isRegistered(l.gstin));
+  const unregisteredInvoices = invoices.filter((l) => !isRegistered(l.gstin));
+  const registeredNotes = notes.filter((l) => isRegistered(l.gstin));
+  const unregisteredNotes = notes.filter((l) => !isRegistered(l.gstin));
+  const largeInvoices = unregisteredInvoices.filter(isLarge);
+  const largeNotes = unregisteredNotes.filter(isLarge);
 
+  // table 7: small unregistered invoices, less notes against such invoices
   const b2cs = new Map<string, B2cRow>();
-  for (const l of [
-    ...unregistered.filter((l) => !isLarge(l)),
-    ...credit.filter((l) => !isRegistered(l.gstin) && !isLarge(l)),
-  ]) {
-    sumInto(
-      b2cs,
-      `${l.pos}|${l.rateBp}`,
-      () => ({
-        pos: l.pos,
+  const smallInvoices = unregisteredInvoices.filter((l) => !isLarge(l));
+  const smallNotes = unregisteredNotes.filter((l) => !isLarge(l));
+  for (const l of [...smallInvoices, ...smallNotes]) {
+    const key = `${l.pos}|${l.rateBp}`;
+    const row =
+      b2cs.get(key) ??
+      ({
+        pos: l.pos || home,
         rateBp: l.rateBp,
         taxablePaise: 0,
         cgstPaise: 0,
         sgstPaise: 0,
         igstPaise: 0,
-      }),
-      l,
-    );
+      } satisfies B2cRow);
+    row.taxablePaise += l.sign * l.taxablePaise;
+    row.cgstPaise += l.sign * l.cgstPaise;
+    row.sgstPaise += l.sign * l.sgstPaise;
+    row.igstPaise += l.sign * l.igstPaise;
+    b2cs.set(key, row);
   }
 
-  const noteRows = (src: GstLine[]): NoteRow[] =>
+  const noteRows = (src: GstLine[], kind: NoteRow['kind']): NoteRow[] =>
     perInvoiceRate(src).map((r) => {
       const l = src.find((x) => x.voucherId === r.voucherId)!;
-      return {
-        ...r,
-        refDocNumber: l.refDocNumber,
-        refDate: l.refDate,
-        kind: isRegistered(l.gstin) ? 'cdnr' : 'cdnur',
-      };
+      return { ...r, refDocNumber: l.refDocNumber, refDate: l.refDate, kind };
     });
 
+  const nilBuckets = new Map<string, number>();
+  for (const l of all.filter((x) => x.rateBp === 0)) {
+    const where = isInterState(l) ? 'Inter-State' : 'Intra-State';
+    const who = isRegistered(l.gstin) ? 'registered' : 'unregistered';
+    const key = `${where} supplies to ${who} persons`;
+    nilBuckets.set(key, (nilBuckets.get(key) ?? 0) + l.sign * l.taxablePaise);
+  }
+  const nilRated = [
+    'Inter-State supplies to registered persons',
+    'Intra-State supplies to registered persons',
+    'Inter-State supplies to unregistered persons',
+    'Intra-State supplies to unregistered persons',
+  ].map((description) => ({ description, taxablePaise: nilBuckets.get(description) ?? 0 }));
+
   const hsn = new Map<string, HsnRow>();
-  for (const l of lines) {
+  for (const l of all) {
     const uqc = unitCode(l.unit);
     const key = `${l.hsn ?? ''}|${uqc}|${l.rateBp}`;
     const row =
@@ -185,14 +206,15 @@ export function gstr1(db: Db, period: GstPeriod): Gstr1 {
     hsn.set(key, row);
   }
 
-  const docs = db
+  const documents = db
     .prepare(
       `SELECT v.voucher_type, s.prefix, s.name, MIN(v.number) AS lo, MAX(v.number) AS hi,
               COUNT(*) AS total, SUM(v.status = 'cancelled') AS cancelled
        FROM voucher v JOIN voucher_series s ON s.id = v.series_id
-       WHERE v.voucher_type IN ('sales', 'sales_return') AND v.status <> 'draft'
+       WHERE v.voucher_type IN ('sales', 'sales_return', 'credit_note') AND v.status <> 'draft'
          AND v.date BETWEEN ? AND ?
-       GROUP BY v.voucher_type, v.series_id, v.fy_id ORDER BY v.voucher_type, s.name`,
+       GROUP BY v.voucher_type, v.series_id, v.fy_id
+       ORDER BY CASE v.voucher_type WHEN 'sales' THEN 0 ELSE 1 END, v.voucher_type, s.name`,
     )
     .all(period.from, period.to)
     .map((r): DocumentsRow => ({
@@ -203,15 +225,15 @@ export function gstr1(db: Db, period: GstPeriod): Gstr1 {
       cancelled: Number(r['cancelled']),
     }));
 
-  const larges = unregistered.filter(isLarge);
   return {
     period,
-    b2b: perInvoiceRate(registered),
-    b2cl: perInvoiceRate(larges),
+    b2b: perInvoiceRate(registeredInvoices),
+    b2cl: perInvoiceRate(largeInvoices),
     b2cs: [...b2cs.values()].sort((a, b) => a.pos.localeCompare(b.pos) || a.rateBp - b.rateBp),
-    notes: noteRows(credit),
+    notes: [...noteRows(registeredNotes, 'cdnr'), ...noteRows(largeNotes, 'cdnur')],
+    nilRated,
     hsn: [...hsn.values()].sort((a, b) => a.hsn.localeCompare(b.hsn) || a.rateBp - b.rateBp),
-    documents: docs,
+    documents,
   };
 }
 
@@ -219,6 +241,8 @@ const m = (p: Paise) => formatMoney(p);
 
 /** CSV files named as in the GST offline tool; headers should be re-checked with the CA before filing. */
 export function gstr1ToCsvFiles(r: Gstr1): Record<string, string> {
+  const cdnr = r.notes.filter((x) => x.kind === 'cdnr');
+  const cdnur = r.notes.filter((x) => x.kind === 'cdnur');
   return {
     'b2b.csv': toCsv(
       [
@@ -314,25 +338,62 @@ export function gstr1ToCsvFiles(r: Gstr1): Record<string, string> {
         'Original Invoice Number',
         'Original Invoice Date',
       ],
-      r.notes
-        .filter((x) => x.kind === 'cdnr')
-        .map((x) => [
-          x.gstin,
-          x.partyName,
-          x.docNumber,
-          offlineDate(x.date),
-          'C',
-          placeOfSupplyLabel(x.pos),
-          'N',
-          'Regular B2B',
-          m(x.invoiceValuePaise),
-          '',
-          ratePercent(x.rateBp),
-          m(x.taxablePaise),
-          '0.00',
-          x.refDocNumber,
-          x.refDate ? offlineDate(x.refDate) : '',
-        ]),
+      cdnr.map((x) => [
+        x.gstin,
+        x.partyName,
+        x.docNumber,
+        offlineDate(x.date),
+        'C',
+        placeOfSupplyLabel(x.pos),
+        'N',
+        'Regular B2B',
+        m(x.invoiceValuePaise),
+        '',
+        ratePercent(x.rateBp),
+        m(x.taxablePaise),
+        '0.00',
+        x.refDocNumber,
+        x.refDate ? offlineDate(x.refDate) : '',
+      ]),
+    ),
+    'cdnur.csv': toCsv(
+      [
+        'UR Type',
+        'Note Number',
+        'Note Date',
+        'Note Type',
+        'Place Of Supply',
+        'Note Value',
+        'Applicable % of Tax Rate',
+        'Rate',
+        'Taxable Value',
+        'Cess Amount',
+        'Original Invoice Number',
+        'Original Invoice Date',
+      ],
+      cdnur.map((x) => [
+        'B2CL',
+        x.docNumber,
+        offlineDate(x.date),
+        'C',
+        placeOfSupplyLabel(x.pos),
+        m(x.invoiceValuePaise),
+        '',
+        ratePercent(x.rateBp),
+        m(x.taxablePaise),
+        '0.00',
+        x.refDocNumber,
+        x.refDate ? offlineDate(x.refDate) : '',
+      ]),
+    ),
+    'exemp.csv': toCsv(
+      [
+        'Description',
+        'Nil Rated Supplies',
+        'Exempted (other than nil rated/non GST supply)',
+        'Non-GST supplies',
+      ],
+      r.nilRated.map((x) => [x.description, m(x.taxablePaise), '0.00', '0.00']),
     ),
     'hsn.csv': toCsv(
       [

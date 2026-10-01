@@ -1,5 +1,6 @@
 import type { Db } from '../../db/connection.ts';
 import type { BasisPoints, Milli, Paise } from '../../money.ts';
+import { getCompanyStateCode } from '../../settings.ts';
 
 /** GST state / UT codes and names, as used in "Place of Supply" on returns. */
 export const STATE_NAMES: Record<string, string> = {
@@ -116,6 +117,8 @@ export interface GstLine {
   voucherTotalPaise: Paise;
   refDocNumber: string | null;
   refDate: string | null;
+  /** Total of the original invoice a return refers to. */
+  refTotalPaise: Paise | null;
   hsn: string | null;
   unit: string;
   rateBp: BasisPoints;
@@ -129,10 +132,8 @@ export interface GstLine {
   igstPaise: Paise;
 }
 
-export function companyStateCode(db: Db): string {
-  const row = db.prepare("SELECT value FROM setting WHERE key = 'company.state_code'").get();
-  return row ? String(row['value']) : '33';
-}
+/** The shop's GST state; reports that split local from inter-state supplies need it. */
+export const companyStateCode = getCompanyStateCode;
 
 export function isRegistered(gstin: string | null): boolean {
   return gstin !== null && gstin.trim() !== '';
@@ -140,11 +141,12 @@ export function isRegistered(gstin: string | null): boolean {
 
 /** All posted item lines of the four item-voucher types in a period. */
 export function gstLines(db: Db, period: GstPeriod): GstLine[] {
-  const home = companyStateCode(db);
   return db
     .prepare(
       `SELECT v.id, v.voucher_type, s.prefix, v.number, v.date, v.total_paise,
-              a.name AS party, a.gstin, a.state_code,
+              a.name AS party, CASE WHEN v.pos_state_code IS NOT NULL THEN v.party_gstin ELSE a.gstin END AS gstin,
+              COALESCE(v.pos_state_code, a.state_code) AS state_code,
+              r.total_paise AS ref_total,
               r.date AS ref_date, rs.prefix AS ref_prefix, r.number AS ref_number,
               vi.hsn, u.name AS unit, vi.tax_rate_bp, vi.qty, vi.amount_paise, vi.taxable_paise,
               vi.cgst_paise, vi.sgst_paise, vi.igst_paise
@@ -170,11 +172,13 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
         date: String(r['date']),
         partyName: r['party'] === null ? null : String(r['party']),
         gstin: r['gstin'] === null ? null : String(r['gstin']),
-        pos: r['state_code'] === null ? home : String(r['state_code']),
+        // vouchers made before place of supply was frozen fall back to the party master
+        pos: r['state_code'] === null ? '' : String(r['state_code']),
         voucherTotalPaise: Number(r['total_paise']),
         refDocNumber:
           r['ref_number'] === null ? null : `${String(r['ref_prefix'])}${Number(r['ref_number'])}`,
         refDate: r['ref_date'] === null ? null : String(r['ref_date']),
+        refTotalPaise: r['ref_total'] === null ? null : Number(r['ref_total']),
         hsn: r['hsn'] === null ? null : String(r['hsn']),
         unit: String(r['unit']),
         rateBp: Number(r['tax_rate_bp']),

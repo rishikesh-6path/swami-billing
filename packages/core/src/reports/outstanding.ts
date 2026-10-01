@@ -61,6 +61,9 @@ export function outstanding(
      GROUP BY v.id ORDER BY v.date, v.id`,
   );
 
+  const booksStart = db.prepare('SELECT MIN(start_date) AS d FROM financial_year').get();
+  const openingDate = booksStart?.['d'] == null ? null : String(booksStart['d']);
+
   const result: PartyOutstanding[] = [];
   for (const a of accounts) {
     const creditDays = Number(a['credit_days']);
@@ -86,7 +89,8 @@ export function outstanding(
     };
 
     const opening = sign * Number(a['opening']);
-    if (opening > 0) open.push({ voucherId: null, date: null, number: null, amount: opening });
+    if (opening > 0)
+      open.push({ voucherId: null, date: openingDate, number: null, amount: opening });
     else apply(opening);
 
     for (const m of movements.all(Number(a['id']), args.asOn)) {
