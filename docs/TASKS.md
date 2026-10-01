@@ -12,10 +12,10 @@ P0-05 | done | Typed IPC contract (zod) with one channel `app.info` → renderer
 P0-06 | done | Vitest, fast-check, Playwright wired; `.claude/settings.json` hooks active; DECISIONS.md and SESSION_LOG.md seeded | `pnpm test` and `pnpm e2e` pass | P0-kickoff
 
 ## Phase 1 — Import and read-only truth
-P1-00 | todo | Money/quantity helpers + domain schema migration (KICKOFF §6 tables) | unit + fast-check tests, schema applies on :memory: |
+P1-00 | done | Money/quantity helpers + domain schema migration (KICKOFF §6 tables) | unit + fast-check tests, schema applies on :memory: | P0-kickoff
 P1-01 | todo | Busy XML streaming parser: masters | sample fixture parses; idempotent re-import |
 P1-02 | todo | Busy XML parser: all voucher types; exceptions CSV | every voucher type in sample imported |
-P1-03 | todo | Posting engine (journal + stock lines) for all voucher types | fast-check invariants §6, 500 runs |
+P1-03 | doing | Posting engine (journal + stock lines) for all voucher types | fast-check invariants §6, 500 runs |
 P1-04 | todo | Account Ledger report + golden-file harness | ledger_ayappan.csv matches |
 P1-05 | todo | Stock Status + Item Ledger reports | stock_status.csv matches |
 P1-06 | todo | Trial Balance + Day Book | trial_balance.csv matches |

@@ -100,9 +100,8 @@ export function taxOn(taxable: Paise, rateBp: BasisPoints): Paise {
 }
 
 /**
- * Splits an intra-state tax figure into CGST and SGST. Each half is computed from half the
- * rate so rate-wise totals match the invoice tax table; when the total is odd paise the
- * extra paisa goes to CGST so the halves always sum to the whole.
+ * Splits an intra-state tax figure (already rounded for the line) into CGST and SGST. When
+ * the total is odd paise the extra paisa goes to CGST so the halves always sum to the whole.
  */
 export function splitCgstSgst(totalTax: Paise): { cgst: Paise; sgst: Paise } {
   const sgst = Math.floor(totalTax / 2);

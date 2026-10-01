@@ -1,0 +1,483 @@
+import { transaction, type Db } from '../../db/connection.ts';
+import { computeItemVoucher, type ComputedVoucher } from './compute.ts';
+import {
+  PostingError,
+  UnbalancedVoucherError,
+  type EntryVoucherInput,
+  type ItemVoucherInput,
+  type ItemVoucherType,
+  type PostedVoucher,
+  type VoucherInput,
+} from './types.ts';
+
+/*
+ * Posting rules (D = debit, C = credit). "Party" is the customer/supplier account.
+ *
+ *   type             party  goods acct   tax accts   stock
+ *   sales            D      Sales C      Output C    out
+ *   sales_return     C      Sales D      Output D    in
+ *   purchase         C      Purchase D   Input D     in
+ *   purchase_return  D      Purchase C   Input C     out
+ *
+ * Bill sundries post to their own account on the goods side when they add to the invoice
+ * (sign +1) and on the opposite side when they subtract. Round-off follows the same rule.
+ * A settlement (cash/UPI received or paid on the spot) debits/credits the settlement account
+ * on the party's side and takes the opposite side against the party.
+ * Entry vouchers (receipt, payment, journal, contra, debit/credit note) post their entries as given.
+ */
+interface Rule {
+  partySide: 'dr' | 'cr';
+  goodsAccount: 'Sales' | 'Purchase';
+  taxPrefix: 'Output' | 'Input';
+  stock: 'in' | 'out';
+}
+
+const RULES: Record<ItemVoucherType, Rule> = {
+  sales: { partySide: 'dr', goodsAccount: 'Sales', taxPrefix: 'Output', stock: 'out' },
+  sales_return: { partySide: 'cr', goodsAccount: 'Sales', taxPrefix: 'Output', stock: 'in' },
+  purchase: { partySide: 'cr', goodsAccount: 'Purchase', taxPrefix: 'Input', stock: 'in' },
+  purchase_return: { partySide: 'dr', goodsAccount: 'Purchase', taxPrefix: 'Input', stock: 'out' },
+};
+
+type Side = 'dr' | 'cr';
+const opposite = (side: Side): Side => (side === 'dr' ? 'cr' : 'dr');
+
+interface JournalDraft {
+  accountId: number;
+  side: Side;
+  amountPaise: number;
+}
+
+function row(db: Db, sql: string, ...params: (string | number)[]) {
+  return db.prepare(sql).get(...params);
+}
+
+function systemAccountId(db: Db, name: string): number {
+  const found = row(db, 'SELECT id FROM account WHERE name = ? AND is_system = 1', name);
+  if (!found) throw new PostingError(`System account "${name}" is missing`);
+  return Number(found['id']);
+}
+
+function financialYearFor(db: Db, date: string): number {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new PostingError(`Invalid date "${date}"`);
+  const fy = row(
+    db,
+    'SELECT id, is_locked FROM financial_year WHERE start_date <= ? AND end_date >= ?',
+    date,
+    date,
+  );
+  if (!fy) throw new PostingError(`No financial year covers ${date}`);
+  if (fy['is_locked']) throw new PostingError(`The financial year for ${date} is locked`);
+  return Number(fy['id']);
+}
+
+/** Next gap-free number for (type, series, fy). Must be called inside the insert transaction. */
+function nextNumber(db: Db, type: string, seriesId: number, fyId: number): number {
+  const series = row(db, 'SELECT voucher_type FROM voucher_series WHERE id = ?', seriesId);
+  if (!series) throw new PostingError(`Voucher series ${seriesId} does not exist`);
+  if (series['voucher_type'] !== type) {
+    throw new PostingError(
+      `Series ${seriesId} is for ${String(series['voucher_type'])}, not ${type}`,
+    );
+  }
+  db.prepare(
+    'INSERT OR IGNORE INTO voucher_counter (voucher_type, series_id, fy_id, last_no) VALUES (?, ?, ?, 0)',
+  ).run(type, seriesId, fyId);
+  db.prepare(
+    'UPDATE voucher_counter SET last_no = last_no + 1 WHERE voucher_type = ? AND series_id = ? AND fy_id = ?',
+  ).run(type, seriesId, fyId);
+  const counter = row(
+    db,
+    'SELECT last_no FROM voucher_counter WHERE voucher_type = ? AND series_id = ? AND fy_id = ?',
+    type,
+    seriesId,
+    fyId,
+  );
+  return Number(counter?.['last_no']);
+}
+
+function resolveTaxRate(db: Db, itemId: number, date: string): number | undefined {
+  const rate = row(
+    db,
+    'SELECT rate_bp FROM item_tax_rate WHERE item_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
+    itemId,
+    date,
+  );
+  return rate ? Number(rate['rate_bp']) : undefined;
+}
+
+interface Header {
+  type: string;
+  seriesId: number;
+  date: string;
+  fyId: number;
+  number: number;
+  partyAccountId: number | null;
+  saleTypeId: number | null;
+  input: VoucherInput;
+  computed?: ComputedVoucher | undefined;
+  totalPaise: number;
+}
+
+function insertHeader(db: Db, h: Header, now: string): number {
+  const c = h.computed;
+  const result = db
+    .prepare(
+      `INSERT INTO voucher (voucher_type, series_id, number, date, fy_id, party_account_id, sale_type_id,
+         broker, narration, status, subtotal_paise, taxable_paise, tax_paise, round_off_paise, total_paise,
+         ref_voucher_id, created_by, created_at, modified_at, legacy_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      h.type,
+      h.seriesId,
+      h.number,
+      h.date,
+      h.fyId,
+      h.partyAccountId,
+      h.saleTypeId,
+      h.input.broker ?? null,
+      h.input.narration ?? null,
+      c?.subtotalPaise ?? 0,
+      c?.taxablePaise ?? 0,
+      c?.taxPaise ?? 0,
+      c?.roundOffPaise ?? 0,
+      h.totalPaise,
+      h.input.refVoucherId ?? null,
+      h.input.createdBy ?? null,
+      now,
+      now,
+      h.input.legacyRef ?? null,
+    );
+  return Number(result.lastInsertRowid);
+}
+
+function writeJournal(db: Db, voucherId: number, drafts: JournalDraft[]): void {
+  const insert = db.prepare(
+    'INSERT INTO journal_line (voucher_id, account_id, dr_paise, cr_paise, line_no) VALUES (?, ?, ?, ?, ?)',
+  );
+  let lineNo = 0;
+  for (const d of drafts) {
+    if (d.amountPaise === 0) continue;
+    if (d.amountPaise < 0) throw new PostingError('Journal amounts must be positive');
+    lineNo += 1;
+    insert.run(
+      voucherId,
+      d.accountId,
+      d.side === 'dr' ? d.amountPaise : 0,
+      d.side === 'cr' ? d.amountPaise : 0,
+      lineNo,
+    );
+  }
+}
+
+/** Invariant 1, checked from the database itself so the transaction rolls back if violated. */
+function assertBalanced(db: Db, voucherId: number): void {
+  const sums = row(
+    db,
+    'SELECT COALESCE(SUM(dr_paise), 0) AS dr, COALESCE(SUM(cr_paise), 0) AS cr FROM journal_line WHERE voucher_id = ?',
+    voucherId,
+  );
+  const dr = Number(sums?.['dr']);
+  const cr = Number(sums?.['cr']);
+  if (dr !== cr || dr <= 0) throw new UnbalancedVoucherError(dr, cr);
+}
+
+function audit(
+  db: Db,
+  now: string,
+  userId: number | undefined,
+  action: string,
+  voucherId: number,
+): void {
+  const after = row(db, 'SELECT * FROM voucher WHERE id = ?', voucherId);
+  db.prepare(
+    'INSERT INTO audit_log (at, user_id, action, table_name, row_id, before_json, after_json) VALUES (?, ?, ?, ?, ?, NULL, ?)',
+  ).run(now, userId ?? null, action, 'voucher', voucherId, JSON.stringify(after));
+}
+
+function buildItemVoucher(db: Db, input: ItemVoucherInput) {
+  const rule = RULES[input.type];
+  const sundryRows = (input.sundries ?? []).map((s) => {
+    const m = row(
+      db,
+      'SELECT sign, affects_taxable, account_id FROM bill_sundry WHERE id = ?',
+      s.billSundryId,
+    );
+    if (!m) throw new PostingError(`Bill sundry ${s.billSundryId} does not exist`);
+    if (s.amountPaise < 0) throw new PostingError('Bill sundry amounts must be positive');
+    return {
+      sign: Number(m['sign']) as 1 | -1,
+      affectsTaxable: Boolean(m['affects_taxable']),
+      amountPaise: s.amountPaise,
+      accountId: Number(m['account_id']),
+    };
+  });
+
+  const lines = input.lines.map((l) => {
+    const rate = l.taxRateBp ?? resolveTaxRate(db, l.itemId, input.date);
+    if (rate === undefined && input.taxMode !== 'exempt') {
+      throw new PostingError(`Item ${l.itemId} has no tax rate effective on ${input.date}`);
+    }
+    const item = row(db, 'SELECT hsn FROM item WHERE id = ?', l.itemId);
+    if (!item) throw new PostingError(`Item ${l.itemId} does not exist`);
+    return {
+      ...l,
+      discBp: l.discBp ?? 0,
+      taxRateBp: rate ?? 0,
+      hsn: l.hsn ?? (item['hsn'] === null ? null : String(item['hsn'])),
+    };
+  });
+
+  const computed = computeItemVoucher(lines, sundryRows, input.taxMode, input.roundOff ?? true);
+  if (computed.totalPaise <= 0) throw new PostingError('Voucher total must be greater than zero');
+
+  const settlements = input.settlements ?? [];
+  const settled = settlements.reduce((a, s) => a + s.amountPaise, 0);
+  if (settlements.some((s) => s.amountPaise <= 0))
+    throw new PostingError('Settlement amounts must be positive');
+  if (settled > computed.totalPaise) throw new PostingError('Settlements exceed the voucher total');
+
+  const goodsSide: Side = opposite(rule.partySide);
+  const drafts: JournalDraft[] = [
+    { accountId: input.partyAccountId, side: rule.partySide, amountPaise: computed.totalPaise },
+    {
+      accountId: systemAccountId(db, rule.goodsAccount),
+      side: goodsSide,
+      amountPaise: computed.subtotalPaise,
+    },
+  ];
+  for (const s of sundryRows) {
+    drafts.push({
+      accountId: s.accountId,
+      side: s.sign === 1 ? goodsSide : opposite(goodsSide),
+      amountPaise: s.amountPaise,
+    });
+  }
+  const taxAccounts: [string, number][] = [
+    [`${rule.taxPrefix} CGST`, computed.cgstPaise],
+    [`${rule.taxPrefix} SGST`, computed.sgstPaise],
+    [`${rule.taxPrefix} IGST`, computed.igstPaise],
+  ];
+  for (const [name, amount] of taxAccounts) {
+    drafts.push({ accountId: systemAccountId(db, name), side: goodsSide, amountPaise: amount });
+  }
+  if (computed.roundOffPaise !== 0) {
+    drafts.push({
+      accountId: systemAccountId(db, 'Round Off'),
+      side: computed.roundOffPaise > 0 ? goodsSide : opposite(goodsSide),
+      amountPaise: Math.abs(computed.roundOffPaise),
+    });
+  }
+  for (const s of settlements) {
+    drafts.push({ accountId: s.accountId, side: rule.partySide, amountPaise: s.amountPaise });
+    drafts.push({
+      accountId: input.partyAccountId,
+      side: opposite(rule.partySide),
+      amountPaise: s.amountPaise,
+    });
+  }
+  return { computed, lines, sundryRows, drafts, settlements };
+}
+
+/**
+ * Posts a voucher: header, lines, journal, stock and audit row in one transaction. Any
+ * failure, including an unbalanced journal, rolls everything back.
+ */
+export function postVoucher(
+  db: Db,
+  input: VoucherInput,
+  opts: { now?: string } = {},
+): PostedVoucher {
+  const now = opts.now ?? new Date().toISOString();
+  return transaction(db, () => {
+    const fyId = financialYearFor(db, input.date);
+    const number = nextNumber(db, input.type, input.seriesId, fyId);
+
+    if ('lines' in input) {
+      const built = buildItemVoucher(db, input);
+      const voucherId = insertHeader(
+        db,
+        {
+          type: input.type,
+          seriesId: input.seriesId,
+          date: input.date,
+          fyId,
+          number,
+          partyAccountId: input.partyAccountId,
+          saleTypeId: input.saleTypeId ?? null,
+          input,
+          computed: built.computed,
+          totalPaise: built.computed.totalPaise,
+        },
+        now,
+      );
+      const insertLine = db.prepare(
+        `INSERT INTO voucher_item (voucher_id, line_no, item_id, qty, unit_id, list_price_paise, disc_bp, price_paise,
+           amount_paise, hsn, tax_rate_bp, taxable_paise, cgst_paise, sgst_paise, igst_paise)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      const insertStock = db.prepare(
+        'INSERT INTO stock_movement (voucher_id, item_id, qty_in, qty_out, rate_paise, date) VALUES (?, ?, ?, ?, ?, ?)',
+      );
+      const stockIn = RULES[input.type].stock === 'in';
+      built.lines.forEach((l, i) => {
+        const c = built.computed.lines[i]!;
+        insertLine.run(
+          voucherId,
+          i + 1,
+          l.itemId,
+          l.qty,
+          l.unitId,
+          l.listPricePaise,
+          l.discBp,
+          c.pricePaise,
+          c.amountPaise,
+          l.hsn,
+          l.taxRateBp,
+          c.taxablePaise,
+          c.cgstPaise,
+          c.sgstPaise,
+          c.igstPaise,
+        );
+        insertStock.run(
+          voucherId,
+          l.itemId,
+          stockIn ? l.qty : 0,
+          stockIn ? 0 : l.qty,
+          c.pricePaise,
+          input.date,
+        );
+      });
+      const insertSundry = db.prepare(
+        'INSERT INTO voucher_sundry (voucher_id, bill_sundry_id, amount_paise) VALUES (?, ?, ?)',
+      );
+      for (const s of input.sundries ?? [])
+        insertSundry.run(voucherId, s.billSundryId, s.amountPaise);
+      const insertSettlement = db.prepare(
+        'INSERT INTO voucher_settlement (voucher_id, account_id, amount_paise) VALUES (?, ?, ?)',
+      );
+      for (const s of built.settlements)
+        insertSettlement.run(voucherId, s.accountId, s.amountPaise);
+
+      writeJournal(db, voucherId, built.drafts);
+      assertBalanced(db, voucherId);
+      audit(db, now, input.createdBy, 'create', voucherId);
+      return { voucherId, number, totalPaise: built.computed.totalPaise };
+    }
+
+    return postEntryVoucher(db, input, fyId, number, now);
+  });
+}
+
+function postEntryVoucher(
+  db: Db,
+  input: EntryVoucherInput,
+  fyId: number,
+  number: number,
+  now: string,
+): PostedVoucher {
+  if (input.entries.length < 2) throw new PostingError('A voucher needs at least two entries');
+  const debit = input.entries.filter((e) => e.side === 'dr').reduce((a, e) => a + e.amountPaise, 0);
+  const totalPaise = debit;
+  const voucherId = insertHeader(
+    db,
+    {
+      type: input.type,
+      seriesId: input.seriesId,
+      date: input.date,
+      fyId,
+      number,
+      partyAccountId: input.partyAccountId ?? null,
+      saleTypeId: null,
+      input,
+      totalPaise,
+    },
+    now,
+  );
+  writeJournal(db, voucherId, input.entries);
+  assertBalanced(db, voucherId);
+  audit(db, now, input.createdBy, 'create', voucherId);
+  return { voucherId, number, totalPaise };
+}
+
+/**
+ * Cancels a posted voucher by inserting exact reversal journal and stock lines. Original
+ * rows are never touched; the voucher keeps its number and is marked cancelled.
+ */
+export function cancelVoucher(
+  db: Db,
+  voucherId: number,
+  opts: { userId?: number | undefined; now?: string } = {},
+): void {
+  const now = opts.now ?? new Date().toISOString();
+  transaction(db, () => {
+    const v = row(db, 'SELECT status, date FROM voucher WHERE id = ?', voucherId);
+    if (!v) throw new PostingError(`Voucher ${voucherId} does not exist`);
+    if (v['status'] !== 'posted')
+      throw new PostingError(`Voucher ${voucherId} is ${String(v['status'])}, not posted`);
+
+    const lines = db
+      .prepare(
+        'SELECT account_id, dr_paise, cr_paise FROM journal_line WHERE voucher_id = ? AND is_reversal = 0 ORDER BY line_no',
+      )
+      .all(voucherId);
+    const base = Number(
+      row(
+        db,
+        'SELECT COALESCE(MAX(line_no), 0) AS n FROM journal_line WHERE voucher_id = ?',
+        voucherId,
+      )?.['n'],
+    );
+    const insertJournal = db.prepare(
+      'INSERT INTO journal_line (voucher_id, account_id, dr_paise, cr_paise, line_no, is_reversal) VALUES (?, ?, ?, ?, ?, 1)',
+    );
+    lines.forEach((l, i) =>
+      insertJournal.run(
+        voucherId,
+        Number(l['account_id']),
+        Number(l['cr_paise']),
+        Number(l['dr_paise']),
+        base + i + 1,
+      ),
+    );
+
+    const stock = db
+      .prepare(
+        'SELECT item_id, qty_in, qty_out, rate_paise, date FROM stock_movement WHERE voucher_id = ? AND is_reversal = 0',
+      )
+      .all(voucherId);
+    const insertStock = db.prepare(
+      'INSERT INTO stock_movement (voucher_id, item_id, qty_in, qty_out, rate_paise, date, is_reversal) VALUES (?, ?, ?, ?, ?, ?, 1)',
+    );
+    for (const s of stock) {
+      insertStock.run(
+        voucherId,
+        Number(s['item_id']),
+        Number(s['qty_out']),
+        Number(s['qty_in']),
+        Number(s['rate_paise']),
+        String(s['date']),
+      );
+    }
+
+    const before = row(db, 'SELECT * FROM voucher WHERE id = ?', voucherId);
+    db.prepare("UPDATE voucher SET status = 'cancelled', modified_at = ? WHERE id = ?").run(
+      now,
+      voucherId,
+    );
+    const after = row(db, 'SELECT * FROM voucher WHERE id = ?', voucherId);
+    db.prepare(
+      'INSERT INTO audit_log (at, user_id, action, table_name, row_id, before_json, after_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      now,
+      opts.userId ?? null,
+      'cancel',
+      'voucher',
+      voucherId,
+      JSON.stringify(before),
+      JSON.stringify(after),
+    );
+    assertBalanced(db, voucherId);
+  });
+}
