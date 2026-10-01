@@ -7,6 +7,9 @@ import { HotkeyProvider, useCurrentHints, useHotkeys } from './lib/hotkeys.tsx';
 import { RouterProvider, useRouter } from './lib/router.tsx';
 import { SessionProvider } from './lib/session.tsx';
 import { Home } from './screens/Home.tsx';
+import { AuditScreen } from './screens/bills/AuditScreen.tsx';
+import { BillList } from './screens/bills/BillList.tsx';
+import { BillView } from './screens/bills/BillView.tsx';
 import { ReportScreen } from './screens/reports/ReportScreen.tsx';
 import { ReportsHub } from './screens/reports/ReportsHub.tsx';
 import { ItemForm } from './screens/masters/ItemForm.tsx';
@@ -28,6 +31,9 @@ function Screens({
 }) {
   const router = useRouter();
   useHotkeys({ Escape: router.back });
+  if (router.route.name === 'bills') return <BillList voucherType={router.route.voucherType} />;
+  if (router.route.name === 'bill') return <BillView key={router.route.id} id={router.route.id} />;
+  if (router.route.name === 'audit') return <AuditScreen />;
   if (router.route.name === 'reports') return <ReportsHub />;
   if (router.route.name === 'report') {
     const r = router.route;

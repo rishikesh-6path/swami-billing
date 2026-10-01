@@ -18,6 +18,7 @@ import type {
   StockStatus,
   TrialBalance,
   AccountRow,
+  AuditRow,
   ItemGroupRow,
   ItemRow,
   UnitRow,
@@ -409,6 +410,21 @@ export const contract = {
   'report.export': channel<typeof reportRequest, { saved: string | null }>(
     'view_daily_reports',
     reportRequest,
+  ),
+  'audit.list': channel<
+    z.ZodObject<{
+      from: z.ZodOptional<typeof isoDate>;
+      to: z.ZodOptional<typeof isoDate>;
+      text: z.ZodOptional<z.ZodString>;
+    }>,
+    AuditRow[]
+  >(
+    'view_audit_log',
+    z.object({
+      from: isoDate.optional(),
+      to: isoDate.optional(),
+      text: z.string().max(100).optional(),
+    }),
   ),
   'account.search': channel<
     z.ZodObject<{

@@ -24,6 +24,9 @@ export type ReportKind =
   | 'balanceSheet';
 
 export type Route =
+  | { name: 'bills'; voucherType?: string }
+  | { name: 'bill'; id: number }
+  | { name: 'audit' }
   | { name: 'reports' }
   | {
       name: 'report';

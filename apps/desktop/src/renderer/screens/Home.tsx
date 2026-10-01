@@ -38,6 +38,8 @@ export function Home({
     S: () => router.go({ name: 'report', kind: 'stock' }),
     G: () => router.go({ name: 'report', kind: 'itemLedger' }),
     R: () => router.go({ name: 'reports' }),
+    'Alt+B': () => router.go({ name: 'bills', voucherType: 'sales' }),
+    D: () => router.go({ name: 'bills' }),
     F2: () => router.go({ name: 'item' }),
     F3: () => router.go({ name: 'party', kind: 'customer' }),
     F5: entry('payment'),
@@ -95,6 +97,10 @@ export function Home({
         <Tile title="Cash / Bank Transfer" onClick={entry('contra')} />
         <Tile title="Stock Journal" onClick={stock('stock_journal')} />
         <Tile title="Stock Count" onClick={stock('physical_stock')} />
+        <Tile title="Find a Bill" keyName="D" onClick={() => router.go({ name: 'bills' })} />
+        {session.user?.role === 'owner' && (
+          <Tile title="Who Did What" onClick={() => router.go({ name: 'audit' })} />
+        )}
         <Tile title="Reports" keyName="R" onClick={() => router.go({ name: 'reports' })} />
         <Tile title="Items" keyName="F2 adds" onClick={() => router.go({ name: 'items' })} />
         <Tile
@@ -137,6 +143,9 @@ export function Home({
             </li>
             <li>
               <kbd>R</kbd> Reports
+            </li>
+            <li>
+              <kbd>D</kbd> Find a bill, <kbd>Alt+B</kbd> Find a sale to change
             </li>
             <li>
               <kbd>L</kbd> Account ledger, <kbd>S</kbd> Stock, <kbd>G</kbd> Item history

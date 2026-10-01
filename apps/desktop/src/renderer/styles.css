@@ -746,3 +746,26 @@ tr.clickable:hover td {
     font-size: 11px;
   }
 }
+
+/* ---- bills ---- */
+.link-button {
+  font: inherit;
+  background: none;
+  border: none;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.bill-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.bill-totals {
+  max-width: 26rem;
+  margin: 1rem 0 0 auto;
+}

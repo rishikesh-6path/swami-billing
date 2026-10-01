@@ -25,3 +25,74 @@ export function writeAudit(
     entry.after === undefined ? null : JSON.stringify(entry.after),
   );
 }
+
+export interface AuditRow {
+  id: number;
+  at: string;
+  userName: string | null;
+  action: string;
+  tableName: string;
+  rowId: number;
+  /** A short plain description of what the entry is about, for the audit screen. */
+  description: string;
+  /** The reason given when a bill was cancelled. */
+  reason: string | null;
+}
+
+/** Recent audit entries, newest first, for the owner's audit screen. `text` matches the user, action or description. */
+export function listAudit(
+  db: Db,
+  args: {
+    from?: string | undefined;
+    to?: string | undefined;
+    text?: string | undefined;
+    limit?: number | undefined;
+  } = {},
+): AuditRow[] {
+  const like = `%${(args.text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return db
+    .prepare(
+      `SELECT * FROM (
+         SELECT a.id, a.at, u.name AS user_name, a.action, a.table_name, a.row_id,
+                CASE WHEN a.table_name = 'voucher' AND v.id IS NOT NULL
+                       THEN replace(v.voucher_type, '_', ' ') || ' ' || s.prefix || v.number || ' on ' || v.date
+                     WHEN json_valid(a.after_json) AND json_extract(a.after_json, '$.name') IS NOT NULL
+                       THEN a.table_name || ' ' || json_extract(a.after_json, '$.name')
+                     ELSE a.table_name || ' ' || a.row_id END AS description,
+                CASE WHEN a.action = 'cancel' AND json_valid(a.after_json)
+                       THEN json_extract(a.after_json, '$.cancelReason') END AS reason
+         FROM audit_log a
+         LEFT JOIN user u ON u.id = a.user_id
+         LEFT JOIN voucher v ON a.table_name = 'voucher' AND v.id = a.row_id
+         LEFT JOIN voucher_series s ON s.id = v.series_id
+         WHERE (? IS NULL OR substr(a.at, 1, 10) >= ?) AND (? IS NULL OR substr(a.at, 1, 10) <= ?)
+       )
+       WHERE (? = '%%' OR lower(COALESCE(user_name, '')) LIKE ? ESCAPE '\\' OR lower(action) LIKE ? ESCAPE '\\'
+              OR lower(description) LIKE ? ESCAPE '\\')
+       ORDER BY id DESC LIMIT ?`,
+    )
+    .all(
+      args.from ?? null,
+      args.from ?? null,
+      args.to ?? null,
+      args.to ?? null,
+      like,
+      like,
+      like,
+      like,
+      args.limit ?? 300,
+    )
+    .map((r) => ({
+      id: Number(r['id']),
+      at: String(r['at']),
+      userName: r['user_name'] === null ? null : String(r['user_name']),
+      action: String(r['action']),
+      tableName: String(r['table_name']),
+      rowId: Number(r['row_id']),
+      description: String(r['description']),
+      reason: r['reason'] === null || r['reason'] === undefined ? null : String(r['reason']),
+    }));
+}

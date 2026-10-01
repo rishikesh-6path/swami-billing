@@ -14,6 +14,7 @@ import {
   gstr3b,
   gstr3bToCsv,
   itemLedger,
+  listAudit,
   itemLedgerToCsv,
   ledgerToCsv,
   outstanding,
@@ -106,7 +107,8 @@ const label = (req: ReportRequest): string => {
   return `${req.kind}_${when}`;
 };
 
-export const reportHandlers: Pick<Handlers, 'report.run' | 'report.export'> = {
+export const reportHandlers: Pick<Handlers, 'report.run' | 'report.export' | 'audit.list'> = {
+  'audit.list': (req, ctx) => listAudit(ctx.db, req),
   'report.run': (req, ctx) => run(req, ctx),
   'report.export': async (req, ctx) => {
     const result = run(req, ctx);
