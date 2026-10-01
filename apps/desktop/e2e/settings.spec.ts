@@ -42,6 +42,7 @@ test('the owner closes a day and can open it again', async () => {
     await page.getByRole('button', { name: /Settings/ }).click();
     await page.keyboard.press('Alt+5');
     await page.getByRole('button', { name: 'Close the day' }).click();
+    await page.getByRole('button', { name: 'Yes, do it' }).click();
     await expect(page.getByText('Day closed.')).toBeVisible();
     await expect(page.getByText(/Days up to 15-10-2026 are closed/)).toBeVisible();
     await page.getByRole('button', { name: 'Reopen all days' }).click();
@@ -69,7 +70,7 @@ test('a backup can be made, listed and restored', async () => {
     await page.getByRole('button', { name: 'Restore', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: 'Go back to this backup?' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText(/This backup holds \d+ bills/)).toBeVisible();
+    await expect(dialog.getByText(/It holds \d+ bills/)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
 

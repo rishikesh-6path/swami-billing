@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   backupFileName,
   backupReminder,
+  backupStamp,
   checkBackupFile,
   copyBackupTo,
   createBackup,
@@ -136,5 +137,44 @@ describe('backup reminder', () => {
     expect(backupReminder('2026-10-13 20:00', '2026-10-15')).toBeNull();
     expect(backupReminder('2026-10-10 20:00', '2026-10-15')).toMatch(/5 days ago/);
     expect(backupReminder(undefined, '2026-10-15')).toMatch(/No backup/);
+  });
+});
+
+describe('safety copies made before a restore', () => {
+  it('are listed, labelled, and survive the daily and monthly clean-up', () => {
+    const db = freshDb();
+    const folder = join(dir, 'b');
+    const safety = createBackup(db, folder, '2020-01-05', '09:00:00', 'before-restore');
+    expect(safety.name).toBe('shopledger-before-restore-2020-01-05-090000.db');
+    expect(backupStamp(safety.name)).toEqual({ date: '2020-01-05', time: '09:00' });
+    for (let d = 1; d <= 40; d++) {
+      const date = `2026-09-${String(((d - 1) % 28) + 1).padStart(2, '0')}`;
+      writeFileSync(
+        join(folder, backupFileName(date, `10:${String(d).padStart(2, '0')}:00`)),
+        readFileSync(safety.path),
+      );
+    }
+    pruneBackups(folder);
+    const left = listBackups(folder);
+    expect(left.find((f) => f.kind === 'before-restore')?.name).toBe(safety.name);
+    expect(left.filter((f) => f.kind === 'regular').length).toBeLessThanOrEqual(30);
+  });
+
+  it('keeps only the newest ten of them', () => {
+    const db = freshDb();
+    const folder = join(dir, 'b');
+    for (let i = 0; i < 12; i++) {
+      createBackup(
+        db,
+        folder,
+        `2026-10-${String(i + 1).padStart(2, '0')}`,
+        '09:00:00',
+        'before-restore',
+      );
+    }
+    pruneBackups(folder);
+    const left = listBackups(folder);
+    expect(left).toHaveLength(10);
+    expect(left.at(-1)?.date).toBe('2026-10-03');
   });
 });

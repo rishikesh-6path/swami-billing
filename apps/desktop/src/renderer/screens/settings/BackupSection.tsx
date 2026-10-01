@@ -61,8 +61,16 @@ function BackupBody({ initial }: { initial: BackupStatus }) {
     }, fail);
   };
   const restore = (path: string) => {
+    if (busy) return;
+    setBusy(true);
     setRestoring(null);
-    call('backup.restore', { path }).then(() => setRestarting(true), fail);
+    call('backup.restore', { path }).then(
+      () => setRestarting(true),
+      (e: unknown) => {
+        setBusy(false);
+        fail(e);
+      },
+    );
   };
 
   if (restarting) {
@@ -116,9 +124,10 @@ function BackupBody({ initial }: { initial: BackupStatus }) {
           empty="There are no backups yet."
           columns={[
             { header: 'Date', cell: (b) => formatDate(b.date) },
+            { header: 'Time', cell: (b) => b.time },
             {
-              header: 'Time',
-              cell: (b) => `${b.name.slice(-9, -7)}:${b.name.slice(-7, -5)}`,
+              header: 'Kind',
+              cell: (b) => (b.kind === 'before-restore' ? 'Saved before a restore' : 'Backup'),
             },
             { header: 'Size', cell: (b) => size(b.bytes), num: true },
             {
@@ -147,9 +156,16 @@ function BackupBody({ initial }: { initial: BackupStatus }) {
           onConfirm={() => restore(restoring.path)}
         >
           <p>
-            This backup holds {restoring.vouchers} bills and entries. Everything made after it was
-            taken will be gone from the screen. Your current data is saved as a backup first, and
-            ShopLedger will restart.
+            {restoring.takenAt
+              ? `This backup was taken on ${formatDate(restoring.takenAt.slice(0, 10))} at ${restoring.takenAt.slice(11)}. `
+              : ''}
+            It holds {restoring.vouchers} bills and entries. Everything made after it was taken will
+            be gone from the screen.
+          </p>
+          <p>
+            The people who can sign in, their PINs, and any closed days or locked books will also go
+            back to how they were then. Your current data is saved first (shown as "Saved before a
+            restore" in the list), and ShopLedger will restart.
           </p>
         </ConfirmDialog>
       )}

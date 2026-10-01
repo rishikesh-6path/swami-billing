@@ -34,8 +34,9 @@ export function NotesSection() {
   }, [kind]);
 
   const save = () => {
+    if (text === null) return; // still loading: saving now would wipe the notes
     setError(null);
-    call('narrations.save', { kind, notes: (text ?? '').split('\n') }).then(
+    call('narrations.save', { kind, notes: text.split('\n') }).then(
       (notes) => {
         setText(notes.join('\n'));
         toast.show('Standard notes saved.');

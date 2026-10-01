@@ -36,7 +36,11 @@ export function SettingsScreen({
     'Alt+5': () => setSection('closing'),
     'Alt+6': () => setSection('backup'),
   });
-  useHints(['Alt+1 to Alt+6 Change section', 'F2 Save', 'Esc Back']);
+  useHints([
+    'Alt+1 to Alt+6 Change section',
+    ...(['shop', 'print', 'notes'].includes(section) ? ['F2 Save'] : []),
+    'Esc Back',
+  ]);
 
   return (
     <main className="page">

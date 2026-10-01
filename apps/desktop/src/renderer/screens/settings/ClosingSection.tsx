@@ -39,6 +39,7 @@ function ClosingBody({
   const [closeText, setCloseText] = useState(formatDate(today));
   const [lockText, setLockText] = useState(formatDate(today));
   const [error, setError] = useState<string | null>(null);
+  const [sure, setSure] = useState<{ title: string; words: string; run: () => void } | null>(null);
   const [confirmYear, setConfirmYear] = useState<ShopSettings['years'][number] | null>(null);
 
   const fail = (e: unknown) =>
@@ -78,9 +79,13 @@ function ClosingBody({
           <Button
             variant="primary"
             onClick={() =>
-              withDate(
-                closeText,
-                (date) => void call('books.closeDay', { date }).then(done('Day closed.'), fail),
+              withDate(closeText, (date) =>
+                setSure({
+                  title: `Close all days up to ${formatDate(date)}?`,
+                  words:
+                    'Staff will not be able to change or cancel any bill on those days. You can reopen them later.',
+                  run: () => void call('books.closeDay', { date }).then(done('Day closed.'), fail),
+                }),
               )
             }
           >
@@ -112,9 +117,13 @@ function ClosingBody({
           <Button
             variant="primary"
             onClick={() =>
-              withDate(
-                lockText,
-                (date) => void call('books.lock', { date }).then(done('Books locked.'), fail),
+              withDate(lockText, (date) =>
+                setSure({
+                  title: `Lock the books up to ${formatDate(date)}?`,
+                  words:
+                    'Nobody, not even you, will be able to change or cancel bills on those days, and opening balances cannot be changed. Only do this after your GST return for that period is filed. You can unlock the books later.',
+                  run: () => void call('books.lock', { date }).then(done('Books locked.'), fail),
+                }),
               )
             }
           >
@@ -153,6 +162,23 @@ function ClosingBody({
         />
       </Card>
 
+      {sure && (
+        <ConfirmDialog
+          title={sure.title}
+          confirmLabel="Yes, do it"
+          cancelLabel="No, not now"
+          danger
+          onCancel={() => setSure(null)}
+          onConfirm={() => {
+            const run = sure.run;
+            setSure(null);
+            setError(null);
+            run();
+          }}
+        >
+          <p>{sure.words}</p>
+        </ConfirmDialog>
+      )}
       {confirmYear && (
         <ConfirmDialog
           title={`Close the year ${confirmYear.label}?`}

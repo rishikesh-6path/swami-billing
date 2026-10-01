@@ -13,19 +13,35 @@ import type { Db } from '../db/connection.ts';
 import { LATEST_SCHEMA_VERSION } from '../db/migrations.ts';
 import { ValidationError } from '../errors.ts';
 
-/** Backup files are named `shopledger-YYYY-MM-DD-HHMMSS.db` (shop time), so names sort by age. */
-const NAME = /^shopledger-(\d{4})-(\d{2})-(\d{2})-(\d{6})\.db$/;
+/**
+ * Backup files are named `shopledger-YYYY-MM-DD-HHMMSS.db` (shop time). The copy saved just
+ * before a restore is `shopledger-before-restore-YYYY-MM-DD-HHMMSS.db`: it is never pruned with
+ * the daily and monthly backups, so a wrong restore can always be undone.
+ */
+const NAME = /^shopledger-(before-restore-)?(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})\.db$/;
+const KEEP_BEFORE_RESTORE = 10;
+
+export type BackupKind = 'regular' | 'before-restore';
 
 export interface BackupFile {
   name: string;
   path: string;
   /** YYYY-MM-DD, taken from the file name. */
   date: string;
+  /** HH:MM, taken from the file name. */
+  time: string;
+  kind: BackupKind;
   bytes: number;
 }
 
-export function backupFileName(date: string, time: string): string {
-  return `shopledger-${date}-${time.replace(/:/g, '')}.db`;
+export function backupFileName(date: string, time: string, kind: BackupKind = 'regular'): string {
+  return `shopledger-${kind === 'before-restore' ? 'before-restore-' : ''}${date}-${time.replace(/:/g, '')}.db`;
+}
+
+/** Date and time (shop time) a backup was taken, read from its file name. */
+export function backupStamp(fileName: string): { date: string; time: string } | null {
+  const m = NAME.exec(fileName);
+  return m ? { date: `${m[2]}-${m[3]}-${m[4]}`, time: `${m[5]}:${m[6]}` } : null;
 }
 
 /**
@@ -34,12 +50,18 @@ export function backupFileName(date: string, time: string): string {
  * under a temporary name, checked, and only then given its real name, so a half-written file is
  * never mistaken for a backup.
  */
-export function createBackup(db: Db, dir: string, date: string, time: string): BackupFile {
+export function createBackup(
+  db: Db,
+  dir: string,
+  date: string,
+  time: string,
+  kind: BackupKind = 'regular',
+): BackupFile {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}:\d{2}$/.test(time)) {
     throw new ValidationError('The backup could not be named. Please check the date and time.');
   }
   mkdirSync(dir, { recursive: true });
-  const name = backupFileName(date, time);
+  const name = backupFileName(date, time, kind);
   const finalPath = join(dir, name);
   const tempPath = `${finalPath}.partial`;
   rmSync(tempPath, { force: true });
@@ -50,7 +72,14 @@ export function createBackup(db: Db, dir: string, date: string, time: string): B
     throw new ValidationError(`The backup could not be completed. ${check.message}`);
   }
   renameSync(tempPath, finalPath);
-  return { name, path: finalPath, date, bytes: statSync(finalPath).size };
+  return {
+    name,
+    path: finalPath,
+    date,
+    time: time.slice(0, 5),
+    kind,
+    bytes: statSync(finalPath).size,
+  };
 }
 
 const REQUIRED_TABLES = [
@@ -131,9 +160,17 @@ export function listBackups(dir: string): BackupFile[] {
     const m = NAME.exec(name);
     if (!m) continue;
     const path = join(dir, name);
-    files.push({ name, path, date: `${m[1]}-${m[2]}-${m[3]}`, bytes: statSync(path).size });
+    files.push({
+      name,
+      path,
+      date: `${m[2]}-${m[3]}-${m[4]}`,
+      time: `${m[5]}:${m[6]}`,
+      kind: m[1] ? 'before-restore' : 'regular',
+      bytes: statSync(path).size,
+    });
   }
-  return files.sort((a, b) => (a.name < b.name ? 1 : -1)); // newest first
+  const stamp = (f: BackupFile) => `${f.date} ${f.time}${f.name}`;
+  return files.sort((a, b) => (stamp(a) < stamp(b) ? 1 : -1)); // newest first
 }
 
 /**
@@ -142,8 +179,14 @@ export function listBackups(dir: string): BackupFile[] {
  * backup always stays. Returns the names removed.
  */
 export function pruneBackups(dir: string): string[] {
-  const files = listBackups(dir);
-  const keep = new Set<string>();
+  const all = listBackups(dir);
+  const files = all.filter((f) => f.kind === 'regular');
+  const keep = new Set<string>(
+    all
+      .filter((f) => f.kind === 'before-restore')
+      .slice(0, KEEP_BEFORE_RESTORE)
+      .map((f) => f.name),
+  );
   const days = new Set<string>();
   const months = new Set<string>();
   for (const f of files) {
@@ -158,7 +201,7 @@ export function pruneBackups(dir: string): string[] {
     }
   }
   const removed: string[] = [];
-  for (const f of files) {
+  for (const f of all) {
     if (keep.has(f.name)) continue;
     rmSync(f.path, { force: true });
     removed.push(f.name);

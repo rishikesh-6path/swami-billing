@@ -13,6 +13,7 @@ import {
   listUsers,
   login,
 } from '@shopledger/core';
+import { backupProblem } from '../backup.ts';
 import type { Handlers, HandlerContext } from '../ipc.ts';
 import type { SessionState } from '../../ipc/contract.ts';
 
@@ -88,7 +89,8 @@ export const sessionHandlers: Pick<
       cashInHandPaise: day.cashClosingPaise,
       toCollectPaise: receivable.reduce((t, p) => t + p.outstandingPaise, 0),
       lowStockItems: stockStatus(ctx.db, { asOn: today, onlyProblems: true }).rows.length,
-      backupWarning: backupReminder(getSetting(ctx.db, 'backup.last_at'), today),
+      backupWarning:
+        backupProblem(ctx.db) ?? backupReminder(getSetting(ctx.db, 'backup.last_at'), today),
     };
   },
 };

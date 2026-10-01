@@ -4,6 +4,7 @@ import { DataTable } from '../../components/DataTable.tsx';
 import {
   Button,
   Card,
+  ConfirmDialog,
   LoadState,
   Notice,
   SelectField,
@@ -29,16 +30,31 @@ function UsersBody({ users, onChange }: { users: UserRow[]; onChange: (u: UserRo
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', pin: '', role: 'staff' as 'owner' | 'staff' });
   const [pinFor, setPinFor] = useState<UserRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sure, setSure] = useState<{
+    user: UserRow;
+    patch: { role?: 'owner' | 'staff'; isActive?: boolean };
+    words: string;
+  } | null>(null);
 
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : 'That could not be done. Please try again.');
   const add = () => {
+    if (busy) return;
     setError(null);
-    call('users.create', form).then((list) => {
-      onChange(list);
-      setForm({ name: '', pin: '', role: 'staff' });
-      toast.show('Person added.');
-    }, fail);
+    setBusy(true);
+    call('users.create', form).then(
+      (list) => {
+        setBusy(false);
+        onChange(list);
+        setForm({ name: '', pin: '', role: 'staff' });
+        toast.show('Person added.');
+      },
+      (e: unknown) => {
+        setBusy(false);
+        fail(e);
+      },
+    );
   };
   const update = (id: number, patch: { role?: 'owner' | 'staff'; isActive?: boolean }) => {
     setError(null);
@@ -76,12 +92,29 @@ function UsersBody({ users, onChange }: { users: UserRow[]; onChange: (u: UserRo
                     <>
                       <Button
                         onClick={() =>
-                          update(u.id, { role: u.role === 'owner' ? 'staff' : 'owner' })
+                          setSure({
+                            user: u,
+                            patch: { role: u.role === 'owner' ? 'staff' : 'owner' },
+                            words:
+                              u.role === 'owner'
+                                ? `${u.name} will no longer be able to see profit, change settings or close days.`
+                                : `${u.name} will be able to see profit, change settings, close days and manage people.`,
+                          })
                         }
                       >
                         Make {u.role === 'owner' ? 'staff' : 'owner'}
                       </Button>
-                      <Button onClick={() => update(u.id, { isActive: !u.isActive })}>
+                      <Button
+                        onClick={() =>
+                          setSure({
+                            user: u,
+                            patch: { isActive: !u.isActive },
+                            words: u.isActive
+                              ? `${u.name} will not be able to sign in until you allow access again.`
+                              : `${u.name} will be able to sign in again.`,
+                          })
+                        }
+                      >
                         {u.isActive ? 'Stop access' : 'Allow access'}
                       </Button>
                     </>
@@ -131,6 +164,21 @@ function UsersBody({ users, onChange }: { users: UserRow[]; onChange: (u: UserRo
         </form>
       </Card>
       {pinFor && <PinDialog user={pinFor} onClose={() => setPinFor(null)} />}
+      {sure && (
+        <ConfirmDialog
+          title={`Change what ${sure.user.name} can do?`}
+          confirmLabel="Yes, do it"
+          cancelLabel="No, leave it"
+          onCancel={() => setSure(null)}
+          onConfirm={() => {
+            const { user, patch } = sure;
+            setSure(null);
+            update(user.id, patch);
+          }}
+        >
+          <p>{sure.words}</p>
+        </ConfirmDialog>
+      )}
     </>
   );
 }

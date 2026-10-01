@@ -1,5 +1,7 @@
 import {
   IMPORT_SAMPLES,
+  backupStamp,
+  listBackups,
   getNarrations,
   saveNarrations,
   calculate,
@@ -26,6 +28,8 @@ import {
   updateUser,
   type Db,
 } from '@shopledger/core';
+import { writeFileSync, rmSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import type { ShopSettings } from '../../ipc/contract.ts';
 import { backupStatus, runBackup, setBackupFolder } from '../backup.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
@@ -45,6 +49,33 @@ function notAfterToday(date: string, ctx: HandlerContext): void {
   if (date > ctx.today()) {
     throw new ValidationError(
       'You can only close or lock days up to today. Please check the date.',
+    );
+  }
+}
+
+/** Backups the screen was shown or the person picked in the file window: the only paths main will use. */
+const chosenBackups = new Set<string>();
+
+function allowedBackupPath(path: string, ctx: HandlerContext): string {
+  const status = backupStatus(ctx.db, ctx.backupPlace);
+  const known = [status.folder, status.copyFolder]
+    .filter((f): f is string => Boolean(f))
+    .flatMap((f) => listBackups(f).map((b) => b.path));
+  if (known.includes(path) || chosenBackups.has(path)) return path;
+  throw new ValidationError(
+    'Please choose the backup from the list or with "Choose a backup file".',
+  );
+}
+
+/** A folder that cannot be written to would make every backup fail quietly later. */
+function assertWritable(folder: string): void {
+  const probe = join(folder, '.shopledger-write-test');
+  try {
+    writeFileSync(probe, 'ok');
+    rmSync(probe, { force: true });
+  } catch {
+    throw new ValidationError(
+      'ShopLedger cannot save files in that folder. Please choose another folder or drive.',
     );
   }
 }
@@ -172,17 +203,32 @@ export const settingsHandlers: Pick<
           ? 'Choose the folder where backups are kept'
           : 'Choose the drive or folder for the second copy',
       );
-      if (folder) setBackupFolder(ctx.db, req.which, folder);
+      if (folder) {
+        assertWritable(folder);
+        setBackupFolder(ctx.db, req.which, folder);
+      }
     }
     return backupStatus(ctx.db, ctx.backupPlace);
   },
   'backup.check': async (req, ctx) => {
-    const path = req.path ?? (await ctx.chooseBackupFile());
-    if (!path) return null;
-    return { ...checkBackupFile(path), path };
+    let path: string;
+    if (req.path === undefined) {
+      const picked = await ctx.chooseBackupFile();
+      if (!picked) return null;
+      chosenBackups.add(picked);
+      path = picked;
+    } else {
+      path = allowedBackupPath(req.path, ctx);
+    }
+    const stamp = backupStamp(basename(path));
+    return {
+      ...checkBackupFile(path),
+      path,
+      takenAt: stamp ? `${stamp.date} ${stamp.time}` : null,
+    };
   },
   'backup.restore': (req, ctx) => {
-    ctx.restoreFrom(req.path);
+    ctx.restoreFrom(allowedBackupPath(req.path, ctx));
     return { restarting: true as const };
   },
 };

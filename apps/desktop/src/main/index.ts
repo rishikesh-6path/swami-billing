@@ -8,7 +8,13 @@ import {
   restoreDatabaseFile,
   seedDemoShop,
 } from '@shopledger/core';
-import { backupFolder, defaultBackupFolder, dueSlot, runBackup } from './backup.ts';
+import {
+  backupFolder,
+  defaultBackupFolder,
+  dueSlot,
+  markBackupFailed,
+  runBackup,
+} from './backup.ts';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
 import { handlers } from './handlers/index.ts';
 import { registerHandlers, type Session } from './ipc.ts';
@@ -244,17 +250,31 @@ if (!app.requestSingleInstanceLock()) {
         );
       }
       const { date, time } = clock();
-      // The current data is saved first, so a wrong choice can be undone from the same list.
-      createBackup(opened.db, backupFolder(opened.db, backupPlace), date, time);
+      // The current data is saved first, as "saved before a restore", so a wrong choice can be undone.
+      createBackup(opened.db, backupFolder(opened.db, backupPlace), date, time, 'before-restore');
       stopBackups();
       opened.db.close();
       shopDb = null;
-      restoreDatabaseFile(path, opened.path);
+      let failure: unknown = null;
+      try {
+        restoreDatabaseFile(path, opened.path);
+      } catch (error) {
+        failure = error;
+        console.error('[shopledger] restore failed', error);
+      }
+      // either way the app restarts: after a failed swap the old data file is still in place
       setTimeout(() => {
         // tests set this so the checked-out copy does not start a second app
         if (!process.env['SHOPLEDGER_NO_RELAUNCH']) app.relaunch();
         app.exit(0);
       }, 800);
+      if (failure) {
+        throw failure instanceof ValidationError
+          ? failure
+          : new ValidationError(
+              'The backup could not be put in place, so your data was not changed. ShopLedger will restart now. If this happens again, call support.',
+            );
+      }
     };
     // Backups: twice a day while the app is open (checked every minute), and when it closes.
     const backupNow = (slot?: string) => {
@@ -263,12 +283,21 @@ if (!app.requestSingleInstanceLock()) {
         runBackup(opened.db, backupPlace, date, time, slot);
       } catch (error) {
         console.error('[shopledger] backup failed', error);
+        try {
+          markBackupFailed(opened.db, clock().date, slot);
+        } catch {
+          // the database itself is the problem; nothing more can be recorded
+        }
       }
     };
     const timer = setInterval(() => {
-      const { date, time } = clock();
-      const slot = dueSlot(opened.db, date, time.slice(0, 5));
-      if (slot) backupNow(slot);
+      try {
+        const { date, time } = clock();
+        const slot = dueSlot(opened.db, date, time.slice(0, 5));
+        if (slot) backupNow(slot);
+      } catch (error) {
+        console.error('[shopledger] backup schedule failed', error);
+      }
     }, 60_000);
     const stopBackups = () => clearInterval(timer);
     quitBackup = () => {

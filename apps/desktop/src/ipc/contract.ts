@@ -114,6 +114,8 @@ export interface RestoreCheck {
   message: string;
   vouchers: number;
   path: string;
+  /** When the backup was taken (shop time, from its file name), if known: "2026-10-15 14:00". */
+  takenAt: string | null;
 }
 
 const paise = z.number().int().min(0);
