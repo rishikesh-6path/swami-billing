@@ -24,8 +24,8 @@ P1-08 | dropped | Busy reconciliation document | standalone system | -
 P1-09 | done | P&L and Balance Sheet | balance sheet balances (property test) | P0-kickoff
 ## Phase 2 — Masters, users, remaining vouchers (core)
 P2-01 | done | Masters CRUD with audit + alias-first item search | unit tests | P0-kickoff
-P2-02 | todo | Financial year management, carry-forward, day close rules | unit tests |
-P2-03 | todo | Company profile, users, PIN (scrypt), roles, lockout, permissions | unit tests |
+P2-02 | done | Financial year management, carry-forward, day close rules | unit tests | P0-kickoff
+P2-03 | done | Company profile, users, PIN (scrypt), roles, lockout, permissions | unit tests | P0-kickoff
 P2-04 | todo | Stock Journal, Physical Stock, voucher modify, cash/bank leg checks, credit-note qty check | unit + invariant tests |
 P2-05 | todo | Demo data seeder + CSV import for items and parties | unit tests |
 
