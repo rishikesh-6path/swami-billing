@@ -45,6 +45,8 @@ export interface ItemSearchRow {
   unitDecimals: number;
   hsn: string | null;
   salePricePaise: number;
+  /** Price on the item's latest purchase bill, or its opening rate if never bought. */
+  costPaise: number;
   /** Tax rate in force on the search date, if the item has one. */
   rateBp: number | null;
   stockQty: number;
@@ -397,6 +399,9 @@ export function searchItems(
     .prepare(
       `SELECT i.id, i.name, i.alias, i.unit_id, u.name AS unit_name, u.decimals AS unit_decimals, i.hsn,
               i.sale_price_paise,
+              COALESCE((SELECT vi.price_paise FROM voucher_item vi JOIN voucher v ON v.id = vi.voucher_id
+                WHERE vi.item_id = i.id AND v.voucher_type = 'purchase' AND v.status = 'posted'
+                ORDER BY v.date DESC, v.id DESC LIMIT 1), i.opening_rate_paise) AS cost_paise,
               (SELECT rate_bp FROM item_tax_rate r WHERE r.item_id = i.id AND r.effective_from <= ?
                ORDER BY r.effective_from DESC LIMIT 1) AS rate_bp,
               i.opening_qty + COALESCE((SELECT SUM(m.qty_in) - SUM(m.qty_out) FROM stock_movement m
@@ -419,6 +424,7 @@ export function searchItems(
       unitDecimals: Number(r['unit_decimals']),
       hsn: r['hsn'] === null ? null : String(r['hsn']),
       salePricePaise: Number(r['sale_price_paise']),
+      costPaise: Number(r['cost_paise']),
       rateBp: r['rate_bp'] === null ? null : Number(r['rate_bp']),
       stockQty: Number(r['stock_qty']),
     }));

@@ -136,3 +136,25 @@ export function ledgerToCsv(ledger: AccountLedger): string {
     ],
   );
 }
+
+/**
+ * Balance of one account on a date (positive = Dr, negative = Cr): its opening balance plus every
+ * posted voucher up to the date. Used to show "owes us / we owe" next to a party.
+ */
+export function accountBalance(db: Db, accountId: number, asOn: string): Paise {
+  const master = db
+    .prepare('SELECT opening_balance_paise, opening_is_dr FROM account WHERE id = ?')
+    .get(accountId);
+  if (!master) return 0;
+  const moved = db
+    .prepare(
+      `SELECT COALESCE(SUM(j.dr_paise), 0) - COALESCE(SUM(j.cr_paise), 0) AS net
+       FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
+       WHERE j.account_id = ? AND v.status = 'posted' AND v.date <= ?`,
+    )
+    .get(accountId, asOn);
+  return (
+    Number(master['opening_balance_paise']) * (master['opening_is_dr'] ? 1 : -1) +
+    Number(moved?.['net'])
+  );
+}

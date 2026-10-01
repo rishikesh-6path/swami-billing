@@ -143,7 +143,7 @@ function nextNumber(db: Db, type: string, seriesId: number, fyId: number): numbe
   return Number(counter?.['last_no']);
 }
 
-function resolveTaxRate(db: Db, itemId: number, date: string): number | undefined {
+export function resolveTaxRate(db: Db, itemId: number, date: string): number | undefined {
   const rate = row(
     db,
     'SELECT rate_bp FROM item_tax_rate WHERE item_id = ? AND effective_from <= ? ORDER BY effective_from DESC LIMIT 1',
@@ -701,7 +701,12 @@ function postEntryVoucher(
 export function cancelVoucher(
   db: Db,
   voucherId: number,
-  opts: { userId?: number | undefined; now?: string; role?: 'owner' | 'staff' } = {},
+  opts: {
+    userId?: number | undefined;
+    now?: string;
+    role?: 'owner' | 'staff';
+    reason?: string | undefined;
+  } = {},
 ): void {
   const now = opts.now ?? new Date().toISOString();
   transaction(db, () => {
@@ -776,7 +781,7 @@ export function cancelVoucher(
       'voucher',
       voucherId,
       JSON.stringify(before),
-      JSON.stringify(after),
+      JSON.stringify({ ...after, cancelReason: opts.reason ?? null }),
     );
     if (lines.length > 0) assertBalanced(db, voucherId); // stock-only vouchers have no journal
   });

@@ -2,6 +2,7 @@ import type { SQLOutputValue } from 'node:sqlite';
 import { writeAudit, type Ctx } from '../audit.ts';
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
+import { accountBalance } from '../reports/ledger.ts';
 import { cleanParty, requireName, requireNonNegative } from './validation.ts';
 
 type Row = Record<string, SQLOutputValue>;
@@ -233,4 +234,69 @@ export function deleteAccount(db: Db, id: number, ctx: Ctx = {}): void {
     db.prepare('DELETE FROM account WHERE id = ?').run(id);
     writeAudit(db, ctx, { action: 'delete', table: 'account', rowId: id, before });
   });
+}
+
+export interface PartyHit {
+  id: number;
+  name: string;
+  gstin: string | null;
+  stateCode: string | null;
+  phone: string | null;
+  creditDays: number;
+  groupName: string;
+  /** Positive = they owe us (Dr), negative = we owe them (Cr). */
+  balancePaise: number;
+}
+
+export type PartyKind = 'customer' | 'supplier' | 'any';
+
+/**
+ * Finds customers or suppliers by name, phone or GST number for the bill screens. For customers
+ * the built-in Cash account is offered too (a cash sale has no named customer). Each hit carries
+ * the party's balance on `asOn` so staff can see what is owed before billing.
+ */
+export function searchParties(
+  db: Db,
+  args: { text: string; kind: PartyKind; asOn: string; limit?: number },
+): PartyHit[] {
+  const groups =
+    args.kind === 'customer'
+      ? ['Sundry Debtors']
+      : args.kind === 'supplier'
+        ? ['Sundry Creditors']
+        : ['Sundry Debtors', 'Sundry Creditors'];
+  const q = args.text.trim().toLowerCase();
+  const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const rows = db
+    .prepare(
+      `WITH RECURSIVE tree(id) AS (
+         SELECT id FROM account_group WHERE name IN (${groups.map(() => '?').join(',')})
+         UNION ALL SELECT g.id FROM account_group g JOIN tree t ON g.parent_id = t.id)
+       SELECT a.id, a.name, a.gstin, a.state_code, a.phone, a.credit_days, g.name AS group_name,
+              CASE WHEN lower(a.name) = ? THEN 0 WHEN lower(a.name) LIKE ? ESCAPE '\\' THEN 1 ELSE 2 END AS rank
+       FROM account a JOIN account_group g ON g.id = a.group_id
+       WHERE (a.group_id IN (SELECT id FROM tree) OR (? = 'customer' AND a.name = 'Cash' AND a.is_system = 1))
+         AND (lower(a.name) LIKE ? ESCAPE '\\' OR COALESCE(a.phone, '') LIKE ? ESCAPE '\\' OR lower(COALESCE(a.gstin, '')) LIKE ? ESCAPE '\\')
+       ORDER BY CASE WHEN a.name = 'Cash' AND a.is_system = 1 THEN 0 ELSE 1 END, rank, a.name LIMIT ?`,
+    )
+    .all(
+      ...groups,
+      q,
+      `${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`,
+      args.kind,
+      like,
+      like,
+      like,
+      args.limit ?? 12,
+    );
+  return rows.map((r) => ({
+    id: Number(r['id']),
+    name: String(r['name']),
+    gstin: r['gstin'] === null ? null : String(r['gstin']),
+    stateCode: r['state_code'] === null ? null : String(r['state_code']),
+    phone: r['phone'] === null ? null : String(r['phone']),
+    creditDays: Number(r['credit_days']),
+    groupName: String(r['group_name']),
+    balancePaise: accountBalance(db, Number(r['id']), args.asOn),
+  }));
 }
