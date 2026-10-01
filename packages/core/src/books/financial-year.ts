@@ -1,3 +1,4 @@
+import type { SQLOutputValue } from 'node:sqlite';
 import { writeAudit, type Ctx } from '../audit.ts';
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
@@ -10,7 +11,7 @@ export interface FinancialYearRow {
   label: string;
 }
 
-const row = (r: Record<string, import('node:sqlite').SQLOutputValue>): FinancialYearRow => {
+const row = (r: Record<string, SQLOutputValue>): FinancialYearRow => {
   const startDate = String(r['start_date']);
   const endDate = String(r['end_date']);
   return {

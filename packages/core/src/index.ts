@@ -31,3 +31,7 @@ export * from './masters/items.ts';
 export * from './masters/setup.ts';
 export * from './books/financial-year.ts';
 export * from './books/control.ts';
+export * from './users/company.ts';
+export * from './users/users.ts';
+export * from './users/permissions.ts';
+export * from './users/setup.ts';
