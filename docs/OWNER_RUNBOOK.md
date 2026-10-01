@@ -66,5 +66,5 @@ Have ready: the message, and from **F1 > About this computer** the data file loc
 - Print a real bill on the shop's printer, on A4 and on the receipt roll.
 - Run the installer, restart Windows and confirm ShopLedger opens by itself.
 - Take a backup to the pen drive, then run a full restore on a spare computer.
-- Pull the power while a bill is being saved, start again, and confirm the bill is either complete or absent, never half there.
+- Pull the power while a bill is being saved, start again, and confirm the bill is either complete or absent, never half there (an automated process-kill version of this runs in the test suite).
 - Have the accountant check the GST outputs against one month of real bills.
