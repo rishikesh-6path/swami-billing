@@ -300,3 +300,47 @@ export function searchParties(
     balancePaise: accountBalance(db, Number(r['id']), args.asOn),
   }));
 }
+
+export interface AccountHit {
+  id: number;
+  name: string;
+  groupName: string;
+  isCashOrBank: boolean;
+  /** Positive = Dr, negative = Cr. */
+  balancePaise: number;
+}
+
+export type AccountKind = 'any' | 'cash_bank' | 'other';
+
+/**
+ * Finds any account by name, for journals, contras and payments. `cash_bank` offers only Cash and
+ * bank accounts; `other` offers everything except them.
+ */
+export function searchAccounts(
+  db: Db,
+  args: { text: string; kind: AccountKind; asOn: string; limit?: number },
+): AccountHit[] {
+  const q = args.text.trim().toLowerCase();
+  const escape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const rows = db
+    .prepare(
+      `WITH RECURSIVE cb(id) AS (
+         SELECT id FROM account_group WHERE name IN ('Cash-in-Hand', 'Bank Accounts')
+         UNION ALL SELECT g.id FROM account_group g JOIN cb ON g.parent_id = cb.id)
+       SELECT a.id, a.name, g.name AS group_name, a.group_id IN (SELECT id FROM cb) AS is_cb,
+              CASE WHEN lower(a.name) = ? THEN 0 WHEN lower(a.name) LIKE ? ESCAPE '\\' THEN 1 ELSE 2 END AS rank
+       FROM account a JOIN account_group g ON g.id = a.group_id
+       WHERE lower(a.name) LIKE ? ESCAPE '\\'
+         AND (? = 'any' OR (? = 'cash_bank' AND a.group_id IN (SELECT id FROM cb))
+              OR (? = 'other' AND a.group_id NOT IN (SELECT id FROM cb)))
+       ORDER BY rank, a.name LIMIT ?`,
+    )
+    .all(q, `${escape(q)}%`, `%${escape(q)}%`, args.kind, args.kind, args.kind, args.limit ?? 15);
+  return rows.map((r) => ({
+    id: Number(r['id']),
+    name: String(r['name']),
+    groupName: String(r['group_name']),
+    isCashOrBank: Boolean(r['is_cb']),
+    balancePaise: accountBalance(db, Number(r['id']), args.asOn),
+  }));
+}

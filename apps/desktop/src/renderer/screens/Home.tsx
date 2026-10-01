@@ -20,8 +20,20 @@ export function Home({
   const signOut = () => void call('auth.logout', {}).then(onSession);
   const open = (kind: 'sales' | 'purchase' | 'sales_return' | 'purchase_return') => () =>
     router.go({ name: 'voucher', kind });
-  useHotkeys({ F1: () => setHelp(true), U: signOut, F8: open('sales'), F9: open('purchase') });
-  useHints(['F8 New sale', 'F9 New purchase', 'F1 Help', 'U Switch user']);
+  const entry = (kind: 'receipt' | 'payment' | 'journal' | 'contra') => () =>
+    router.go({ name: 'entry', kind });
+  const stock = (kind: 'stock_journal' | 'physical_stock') => () =>
+    router.go({ name: 'stock', kind });
+  useHotkeys({
+    F1: () => setHelp(true),
+    U: signOut,
+    F5: entry('payment'),
+    F6: entry('receipt'),
+    F7: entry('journal'),
+    F8: open('sales'),
+    F9: open('purchase'),
+  });
+  useHints(['F8 Sale', 'F9 Purchase', 'F6 Receipt', 'F5 Payment', 'F1 Help', 'U Switch user']);
 
   return (
     <main className="page">
@@ -64,6 +76,12 @@ export function Home({
         <Tile title="New Purchase" keyName="F9" onClick={open('purchase')} />
         <Tile title="Sales Return" onClick={open('sales_return')} />
         <Tile title="Purchase Return" onClick={open('purchase_return')} />
+        <Tile title="Receipt (money in)" keyName="F6" onClick={entry('receipt')} />
+        <Tile title="Payment (money out)" keyName="F5" onClick={entry('payment')} />
+        <Tile title="Journal Entry" keyName="F7" onClick={entry('journal')} />
+        <Tile title="Cash / Bank Transfer" onClick={entry('contra')} />
+        <Tile title="Stock Journal" onClick={stock('stock_journal')} />
+        <Tile title="Stock Count" onClick={stock('physical_stock')} />
       </div>
 
       {help && (
@@ -80,6 +98,15 @@ export function Home({
             </li>
             <li>
               <kbd>F9</kbd> New purchase
+            </li>
+            <li>
+              <kbd>F6</kbd> New receipt
+            </li>
+            <li>
+              <kbd>F5</kbd> New payment
+            </li>
+            <li>
+              <kbd>F7</kbd> New journal entry
             </li>
           </ul>
           <details>

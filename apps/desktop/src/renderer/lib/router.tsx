@@ -2,7 +2,12 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type ItemVoucherKind = 'sales' | 'purchase' | 'sales_return' | 'purchase_return';
 
+export type EntryKind = 'receipt' | 'payment' | 'journal' | 'contra';
+export type StockKind = 'stock_journal' | 'physical_stock';
+
 export type Route =
+  | { name: 'entry'; kind: EntryKind; editId?: number }
+  | { name: 'stock'; kind: StockKind }
   | { name: 'home' }
   | { name: 'voucher'; kind: ItemVoucherKind; editId?: number }
   | { name: 'placeholder'; title: string };

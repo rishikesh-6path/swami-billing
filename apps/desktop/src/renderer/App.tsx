@@ -7,6 +7,8 @@ import { HotkeyProvider, useCurrentHints, useHotkeys } from './lib/hotkeys.tsx';
 import { RouterProvider, useRouter } from './lib/router.tsx';
 import { SessionProvider } from './lib/session.tsx';
 import { Home } from './screens/Home.tsx';
+import { EntryRoute } from './screens/voucher/EntryRoute.tsx';
+import { StockVoucher } from './screens/voucher/StockVoucher.tsx';
 import { VoucherRoute } from './screens/voucher/VoucherRoute.tsx';
 import { Login } from './screens/Login.tsx';
 import { Setup } from './screens/Setup.tsx';
@@ -20,6 +22,13 @@ function Screens({
 }) {
   const router = useRouter();
   useHotkeys({ Escape: router.back });
+  if (router.route.name === 'entry') {
+    const { kind, editId } = router.route;
+    return <EntryRoute key={`${kind}-${editId ?? 'new'}`} kind={kind} editId={editId} />;
+  }
+  if (router.route.name === 'stock') {
+    return <StockVoucher key={router.route.kind} kind={router.route.kind} />;
+  }
   if (router.route.name === 'voucher') {
     const { kind, editId } = router.route;
     return <VoucherRoute key={`${kind}-${editId ?? 'new'}`} kind={kind} editId={editId} />;

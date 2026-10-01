@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -91,7 +92,8 @@ function useApi(): HotkeyApi {
 export function useHotkeys(keys: Record<string, Handler>, enabled = true): void {
   const { add } = useApi();
   const latest = useRef(keys);
-  useEffect(() => {
+  // a layout effect, so a key pressed right after a render never sees the previous screen state
+  useLayoutEffect(() => {
     latest.current = keys;
   });
   useEffect(() => {

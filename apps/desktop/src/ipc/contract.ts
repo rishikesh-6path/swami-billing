@@ -3,6 +3,7 @@ import type {
   Action,
   BillSundryRow,
   Company,
+  AccountHit,
   ItemSearchRow,
   PartyHit,
   PostedVoucher,
@@ -234,6 +235,21 @@ export const contract = {
     z.object({
       text: z.string().max(100),
       kind: z.enum(['customer', 'supplier', 'any']),
+      asOn: isoDate,
+    }),
+  ),
+  'account.search': channel<
+    z.ZodObject<{
+      text: z.ZodString;
+      kind: z.ZodEnum<{ any: 'any'; cash_bank: 'cash_bank'; other: 'other' }>;
+      asOn: typeof isoDate;
+    }>,
+    AccountHit[]
+  >(
+    'bill',
+    z.object({
+      text: z.string().max(100),
+      kind: z.enum(['any', 'cash_bank', 'other']),
       asOn: isoDate,
     }),
   ),

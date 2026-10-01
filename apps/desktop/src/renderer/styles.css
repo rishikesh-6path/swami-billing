@@ -624,3 +624,34 @@ kbd {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ---- entry screens ---- */
+.cash-form {
+  max-width: 60rem;
+}
+
+.journal-top {
+  grid-template-columns: minmax(10rem, 14rem);
+}
+
+.journal-grid,
+.stock-grid {
+  margin-bottom: 0.5rem;
+}
+
+.bill-grid .c-money {
+  width: 10rem;
+}
+
+.bill-grid .c-dir {
+  width: 13rem;
+}
+
+.diff-note {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+table.data tfoot th {
+  background: var(--surface-2);
+}

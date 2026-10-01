@@ -14,6 +14,7 @@ import {
   nextVoucherNumber,
   postVoucher,
   previewItemVoucher,
+  searchAccounts,
   searchItems,
   searchParties,
   type VoucherInput,
@@ -43,6 +44,7 @@ export const voucherHandlers: Pick<
   | 'voucher.setup'
   | 'item.search'
   | 'party.search'
+  | 'account.search'
   | 'voucher.preview'
   | 'voucher.post'
   | 'voucher.get'
@@ -87,6 +89,8 @@ export const voucherHandlers: Pick<
     }),
   'party.search': (req, ctx) =>
     searchParties(ctx.db, { text: req.text, kind: req.kind, asOn: req.asOn }),
+  'account.search': (req, ctx) =>
+    searchAccounts(ctx.db, { text: req.text, kind: req.kind, asOn: req.asOn }),
   'voucher.preview': (req, ctx) =>
     previewItemVoucher(ctx.db, {
       ...req,

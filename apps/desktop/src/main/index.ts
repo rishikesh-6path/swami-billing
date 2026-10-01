@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import { seedDemoShop } from '@shopledger/core';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
 import { handlers } from './handlers/index.ts';
@@ -60,6 +60,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
+    // No menu bar in the shop: its shortcuts (F5 reload, Ctrl+R, zoom, developer tools) must never
+    // fire by accident while staff are typing bills. Developers keep the default menu.
+    if (!process.env['ELECTRON_RENDERER_URL']) Menu.setApplicationMenu(null);
     try {
       shopDb = openShopDatabase();
     } catch (error) {
