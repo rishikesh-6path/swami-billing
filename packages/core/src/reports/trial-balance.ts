@@ -1,7 +1,9 @@
 import type { Db } from '../db/connection.ts';
 import type { Paise } from '../money.ts';
 import { formatMoneyOrEmpty, toCsv } from './csv.ts';
+import { BOOKS_START } from './financials.ts';
 import { financialYearStart, nominalAccountIds } from './periods.ts';
+import { stockStatus } from './stock.ts';
 
 export interface TrialBalanceRow {
   accountId: number;
@@ -20,7 +22,10 @@ export interface TrialBalance {
   rows: TrialBalanceRow[];
   totalDrPaise: Paise;
   totalCrPaise: Paise;
-  /** Sum of all signed opening balances; non-zero means the entered openings do not balance. */
+  /**
+   * Entered opening balances plus the value of opening stock; non-zero means they do not balance
+   * (stock is not an account, so it is counted here).
+   */
   openingDifferencePaise: Paise;
   closingDrPaise: Paise;
   closingCrPaise: Paise;
@@ -112,6 +117,47 @@ export function trialBalance(db: Db, args: { from: string; to: string }): TrialB
       drPaise: 0,
       crPaise: 0,
       closingPaise: broughtForward,
+    });
+  }
+  // Stock is not a ledger account, so it is shown here, valued at the start of the financial year.
+  // The stock change of earlier years is part of the profit brought forward, so every year balances.
+  const dayBefore = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  };
+  const stockAtYearStart = stockStatus(db, {
+    asOn: dayBefore(yearStart),
+    includeInactive: true,
+  }).totalValuePaise;
+  const stockAtBooksStart = stockStatus(db, {
+    asOn: dayBefore(BOOKS_START),
+    includeInactive: true,
+  }).totalValuePaise;
+  openingDifference += stockAtBooksStart;
+  const carriedIndex = rows.findIndex((r) => r.accountId === 0);
+  if (carriedIndex >= 0) rows.splice(carriedIndex, 1);
+  const carriedSigned = broughtForward - stockAtYearStart + stockAtBooksStart;
+  if (carriedSigned !== 0) {
+    rows.push({
+      accountId: 0,
+      accountName: 'Profit and loss brought forward',
+      groupName: 'Capital Account',
+      openingPaise: carriedSigned,
+      drPaise: 0,
+      crPaise: 0,
+      closingPaise: carriedSigned,
+    });
+  }
+  if (stockAtYearStart !== 0) {
+    rows.push({
+      accountId: -1,
+      accountName: 'Stock in hand',
+      groupName: 'Current Assets',
+      openingPaise: stockAtYearStart,
+      drPaise: 0,
+      crPaise: 0,
+      closingPaise: stockAtYearStart,
     });
   }
   const sum = (pick: (r: TrialBalanceRow) => number) => rows.reduce((t, r) => t + pick(r), 0);

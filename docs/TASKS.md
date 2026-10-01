@@ -27,7 +27,7 @@ P2-01 | done | Masters CRUD with audit + alias-first item search | unit tests | 
 P2-02 | done | Financial year management, carry-forward, day close rules | unit tests | P0-kickoff
 P2-03 | done | Company profile, users, PIN (scrypt), roles, lockout, permissions | unit tests | P0-kickoff
 P2-04 | done | Stock Journal, Physical Stock, voucher modify, cash/bank leg checks, credit-note qty check | unit + invariant tests | P0-kickoff
-P2-05 | todo | Demo data seeder + CSV import for items and parties | unit tests |
+P2-05 | done | Demo data seeder + CSV import for items and parties | unit tests | P0-kickoff
 
 ## Phase 3 — Friendly desktop UI
 P3-01 | todo | IPC contract + handlers + plain-language error mapping | contract tests |

@@ -4,16 +4,20 @@ import { STATE_NAMES } from '../reports/gst/common.ts';
 const GSTIN_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const GSTIN_SHAPE = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 
-/** Validates the GSTIN layout and its mod-36 check character. */
-export function isValidGstin(gstin: string): boolean {
-  if (!GSTIN_SHAPE.test(gstin)) return false;
+/** The mod-36 check character for the first 14 characters of a GSTIN. */
+export function gstinCheckChar(first14: string): string {
   let sum = 0;
   for (let i = 0; i < 14; i++) {
-    const value = GSTIN_CHARS.indexOf(gstin.charAt(i));
+    const value = GSTIN_CHARS.indexOf(first14.charAt(i));
     const product = value * (i % 2 === 0 ? 1 : 2);
     sum += Math.floor(product / 36) + (product % 36);
   }
-  return GSTIN_CHARS.charAt((36 - (sum % 36)) % 36) === gstin.charAt(14);
+  return GSTIN_CHARS.charAt((36 - (sum % 36)) % 36);
+}
+
+/** Validates the GSTIN layout and its mod-36 check character. */
+export function isValidGstin(gstin: string): boolean {
+  return GSTIN_SHAPE.test(gstin) && gstinCheckChar(gstin.slice(0, 14)) === gstin.charAt(14);
 }
 
 /** Trims and requires a non-empty name, with a friendly field label in the message. */
