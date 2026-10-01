@@ -13,3 +13,7 @@ export * from './domain/posting/index.ts';
 export * from './reports/csv.ts';
 export * from './reports/ledger.ts';
 export * from './reports/stock.ts';
+export * from './reports/trial-balance.ts';
+export * from './reports/daybook.ts';
+export * from './reports/outstanding.ts';
+export * from './reports/registers.ts';

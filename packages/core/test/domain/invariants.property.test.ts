@@ -8,6 +8,7 @@ import {
   type ItemVoucherType,
   type VoucherInput,
 } from '../../src/domain/posting/types.ts';
+import { trialBalance } from '../../src/reports/trial-balance.ts';
 import { count, seedShop, type Shop } from '../helpers/shop.ts';
 
 // KICKOFF section 10: 500 runs normally, 5,000 before a phase tag (FC_RUNS=5000).
@@ -178,6 +179,10 @@ describe('ledger invariants (KICKOFF section 6)', () => {
         // 4. trial balance: total debits equal total credits, and vouchers were never deleted
         expect(count(db, 'SELECT SUM(dr_paise) - SUM(cr_paise) AS n FROM journal_line')).toBe(0);
         expect(count(db, 'SELECT COUNT(*) AS n FROM voucher')).toBe(posted);
+        // the trial balance reports the same truth: period and closing totals agree
+        const tb = trialBalance(db, { from: '2026-04-01', to: '2027-03-31' });
+        expect(tb.totalDrPaise).toBe(tb.totalCrPaise);
+        expect(tb.closingDrPaise).toBe(tb.closingCrPaise);
 
         // 2. stock status equals the net of live (non-cancelled) vouchers only
         const expectedStock = new Map<number, number>();
