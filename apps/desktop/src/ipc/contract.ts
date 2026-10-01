@@ -579,6 +579,7 @@ export const contract = {
   'books.lock': ch<ShopSettings['books']>()('lock_books', z.object({ date: isoDate })),
   'books.unlock': ch<ShopSettings['books']>()('lock_books', none),
   'books.closeYear': ch<ShopSettings['years']>()('close_year', z.object({ fyId: id })),
+  'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',
     z.object({ kind: z.enum(['items', 'customers', 'suppliers']) }),

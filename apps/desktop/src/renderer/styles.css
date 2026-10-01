@@ -848,3 +848,9 @@ tr.clickable:hover td {
     grid-template-columns: 1fr;
   }
 }
+
+.calc-answer {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0.5rem 0;
+}

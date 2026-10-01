@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SessionState } from '../ipc/contract.ts';
+import { Calculator } from './components/Calculator.tsx';
 import { Notice } from './components/ui.tsx';
 import { ToastProvider } from './components/ui.tsx';
 import { call } from './lib/api.ts';
@@ -24,7 +25,19 @@ import { SettingsScreen } from './screens/settings/SettingsScreen.tsx';
 import { Login } from './screens/Login.tsx';
 import { Setup } from './screens/Setup.tsx';
 
-function Screens({
+function Screens(props: { session: SessionState; onSession: (s: SessionState) => void }) {
+  const router = useRouter();
+  const [calculating, setCalculating] = useState(false);
+  useHotkeys({ Escape: router.back, F10: () => setCalculating(true) });
+  return (
+    <>
+      <Routes {...props} />
+      {calculating && <Calculator onClose={() => setCalculating(false)} />}
+    </>
+  );
+}
+
+function Routes({
   session,
   onSession,
 }: {
@@ -32,7 +45,6 @@ function Screens({
   onSession: (s: SessionState) => void;
 }) {
   const router = useRouter();
-  useHotkeys({ Escape: router.back });
   if (router.route.name === 'bills') return <BillList voucherType={router.route.voucherType} />;
   if (router.route.name === 'bill') return <BillView key={router.route.id} id={router.route.id} />;
   if (router.route.name === 'audit') return <AuditScreen />;

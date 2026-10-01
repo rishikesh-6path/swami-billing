@@ -1,5 +1,6 @@
 import {
   IMPORT_SAMPLES,
+  calculate,
   ValidationError,
   importItemsCsv,
   importPartiesCsv,
@@ -53,6 +54,7 @@ export const settingsHandlers: Pick<
   | 'books.lock'
   | 'books.unlock'
   | 'books.closeYear'
+  | 'calc.eval'
   | 'import.run'
   | 'import.sample'
   | 'backup.status'
@@ -125,6 +127,7 @@ export const settingsHandlers: Pick<
     closeFinancialYear(ctx.db, req.fyId, audit(ctx));
     return years(ctx);
   },
+  'calc.eval': (req) => ({ result: String(calculate(req.expression)) }),
   'import.run': async (req, ctx) => {
     const file = await ctx.chooseCsv();
     if (!file) return { cancelled: true, fileName: '', created: 0, skipped: [] };

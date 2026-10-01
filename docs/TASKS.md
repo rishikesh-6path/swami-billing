@@ -43,7 +43,7 @@ P3-08 | done | Print: A4 invoice, 80 mm thermal, PDF | unit tests on HTML; E2E p
 P4-01 | done | Backup (VACUUM INTO, schedule, retention, removable drive) + restore with integrity check | unit tests + E2E; real drive and restore drill on the shop PC pending | P0-kickoff
 P4-02 | done | Settings screen (shop, printing, people, day close, books lock, year close, backup) | E2E | P0-kickoff
 P4-03 | done | electron-builder NSIS config, auto-launch, packaged migrations path | packaged folder smoke-tested on Linux (E2E, SHOPLEDGER_PACKAGED_EXE); installer build and run on Windows pending | P0-kickoff
-P4-04 | todo | USER_GUIDE.md and owner runbook | review |
+P4-04 | done | USER_GUIDE.md and owner runbook, keymap | review by owner | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.
