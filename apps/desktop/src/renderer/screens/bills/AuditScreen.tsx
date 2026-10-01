@@ -21,6 +21,9 @@ const ACTIONS: Record<string, string> = {
   close_year: 'Year closed',
   reopen_year: 'Year reopened',
   set_tax_rate: 'GST rate changed',
+  login: 'Signed in',
+  login_failed: 'Wrong PIN typed',
+  login_locked: 'Locked out after wrong PINs',
 };
 
 /** Who did what and when, for the owner. */

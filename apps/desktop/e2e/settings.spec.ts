@@ -18,7 +18,7 @@ test('the owner changes shop details and adds a person who can then sign in', as
     await page.keyboard.press('Alt+3');
     await expect(page.getByRole('heading', { name: 'Add a person' })).toBeVisible();
     await page.getByLabel('Name', { exact: true }).fill('Ravi');
-    await page.getByLabel('PIN (4 to 6 digits)').fill('2222');
+    await page.getByLabel('PIN (4 to 6 digits)').fill('2931');
     await page.getByRole('button', { name: 'Add person' }).click();
     await expect(page.getByText('Person added.')).toBeVisible();
     await expect(page.getByRole('row', { name: /Ravi/ })).toBeVisible();
@@ -26,7 +26,7 @@ test('the owner changes shop details and adds a person who can then sign in', as
     await page.keyboard.press('Escape');
     await expect(page.getByRole('heading', { name: 'Swami Hardware' })).toBeVisible();
     await page.keyboard.press('U');
-    await signIn(page, 'Ravi', '2222');
+    await signIn(page, 'Ravi', '2931');
     await expect(page.getByText('Sales today')).toBeVisible();
     await expect(page.getByRole('button', { name: /Settings/ })).toHaveCount(0);
   } finally {

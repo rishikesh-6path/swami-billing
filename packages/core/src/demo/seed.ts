@@ -93,9 +93,10 @@ export function seedDemoShop(db: Db, args: { today: string }): DemoSummary {
         },
         ownerName: 'Owner',
         ownerPin: '1234',
+        allowWeakPin: true,
         today: args.today,
       });
-      createUser(db, { name: 'Staff', pin: '1111', role: 'staff' });
+      createUser(db, { name: 'Staff', pin: '1111', role: 'staff', allowWeakPin: true });
     }
     const items = importItemsCsv(db, ITEMS);
     const parties = importPartiesCsv(db, PARTIES);

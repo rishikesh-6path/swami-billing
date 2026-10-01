@@ -37,10 +37,19 @@ export function calculate(text: string): number {
   const tokens = tokenise(text);
   if (tokens.length === 0) throw new ValidationError('Please type a sum, for example 450*12+30.');
   let pos = 0;
+  let depth = 0;
   const peek = () => tokens[pos];
   const isOp = (t: Token | undefined, v: string) => t?.kind === 'op' && t.value === v;
 
   const primary = (): number => {
+    if (++depth > 100) throw new ValidationError('The sum has too many brackets or minus signs.');
+    try {
+      return primaryInner();
+    } finally {
+      depth--;
+    }
+  };
+  const primaryInner = (): number => {
     const t = tokens[pos++];
     if (!t) throw new ValidationError('The sum is not finished.');
     if (t.kind === 'num') {
@@ -83,5 +92,6 @@ export function calculate(text: string): number {
   const result = sum();
   if (pos < tokens.length) throw new ValidationError('The sum does not look right.');
   if (!Number.isFinite(result)) throw new ValidationError('That number is too big.');
-  return Math.round(result * 10_000) / 10_000;
+  // half away from zero, and never a negative zero
+  return (Math.sign(result) * Math.round(Math.abs(result) * 10_000)) / 10_000 + 0;
 }

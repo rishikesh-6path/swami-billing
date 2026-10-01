@@ -40,8 +40,21 @@ export function pinMatches(pin: string, stored: string): boolean {
   return timingSafeEqual(actual, expected);
 }
 
-function cleanPin(pin: string): string {
+/** All the same digit, a straight run up or down (1234, 4321), or two digits repeated (1212). */
+function isEasyToGuess(pin: string): boolean {
+  if (/^(\d)\1+$/.test(pin)) return true;
+  const steps = [...pin].slice(1).map((d, i) => Number(d) - Number(pin.charAt(i)));
+  if (steps.every((x) => x === 1) || steps.every((x) => x === -1)) return true;
+  return pin.length % 2 === 0 && pin === pin.slice(0, 2).repeat(pin.length / 2);
+}
+
+function cleanPin(pin: string, allowWeak = false): string {
   if (!/^\d{4,6}$/.test(pin)) throw new ValidationError('The PIN must be 4 to 6 digits.');
+  if (!allowWeak && isEasyToGuess(pin)) {
+    throw new ValidationError(
+      'That PIN is too easy to guess. Please choose other digits, not a run like 1234 or the same digit repeated.',
+    );
+  }
   return pin;
 }
 
@@ -63,11 +76,11 @@ export function getUser(db: Db, id: number): UserRow | undefined {
 
 export function createUser(
   db: Db,
-  input: { name: string; pin: string; role: Role },
+  input: { name: string; pin: string; role: Role; allowWeakPin?: boolean },
   ctx: Ctx = {},
 ): number {
   const name = requireName(input.name, 'name');
-  const pin = cleanPin(input.pin);
+  const pin = cleanPin(input.pin, input.allowWeakPin);
   return transaction(db, () => {
     if (db.prepare('SELECT 1 FROM user WHERE lower(name) = lower(?)').get(name)) {
       throw new ValidationError(`There is already a user named "${name}".`);
@@ -180,13 +193,28 @@ export function login(db: Db, name: string, pin: string, ctx: Ctx = {}): UserRow
       count >= MAX_FAILURES
         ? new Date(Date.parse(now) + LOCK_MINUTES * 60_000).toISOString()
         : null;
-    setSetting(
-      db,
-      `auth.fail.${id}`,
-      JSON.stringify({ count: lockedUntil ? 0 : count, lockedUntil }),
-    );
+    transaction(db, () => {
+      setSetting(
+        db,
+        `auth.fail.${id}`,
+        JSON.stringify({ count: lockedUntil ? 0 : count, lockedUntil }),
+      );
+      const who = { ...ctx, userId: id };
+      writeAudit(db, who, { action: 'login_failed', table: 'user', rowId: id, after: { count } });
+      if (lockedUntil) {
+        writeAudit(db, who, {
+          action: 'login_locked',
+          table: 'user',
+          rowId: id,
+          after: { lockedUntil },
+        });
+      }
+    });
     throw wrong;
   }
-  setSetting(db, `auth.fail.${id}`, '');
+  transaction(db, () => {
+    setSetting(db, `auth.fail.${id}`, '');
+    writeAudit(db, { ...ctx, userId: id }, { action: 'login', table: 'user', rowId: id });
+  });
   return user(found);
 }

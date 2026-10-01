@@ -19,12 +19,23 @@ export function isSetupComplete(db: Db): boolean {
  */
 export function completeSetup(
   db: Db,
-  input: { company: CompanyInput; ownerName: string; ownerPin: string; today: string },
+  input: {
+    company: CompanyInput;
+    ownerName: string;
+    ownerPin: string;
+    today: string;
+    allowWeakPin?: boolean;
+  },
 ): number {
   return transaction(db, () => {
     if (isSetupComplete(db)) throw new ValidationError('ShopLedger has already been set up.');
     saveCompany(db, input.company);
-    const ownerId = createUser(db, { name: input.ownerName, pin: input.ownerPin, role: 'owner' });
+    const ownerId = createUser(db, {
+      name: input.ownerName,
+      pin: input.ownerPin,
+      role: 'owner',
+      ...(input.allowWeakPin ? { allowWeakPin: true } : {}),
+    });
     ensureFinancialYearFor(db, input.today, { userId: ownerId });
     ensureDefaults(db);
     return ownerId;

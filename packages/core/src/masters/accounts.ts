@@ -1,5 +1,6 @@
 import type { SQLOutputValue } from 'node:sqlite';
 import { writeAudit, type Ctx } from '../audit.ts';
+import { assertOpeningsEditable } from '../books/control.ts';
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
 import { accountBalance } from '../reports/ledger.ts';
@@ -125,6 +126,7 @@ export function createAccount(db: Db, input: AccountInput, ctx: Ctx = {}): numbe
   const name = requireName(input.name, 'account name');
   const party = cleanParty(input);
   const opening = requireNonNegative(input.openingBalancePaise, 'opening balance');
+  if (opening !== 0) assertOpeningsEditable(db);
   const creditDays = requireNonNegative(input.creditDays, 'credit days');
   return transaction(db, () => {
     if (!db.prepare('SELECT 1 FROM account_group WHERE id = ?').get(input.groupId)) {
@@ -184,6 +186,14 @@ export function updateAccount(
       stateCode: patch.stateCode === undefined ? before.stateCode : patch.stateCode,
       phone: patch.phone === undefined ? before.phone : patch.phone,
     });
+    const newOpening = patch.openingBalancePaise ?? before.openingBalancePaise;
+    const newIsDr = patch.openingIsDr ?? before.openingIsDr;
+    if (
+      newOpening !== before.openingBalancePaise ||
+      (newOpening !== 0 && newIsDr !== before.openingIsDr)
+    ) {
+      assertOpeningsEditable(db);
+    }
     const groupId = patch.groupId ?? before.groupId;
     if (!db.prepare('SELECT 1 FROM account_group WHERE id = ?').get(groupId)) {
       throw new ValidationError('Please choose a group for this account.');

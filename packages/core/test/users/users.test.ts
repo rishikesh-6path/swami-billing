@@ -82,7 +82,7 @@ describe('users and sign-in', () => {
     expect(() => createUser(db, { name: 'Ravi', pin: 'abcd', role: 'staff' })).toThrow(
       ValidationError,
     );
-    expect(() => createUser(db, { name: 'TONY', pin: '1234', role: 'staff' })).toThrow(
+    expect(() => createUser(db, { name: 'TONY', pin: '4829', role: 'staff' })).toThrow(
       /already a user/,
     );
   });
@@ -109,11 +109,11 @@ describe('users and sign-in', () => {
   it('changes a PIN and blocks sign-in for inactive users', () => {
     const db = shop();
     const staff = listUsers(db).find((u) => u.name === 'Murugan')!;
-    changePin(db, staff.id, '9999');
+    changePin(db, staff.id, '9273');
     expect(() => login(db, 'Murugan', '1357')).toThrow();
-    expect(login(db, 'Murugan', '9999').id).toBe(staff.id);
+    expect(login(db, 'Murugan', '9273').id).toBe(staff.id);
     updateUser(db, staff.id, { isActive: false });
-    expect(() => login(db, 'Murugan', '9999')).toThrow(/not right/);
+    expect(() => login(db, 'Murugan', '9273')).toThrow(/not right/);
   });
 
   it('always keeps at least one owner who can sign in', () => {

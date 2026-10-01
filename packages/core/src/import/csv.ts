@@ -10,16 +10,34 @@ import {
   listUnits,
 } from '../masters/items.ts';
 
-/** Parses CSV (or tab-separated) text: quotes, escaped quotes, embedded newlines, BOM, CRLF. */
-export function parseCsv(text: string): string[][] {
+/** One parsed row and the line of the file it starts on (as a spreadsheet numbers rows). */
+export interface CsvRow {
+  cells: string[];
+  line: number;
+}
+
+/**
+ * Parses CSV (or tab-separated) text: quotes, escaped quotes, embedded newlines, BOM, CRLF.
+ * A quote only opens a quoted cell at the very start of the cell, so an inch mark inside a name
+ * such as 1/2" elbow is kept as text. Blank rows are skipped but still counted in line numbers.
+ */
+export function parseCsvLines(text: string): CsvRow[] {
   const BOM = String.fromCharCode(0xfeff);
   const input = text.startsWith(BOM) ? text.slice(1) : text;
   const firstLine = input.split(/\r?\n/, 1)[0] ?? '';
   const delimiter = firstLine.includes('\t') && !firstLine.includes(',') ? '\t' : ',';
-  const rows: string[][] = [];
+  const rows: CsvRow[] = [];
   let row: string[] = [];
   let cell = '';
   let quoted = false;
+  let line = 1;
+  let rowLine = 1;
+  const endRow = () => {
+    row.push(cell);
+    cell = '';
+    if (row.some((c) => c.trim() !== '')) rows.push({ cells: row, line: rowLine });
+    row = [];
+  };
   for (let i = 0; i < input.length; i++) {
     const ch = input.charAt(i);
     if (quoted) {
@@ -27,22 +45,27 @@ export function parseCsv(text: string): string[][] {
         cell += '"';
         i++;
       } else if (ch === '"') quoted = false;
-      else cell += ch;
-    } else if (ch === '"') quoted = true;
+      else {
+        if (ch === '\n') line++;
+        cell += ch;
+      }
+    } else if (ch === '"' && cell === '') quoted = true;
     else if (ch === delimiter) {
       row.push(cell);
       cell = '';
     } else if (ch === '\n' || ch === '\r') {
       if (ch === '\r' && input.charAt(i + 1) === '\n') i++;
-      row.push(cell);
-      cell = '';
-      if (row.some((c) => c.trim() !== '')) rows.push(row);
-      row = [];
+      endRow();
+      line++;
+      rowLine = line;
     } else cell += ch;
   }
-  row.push(cell);
-  if (row.some((c) => c.trim() !== '')) rows.push(row);
+  endRow();
   return rows;
+}
+
+export function parseCsv(text: string): string[][] {
+  return parseCsvLines(text).map((r) => r.cells);
 }
 
 export interface ImportResult {
@@ -91,8 +114,8 @@ function eachRow(
   required: string[],
   handle: (f: Fields, row: number) => void,
 ): ImportResult {
-  const rows = parseCsv(text);
-  const header = rows[0];
+  const rows = parseCsvLines(text);
+  const header = rows[0]?.cells;
   if (!header)
     throw new ValidationError(
       'The file is empty. Please choose a file with a heading row and your data.',
@@ -106,8 +129,7 @@ function eachRow(
     );
   }
   const result: ImportResult = { created: 0, skipped: [] };
-  rows.slice(1).forEach((cells, i) => {
-    const row = i + 2; // as numbered in a spreadsheet
+  rows.slice(1).forEach(({ cells, line: row }) => {
     const fields: Fields = {};
     columns.forEach((field, index) => {
       fields[field] = (cells[index] ?? '').trim();

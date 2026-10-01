@@ -2,8 +2,15 @@ import { formatMoney } from '../money.ts';
 
 export type CsvCell = string | number | null;
 
+const NUMBER_LIKE = /^[+-]?\d[\d,]*(\.\d+)?( (Dr|Cr))?$/;
+
 function escape(cell: CsvCell): string {
-  const text = cell === null ? '' : String(cell);
+  let text = cell === null ? '' : String(cell);
+  // A name typed or imported as "=HYPERLINK(...)" must not run as a formula when the file is opened
+  // in Excel. Numbers (including negative ones) are left alone.
+  if (typeof cell === 'string' && /^[=+\-@\t\r]/.test(text) && !NUMBER_LIKE.test(text)) {
+    text = `'${text}`;
+  }
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

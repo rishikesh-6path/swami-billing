@@ -10,6 +10,7 @@ import {
 import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { Db } from '../db/connection.ts';
+import { LATEST_SCHEMA_VERSION } from '../db/migrations.ts';
 import { ValidationError } from '../errors.ts';
 
 /** Backup files are named `shopledger-YYYY-MM-DD-HHMMSS.db` (shop time), so names sort by age. */
@@ -34,6 +35,9 @@ export function backupFileName(date: string, time: string): string {
  * never mistaken for a backup.
  */
 export function createBackup(db: Db, dir: string, date: string, time: string): BackupFile {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}:\d{2}$/.test(time)) {
+    throw new ValidationError('The backup could not be named. Please check the date and time.');
+  }
   mkdirSync(dir, { recursive: true });
   const name = backupFileName(date, time);
   const finalPath = join(dir, name);
@@ -48,6 +52,21 @@ export function createBackup(db: Db, dir: string, date: string, time: string): B
   renameSync(tempPath, finalPath);
   return { name, path: finalPath, date, bytes: statSync(finalPath).size };
 }
+
+const REQUIRED_TABLES = [
+  'schema_version',
+  'setting',
+  'user',
+  'account',
+  'account_group',
+  'item',
+  'voucher',
+  'voucher_item',
+  'journal_line',
+  'stock_movement',
+  'financial_year',
+  'audit_log',
+];
 
 export interface BackupCheck {
   ok: boolean;
@@ -72,13 +91,25 @@ export function checkBackupFile(path: string): BackupCheck {
     if (report.length !== 1 || report[0] !== 'ok') {
       return { ok: false, message: 'The file is damaged.', vouchers: 0 };
     }
-    const table = db
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('voucher','setting')",
-      )
-      .all();
-    if (table.length < 2) {
+    const present = new Set(
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all()
+        .map((r) => String(r['name'])),
+    );
+    if (!REQUIRED_TABLES.every((t) => present.has(t))) {
       return { ok: false, message: 'The file is not a ShopLedger backup.', vouchers: 0 };
+    }
+    const version = Number(
+      db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_version').get()?.['v'],
+    );
+    if (version > LATEST_SCHEMA_VERSION) {
+      return {
+        ok: false,
+        message:
+          'It was made by a newer version of ShopLedger than the one on this computer. Please install the newer version first.',
+        vouchers: 0,
+      };
     }
     const vouchers = Number(db.prepare('SELECT COUNT(*) AS n FROM voucher').get()?.['n'] ?? 0);
     return { ok: true, message: '', vouchers };
@@ -161,7 +192,12 @@ export function restoreDatabaseFile(backupPath: string, dbPath: string): { kept:
   }
   let kept: string | null = null;
   if (existsSync(dbPath)) {
-    kept = `${dbPath}.before-restore`;
+    // never overwrite an earlier safety copy: two wrong restores in a row must not lose the original
+    let n = 0;
+    do {
+      kept = `${dbPath}.before-restore${n === 0 ? '' : `-${n}`}`;
+      n += 1;
+    } while (existsSync(kept));
     copyFileSync(dbPath, kept);
   }
   const staged = `${dbPath}.restoring`;

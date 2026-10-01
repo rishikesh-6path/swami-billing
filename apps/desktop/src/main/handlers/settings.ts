@@ -40,6 +40,15 @@ function years(ctx: HandlerContext): ShopSettings['years'] {
   return listFinancialYears(ctx.db).map((y) => ({ ...y, current: y.id === current?.id }));
 }
 
+/** A typo such as the year 2062 would close or lock every future bill. */
+function notAfterToday(date: string, ctx: HandlerContext): void {
+  if (date > ctx.today()) {
+    throw new ValidationError(
+      'You can only close or lock days up to today. Please check the date.',
+    );
+  }
+}
+
 const audit = (ctx: HandlerContext) => ({ userId: ctx.user().id });
 
 export const settingsHandlers: Pick<
@@ -112,6 +121,7 @@ export const settingsHandlers: Pick<
     return null;
   },
   'books.closeDay': (req, ctx) => {
+    notAfterToday(req.date, ctx);
     closeDay(ctx.db, req.date, audit(ctx));
     return books(ctx.db);
   },
@@ -120,6 +130,7 @@ export const settingsHandlers: Pick<
     return books(ctx.db);
   },
   'books.lock': (req, ctx) => {
+    notAfterToday(req.date, ctx);
     lockBooks(ctx.db, req.date, audit(ctx));
     return books(ctx.db);
   },

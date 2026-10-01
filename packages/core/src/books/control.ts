@@ -10,6 +10,13 @@ const LOCK_KEY = 'books.locked_through';
 
 const iso = /^\d{4}-\d{2}-\d{2}$/;
 
+/** True for a real calendar date written YYYY-MM-DD (so 2026-02-30 and 2026-13-01 are not). */
+function isRealDate(text: string): boolean {
+  if (!iso.test(text)) return false;
+  const d = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === text;
+}
+
 function readDate(db: Db, key: string): string | undefined {
   const value = getSetting(db, key);
   return value && iso.test(value) ? value : undefined;
@@ -46,7 +53,7 @@ export function assertDateOpen(db: Db, date: string, role: Role = 'owner'): void
 
 /** Owner closes the day: from now on staff cannot change vouchers dated on or before it. */
 export function closeDay(db: Db, date: string, ctx: Ctx = {}): void {
-  if (!iso.test(date)) throw new ValidationError('Please choose a valid date.');
+  if (!isRealDate(date)) throw new ValidationError('Please choose a valid date.');
   transaction(db, () => {
     const previous = dayClosedThrough(db);
     if (previous !== undefined && date < previous) {
@@ -67,8 +74,11 @@ export function closeDay(db: Db, date: string, ctx: Ctx = {}): void {
 
 /** Owner reopens days after `date` (or everything when no date is given). */
 export function reopenDay(db: Db, date: string | null, ctx: Ctx = {}): void {
+  if (date !== null && !isRealDate(date)) throw new ValidationError('Please choose a valid date.');
   transaction(db, () => {
     const previous = dayClosedThrough(db);
+    // reopening can only shorten the closed period, never extend it
+    if (date !== null && (previous === undefined || date >= previous)) return;
     setSetting(db, DAY_KEY, date ?? '');
     writeAudit(db, ctx, {
       action: 'reopen_day',
@@ -81,7 +91,7 @@ export function reopenDay(db: Db, date: string | null, ctx: Ctx = {}): void {
 }
 
 export function lockBooks(db: Db, throughDate: string, ctx: Ctx = {}): void {
-  if (!iso.test(throughDate)) throw new ValidationError('Please choose a valid date.');
+  if (!isRealDate(throughDate)) throw new ValidationError('Please choose a valid date.');
   transaction(db, () => {
     const previous = booksLockedThrough(db);
     setSetting(db, LOCK_KEY, throughDate);
@@ -101,4 +111,19 @@ export function unlockBooks(db: Db, ctx: Ctx = {}): void {
     setSetting(db, LOCK_KEY, '');
     writeAudit(db, ctx, { action: 'unlock_books', table: 'setting', rowId: 0, before: previous });
   });
+}
+
+/**
+ * Opening balances and opening stock sit at the very start of the books, so changing them
+ * rewrites every ledger and stock figure after it. Once the books are locked or a year has been
+ * closed that would silently change figures that may already be filed.
+ */
+export function assertOpeningsEditable(db: Db): void {
+  const locked = booksLockedThrough(db);
+  const closedYear = db.prepare('SELECT 1 FROM financial_year WHERE is_locked = 1 LIMIT 1').get();
+  if (locked !== undefined || closedYear) {
+    throw new ValidationError(
+      'Opening balances and opening stock cannot be changed after the books are locked or a year is closed. The owner can unlock the books in Settings first, or you can make a journal entry instead.',
+    );
+  }
 }

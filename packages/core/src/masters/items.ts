@@ -1,5 +1,6 @@
 import type { SQLOutputValue } from 'node:sqlite';
 import { writeAudit, type Ctx } from '../audit.ts';
+import { assertOpeningsEditable } from '../books/control.ts';
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
 import { requireName, requireNonNegative } from './validation.ts';
@@ -228,6 +229,7 @@ export function createItem(db: Db, input: ItemInput, ctx: Ctx = {}): number {
       throw new ValidationError('Please choose a group for this item.');
     }
     checkQty(db, input.unitId, input.openingQty ?? 0, 'The opening quantity');
+    if ((input.openingQty ?? 0) !== 0) assertOpeningsEditable(db);
     checkQty(db, input.unitId, prices.min, 'The minimum stock');
     if (nameTaken(db, name, -1))
       throw new ValidationError(`An item named "${name}" already exists.`);
@@ -283,6 +285,10 @@ export function updateItem(
         );
     }
     const openingQty = patch.openingQty ?? before.openingQty;
+    const openingRate = patch.openingRatePaise ?? before.openingRatePaise;
+    if (openingQty !== before.openingQty || openingRate !== before.openingRatePaise) {
+      assertOpeningsEditable(db);
+    }
     checkQty(db, unitId, openingQty, 'The opening quantity');
     if (nameTaken(db, name, id))
       throw new ValidationError(`An item named "${name}" already exists.`);
