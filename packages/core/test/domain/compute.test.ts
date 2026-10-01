@@ -70,6 +70,22 @@ describe('computeItemVoucher', () => {
     expect(v.totalPaise % 100).toBe(0);
   });
 
+  it('rejects a taxable discount larger than the lines it applies to', () => {
+    expect(() =>
+      computeItemVoucher(
+        [line],
+        [{ sign: -1, affectsTaxable: true, amountPaise: 30000 }],
+        'local',
+        true,
+      ),
+    ).toThrow(/larger than the value/);
+  });
+
+  it('keeps CGST equal to SGST on an odd-paisa line', () => {
+    const v = computeItemVoucher([{ ...line, qty: 1000, listPricePaise: 50 }], [], 'local', false);
+    expect([v.cgstPaise, v.sgstPaise]).toEqual([5, 5]);
+  });
+
   it('rejects empty vouchers and non-positive quantities', () => {
     expect(() => computeItemVoucher([], [], 'local', true)).toThrow(/at least one/);
     expect(() => computeItemVoucher([{ ...line, qty: 0 }], [], 'local', true)).toThrow(/quantity/);
@@ -102,13 +118,14 @@ describe('computeItemVoucher', () => {
             v = computeItemVoucher(lines, sundries, mode, round);
           } catch (e) {
             // only legitimate failure: spreading a sundry over all-zero lines
-            expect(String(e)).toMatch(/zero-value/);
+            expect(String(e)).toMatch(/zero-value|larger than the value/);
             return;
           }
           expect(v.totalPaise).toBe(
             v.taxablePaise + v.taxPaise + v.postTaxSundryPaise + v.roundOffPaise,
           );
           expect(v.cgstPaise + v.sgstPaise + v.igstPaise).toBe(v.taxPaise);
+          expect(v.cgstPaise).toBe(v.sgstPaise);
           if (round) expect(Math.abs(v.roundOffPaise)).toBeLessThanOrEqual(50);
         },
       ),

@@ -15,7 +15,7 @@ P0-06 | done | Vitest, fast-check, Playwright wired; `.claude/settings.json` hoo
 P1-00 | done | Money/quantity helpers + domain schema migration (KICKOFF §6 tables) | unit + fast-check tests, schema applies on :memory: | P0-kickoff
 P1-01 | todo | Busy XML streaming parser: masters | sample fixture parses; idempotent re-import |
 P1-02 | todo | Busy XML parser: all voucher types; exceptions CSV | every voucher type in sample imported |
-P1-03 | doing | Posting engine (journal + stock lines) for all voucher types | fast-check invariants §6, 500 runs |
+P1-03 | done | Posting engine (journal + stock lines) for sales, purchase, returns and entry vouchers; cancel with reversal (Stock Journal and Physical Stock are P3-04) | fast-check invariants §6, 500 runs (also passed at 5,000) | P0-kickoff
 P1-04 | todo | Account Ledger report + golden-file harness | ledger_ayappan.csv matches |
 P1-05 | todo | Stock Status + Item Ledger reports | stock_status.csv matches |
 P1-06 | todo | Trial Balance + Day Book | trial_balance.csv matches |

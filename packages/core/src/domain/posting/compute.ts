@@ -2,7 +2,7 @@ import {
   applyDiscount,
   lineAmount,
   roundOffToRupee,
-  splitCgstSgst,
+  halfTaxOn,
   taxOn,
   type BasisPoints,
   type Milli,
@@ -111,12 +111,23 @@ export function computeItemVoucher(
   const computed = lines.map((line, i): ComputedLine => {
     const p = priced[i]!;
     const taxablePaise = p.amountPaise + (shares[i] ?? 0);
-    const tax = taxMode === 'exempt' ? 0 : taxOn(taxablePaise, line.taxRateBp);
-    if (taxMode === 'local') {
-      const { cgst, sgst } = splitCgstSgst(tax);
-      return { ...p, taxablePaise, cgstPaise: cgst, sgstPaise: sgst, igstPaise: 0 };
+    if (taxablePaise < 0) {
+      throw new PostingError('A discount is larger than the value of the lines it applies to');
     }
-    return { ...p, taxablePaise, cgstPaise: 0, sgstPaise: 0, igstPaise: tax };
+    if (taxMode === 'exempt') {
+      return { ...p, taxablePaise, cgstPaise: 0, sgstPaise: 0, igstPaise: 0 };
+    }
+    if (taxMode === 'local') {
+      const half = halfTaxOn(taxablePaise, line.taxRateBp);
+      return { ...p, taxablePaise, cgstPaise: half, sgstPaise: half, igstPaise: 0 };
+    }
+    return {
+      ...p,
+      taxablePaise,
+      cgstPaise: 0,
+      sgstPaise: 0,
+      igstPaise: taxOn(taxablePaise, line.taxRateBp),
+    };
   });
 
   const sum = (pick: (l: ComputedLine) => number) => computed.reduce((a, l) => a + pick(l), 0);

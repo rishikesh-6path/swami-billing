@@ -100,12 +100,13 @@ export function taxOn(taxable: Paise, rateBp: BasisPoints): Paise {
 }
 
 /**
- * Splits an intra-state tax figure (already rounded for the line) into CGST and SGST. When
- * the total is odd paise the extra paisa goes to CGST so the halves always sum to the whole.
+ * One half (CGST or SGST) of intra-state tax: taxable x rate / 2, rounded to the paisa.
+ * CGST and SGST are each computed this way, so they are always equal and the invoice's
+ * rate-wise tax table is symmetric (a total of 9 paise at 18% on 50 paise becomes 5 + 5).
  */
-export function splitCgstSgst(totalTax: Paise): { cgst: Paise; sgst: Paise } {
-  const sgst = Math.floor(totalTax / 2);
-  return { cgst: totalTax - sgst, sgst };
+export function halfTaxOn(taxable: Paise, rateBp: BasisPoints): Paise {
+  if (rateBp < 0) throw new RangeError('rate must not be negative');
+  return mulDivRound(taxable, rateBp, 20000);
 }
 
 /** Difference needed to round an amount to the nearest whole rupee (half away from zero). */

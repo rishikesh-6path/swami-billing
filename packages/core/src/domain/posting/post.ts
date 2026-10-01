@@ -7,6 +7,7 @@ import {
   type ItemVoucherInput,
   type ItemVoucherType,
   type PostedVoucher,
+  type PostOptions,
   type VoucherInput,
 } from './types.ts';
 
@@ -58,8 +59,18 @@ function systemAccountId(db: Db, name: string): number {
   return Number(found['id']);
 }
 
+function assertRealDate(date: string): void {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const valid =
+    match !== null &&
+    new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+      .toISOString()
+      .slice(0, 10) === date;
+  if (!valid) throw new PostingError(`Invalid date "${date}"`);
+}
+
 function financialYearFor(db: Db, date: string): number {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new PostingError(`Invalid date "${date}"`);
+  assertRealDate(date);
   const fy = row(
     db,
     'SELECT id, is_locked FROM financial_year WHERE start_date <= ? AND end_date >= ?',
@@ -69,6 +80,37 @@ function financialYearFor(db: Db, date: string): number {
   if (!fy) throw new PostingError(`No financial year covers ${date}`);
   if (fy['is_locked']) throw new PostingError(`The financial year for ${date} is locked`);
   return Number(fy['id']);
+}
+
+const REFERENCED_TYPE: Partial<Record<string, string>> = {
+  sales_return: 'sales',
+  credit_note: 'sales',
+  purchase_return: 'purchase',
+  debit_note: 'purchase',
+};
+
+/** Credit/debit notes must reference the original invoice (KICKOFF section 8). */
+function assertReference(db: Db, input: VoucherInput, legacyImport: boolean): void {
+  const expected = REFERENCED_TYPE[input.type];
+  if (!expected) return;
+  if (input.refVoucherId === undefined) {
+    if (legacyImport) return;
+    throw new PostingError(`A ${input.type.replace('_', ' ')} must reference the original invoice`);
+  }
+  const ref = row(
+    db,
+    'SELECT voucher_type, status, date FROM voucher WHERE id = ?',
+    input.refVoucherId,
+  );
+  if (!ref) throw new PostingError(`Referenced voucher ${input.refVoucherId} does not exist`);
+  if (ref['voucher_type'] !== expected || ref['status'] !== 'posted') {
+    throw new PostingError(
+      `A ${input.type.replace('_', ' ')} must reference a posted ${expected} voucher`,
+    );
+  }
+  if (String(ref['date']) > input.date) {
+    throw new PostingError('A return or note cannot be dated before the invoice it refers to');
+  }
 }
 
 /** Next gap-free number for (type, series, fy). Must be called inside the insert transaction. */
@@ -196,8 +238,17 @@ function audit(
   ).run(now, userId ?? null, action, 'voucher', voucherId, JSON.stringify(after));
 }
 
-function buildItemVoucher(db: Db, input: ItemVoucherInput) {
+function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean) {
   const rule = RULES[input.type];
+  if (input.saleTypeId !== undefined) {
+    const saleType = row(db, 'SELECT tax_mode FROM sale_type WHERE id = ?', input.saleTypeId);
+    if (!saleType) throw new PostingError(`Sale type ${input.saleTypeId} does not exist`);
+    if (saleType['tax_mode'] !== input.taxMode) {
+      throw new PostingError(
+        `Sale type is ${String(saleType['tax_mode'])} but tax mode ${input.taxMode} was given`,
+      );
+    }
+  }
   const sundryRows = (input.sundries ?? []).map((s) => {
     const m = row(
       db,
@@ -219,13 +270,27 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput) {
     if (rate === undefined && input.taxMode !== 'exempt') {
       throw new PostingError(`Item ${l.itemId} has no tax rate effective on ${input.date}`);
     }
-    const item = row(db, 'SELECT hsn FROM item WHERE id = ?', l.itemId);
+    const item = row(db, 'SELECT hsn, unit_id FROM item WHERE id = ?', l.itemId);
     if (!item) throw new PostingError(`Item ${l.itemId} does not exist`);
+    if (Number(item['unit_id']) !== l.unitId) {
+      throw new PostingError(`Item ${l.itemId} is stocked in a different unit than the line uses`);
+    }
+    const unit = row(db, 'SELECT decimals FROM unit WHERE id = ?', l.unitId);
+    if (Number(unit?.['decimals']) === 0 && l.qty % 1000 !== 0) {
+      throw new PostingError(
+        `Item ${l.itemId} is sold in whole units; quantity must not have decimals`,
+      );
+    }
+    const hsn = l.hsn ?? (item['hsn'] === null ? null : String(item['hsn']));
+    if (input.type === 'sales' && !legacyImport && !(hsn !== null && /^\d{4,8}$/.test(hsn))) {
+      throw new PostingError(`Item ${l.itemId} needs an HSN code of at least 4 digits to be sold`);
+    }
     return {
       ...l,
       discBp: l.discBp ?? 0,
-      taxRateBp: rate ?? 0,
-      hsn: l.hsn ?? (item['hsn'] === null ? null : String(item['hsn'])),
+      // an exempt sale charges no tax, so no rate is frozen on the line
+      taxRateBp: input.taxMode === 'exempt' ? 0 : (rate ?? 0),
+      hsn,
     };
   });
 
@@ -284,18 +349,16 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput) {
  * Posts a voucher: header, lines, journal, stock and audit row in one transaction. Any
  * failure, including an unbalanced journal, rolls everything back.
  */
-export function postVoucher(
-  db: Db,
-  input: VoucherInput,
-  opts: { now?: string } = {},
-): PostedVoucher {
+export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {}): PostedVoucher {
   const now = opts.now ?? new Date().toISOString();
+  const legacyImport = opts.legacyImport ?? false;
   return transaction(db, () => {
     const fyId = financialYearFor(db, input.date);
+    assertReference(db, input, legacyImport);
     const number = nextNumber(db, input.type, input.seriesId, fyId);
 
     if ('lines' in input) {
-      const built = buildItemVoucher(db, input);
+      const built = buildItemVoucher(db, input, legacyImport);
       const voucherId = insertHeader(
         db,
         {
@@ -412,8 +475,14 @@ export function cancelVoucher(
 ): void {
   const now = opts.now ?? new Date().toISOString();
   transaction(db, () => {
-    const v = row(db, 'SELECT status, date FROM voucher WHERE id = ?', voucherId);
+    const v = row(
+      db,
+      `SELECT v.status, v.date, f.is_locked FROM voucher v JOIN financial_year f ON f.id = v.fy_id WHERE v.id = ?`,
+      voucherId,
+    );
     if (!v) throw new PostingError(`Voucher ${voucherId} does not exist`);
+    if (v['is_locked'])
+      throw new PostingError(`The financial year of voucher ${voucherId} is locked`);
     if (v['status'] !== 'posted')
       throw new PostingError(`Voucher ${voucherId} is ${String(v['status'])}, not posted`);
 

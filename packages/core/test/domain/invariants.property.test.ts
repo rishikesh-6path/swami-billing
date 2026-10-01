@@ -76,6 +76,8 @@ function snapshot(db: Shop['db']) {
 
 describe('ledger invariants (KICKOFF section 6)', () => {
   it(`hold after any sequence of postings, rejections and cancellations (${NUM_RUNS} runs)`, () => {
+    let attempted = 0;
+    let accepted = 0;
     fc.assert(
       fc.property(fc.array(command, { minLength: 1, maxLength: 12 }), (commands) => {
         const shop = seedShop();
@@ -103,7 +105,12 @@ describe('ledger invariants (KICKOFF section 6)', () => {
               partyAccountId: c.party === 'A' ? shop.partyA : shop.partyB,
               taxMode: c.taxMode,
               roundOff: c.roundOff,
-              lines: c.lines.map((l) => ({ ...l, unitId: 1 })),
+              // Metre (item 2) takes 3 decimals; Pcs items take whole numbers only.
+              lines: c.lines.map((l) => ({
+                ...l,
+                unitId: l.itemId === 2 ? 2 : 1,
+                qty: l.itemId === 2 ? l.qty : Math.ceil(l.qty / 1000) * 1000,
+              })),
               sundries: c.sundries.map((s) => ({ billSundryId: s.id, amountPaise: s.a })),
             };
           } else {
@@ -130,8 +137,10 @@ describe('ledger invariants (KICKOFF section 6)', () => {
             };
           }
 
+          attempted += 1;
           try {
-            const result = postVoucher(db, input);
+            const result = postVoucher(db, input, { legacyImport: true });
+            accepted += 1;
             expect(expectUnbalanced).toBe(false);
             posted += 1;
             const stock = new Map<number, number>();
@@ -229,5 +238,7 @@ describe('ledger invariants (KICKOFF section 6)', () => {
       }),
       { numRuns: NUM_RUNS },
     );
+    // guard against a generator that only produces rejected vouchers
+    expect(accepted / attempted).toBeGreaterThan(0.6);
   }, 300_000);
 });

@@ -65,6 +65,16 @@ export interface EntryVoucherInput extends VoucherCommon {
 
 export type VoucherInput = ItemVoucherInput | EntryVoucherInput;
 
+export interface PostOptions {
+  now?: string;
+  /**
+   * For the Busy importer only: skip checks that real-world legacy data may fail (missing
+   * original-invoice reference on returns/notes, missing or short HSN on sales). Everything
+   * else, including balance and numbering, is still enforced.
+   */
+  legacyImport?: boolean;
+}
+
 export interface PostedVoucher {
   voucherId: number;
   number: number;

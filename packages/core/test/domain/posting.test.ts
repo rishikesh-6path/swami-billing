@@ -138,8 +138,17 @@ describe('purchases and returns mirror sales', () => {
 
   it('sales return reverses the sales direction and brings stock back in', () => {
     const s = seedShop();
+    const original = postVoucher(s.db, {
+      type: 'sales',
+      seriesId: s.seriesId.sales,
+      date: DATE,
+      partyAccountId: s.partyA,
+      taxMode: 'interstate',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000 }],
+    });
     const posted = postVoucher(s.db, {
       type: 'sales_return',
+      refVoucherId: original.voucherId,
       seriesId: s.seriesId.sales_return,
       date: DATE,
       partyAccountId: s.partyA,
@@ -226,7 +235,9 @@ describe('guards', () => {
 
   it('rejects an item with no tax rate unless the sale is exempt', () => {
     const s = seedShop();
-    s.db.exec("INSERT INTO item (id, name, group_id, unit_id) VALUES (9, 'NO RATE', 1, 1)");
+    s.db.exec(
+      "INSERT INTO item (id, name, group_id, unit_id, hsn) VALUES (9, 'NO RATE', 1, 1, '1234')",
+    );
     const input = { ...base(s), lines: [{ itemId: 9, qty: 1000, unitId: 1, listPricePaise: 100 }] };
     expect(() => postVoucher(s.db, input)).toThrow(PostingError);
     expect(() => postVoucher(s.db, { ...input, taxMode: 'exempt' })).not.toThrow();
@@ -316,5 +327,133 @@ describe('cancelling', () => {
     const id = postSale(s);
     cancelVoucher(s.db, id);
     expect(() => cancelVoucher(s.db, id)).toThrow(/not posted/);
+  });
+});
+
+describe('review guards', () => {
+  const sale = (s: ReturnType<typeof seedShop>, over: object = {}) => ({
+    type: 'sales' as const,
+    seriesId: s.seriesId.sales,
+    date: DATE,
+    partyAccountId: s.partyA,
+    taxMode: 'local' as const,
+    lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000 }],
+    ...over,
+  });
+  const ret = (s: ReturnType<typeof seedShop>, over: object = {}) => ({
+    type: 'sales_return' as const,
+    seriesId: s.seriesId.sales_return,
+    date: DATE,
+    partyAccountId: s.partyA,
+    taxMode: 'local' as const,
+    lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000 }],
+    ...over,
+  });
+
+  it('cannot cancel a voucher in a locked financial year', () => {
+    const s = seedShop();
+    const id = postVoucher(s.db, sale(s)).voucherId;
+    s.db.exec('UPDATE financial_year SET is_locked = 1');
+    expect(() => cancelVoucher(s.db, id)).toThrow(/locked/);
+    expect(count(s.db, 'SELECT COUNT(*) AS n FROM journal_line WHERE is_reversal = 1')).toBe(0);
+  });
+
+  it('requires returns and notes to reference the original invoice', () => {
+    const s = seedShop();
+    expect(() => postVoucher(s.db, ret(s))).toThrow(/must reference the original invoice/);
+    expect(() =>
+      postVoucher(s.db, {
+        type: 'credit_note',
+        seriesId: s.seriesId.credit_note,
+        date: DATE,
+        entries: [
+          { accountId: s.partyA, side: 'dr', amountPaise: 100 },
+          { accountId: s.cash, side: 'cr', amountPaise: 100 },
+        ],
+      }),
+    ).toThrow(/original invoice/);
+  });
+
+  it('rejects a reference to the wrong type, a cancelled invoice, or a later date', () => {
+    const s = seedShop();
+    const purchase = postVoucher(s.db, {
+      ...sale(s),
+      type: 'purchase',
+      seriesId: s.seriesId.purchase,
+    });
+    expect(() => postVoucher(s.db, ret(s, { refVoucherId: purchase.voucherId }))).toThrow(
+      /posted sales/,
+    );
+    const later = postVoucher(s.db, sale(s, { date: '2026-11-01' }));
+    expect(() => postVoucher(s.db, ret(s, { refVoucherId: later.voucherId }))).toThrow(
+      /before the invoice/,
+    );
+    const gone = postVoucher(s.db, sale(s));
+    cancelVoucher(s.db, gone.voucherId);
+    expect(() => postVoucher(s.db, ret(s, { refVoucherId: gone.voucherId }))).toThrow(
+      /posted sales/,
+    );
+    expect(() => postVoucher(s.db, ret(s, { refVoucherId: 999 }))).toThrow(/does not exist/);
+  });
+
+  it('lets the importer skip reference and HSN checks only with legacyImport', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE item SET hsn = NULL WHERE id = 1');
+    expect(() => postVoucher(s.db, sale(s))).toThrow(/HSN/);
+    expect(() => postVoucher(s.db, sale(s), { legacyImport: true })).not.toThrow();
+    expect(() => postVoucher(s.db, ret(s), { legacyImport: true })).not.toThrow();
+  });
+
+  it('requires an HSN of at least 4 digits on sales', () => {
+    const s = seedShop();
+    const line = { itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000, hsn: '12' };
+    expect(() => postVoucher(s.db, sale(s, { lines: [line] }))).toThrow(/HSN/);
+  });
+
+  it('keeps the tax mode consistent with the sale type', () => {
+    const s = seedShop();
+    s.db.exec("INSERT INTO sale_type (id, name, tax_mode) VALUES (1, 'Outstation', 'interstate')");
+    expect(() => postVoucher(s.db, sale(s, { saleTypeId: 1 }))).toThrow(/interstate/);
+    expect(() =>
+      postVoucher(s.db, sale(s, { saleTypeId: 1, taxMode: 'interstate' })),
+    ).not.toThrow();
+  });
+
+  it('freezes no tax rate on an exempt sale', () => {
+    const s = seedShop();
+    const id = postVoucher(s.db, sale(s, { taxMode: 'exempt' })).voucherId;
+    expect(
+      s.db.prepare('SELECT tax_rate_bp FROM voucher_item WHERE voucher_id = ?').get(id),
+    ).toEqual({ tax_rate_bp: 0 });
+  });
+
+  it('checks the line unit against the item and refuses decimals on whole-number units', () => {
+    const s = seedShop();
+    const line = { itemId: 1, qty: 1000, unitId: 2, listPricePaise: 10000 };
+    expect(() => postVoucher(s.db, sale(s, { lines: [line] }))).toThrow(/different unit/);
+    expect(() =>
+      postVoucher(s.db, sale(s, { lines: [{ ...line, unitId: 1, qty: 1500 }] })),
+    ).toThrow(/whole units/);
+  });
+
+  it('rejects dates that are not real calendar dates', () => {
+    const s = seedShop();
+    expect(() => postVoucher(s.db, sale(s, { date: '2026-13-45' }))).toThrow(/Invalid date/);
+    expect(() => postVoucher(s.db, sale(s, { date: '2026-02-30' }))).toThrow(/Invalid date/);
+  });
+
+  it('posts equal CGST and SGST on an odd-paisa line', () => {
+    const s = seedShop();
+    const id = postVoucher(
+      s.db,
+      sale(s, {
+        roundOff: false,
+        lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 50 }],
+      }),
+    ).voucherId;
+    const row = s.db
+      .prepare('SELECT cgst_paise, sgst_paise FROM voucher_item WHERE voucher_id = ?')
+      .get(id);
+    expect(row).toEqual({ cgst_paise: 5, sgst_paise: 5 });
   });
 });

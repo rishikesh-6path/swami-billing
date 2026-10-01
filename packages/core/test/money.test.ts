@@ -9,7 +9,7 @@ import {
   parseMoney,
   parseQty,
   roundOffToRupee,
-  splitCgstSgst,
+  halfTaxOn,
   taxOn,
 } from '../src/money.ts';
 
@@ -43,9 +43,10 @@ describe('rounding', () => {
     expect(() => applyDiscount(100, 10001)).toThrow(RangeError);
   });
 
-  it('splits odd tax paise so the halves add up', () => {
-    expect(splitCgstSgst(101)).toEqual({ cgst: 51, sgst: 50 });
-    expect(splitCgstSgst(100)).toEqual({ cgst: 50, sgst: 50 });
+  it('computes CGST and SGST each from half the rate, so they are always equal', () => {
+    expect(halfTaxOn(50, 1800)).toBe(5); // 4.5 paise rounds up; total tax 10, not 9
+    expect(halfTaxOn(10000, 1800)).toBe(900);
+    expect(halfTaxOn(0, 1800)).toBe(0);
   });
 
   it('rounds the grand total to the nearest rupee', () => {
@@ -90,12 +91,10 @@ describe('properties', () => {
     );
   });
 
-  it('CGST + SGST always equals the total tax', () => {
+  it('half-rate tax is within one paisa of the exact half of the full-rate tax', () => {
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 1e12 }), (t) => {
-        const { cgst, sgst } = splitCgstSgst(t);
-        expect(cgst + sgst).toBe(t);
-        expect(cgst - sgst).toBeLessThanOrEqual(1);
+      fc.property(fc.integer({ min: 0, max: 1e10 }), fc.integer({ min: 0, max: 4000 }), (t, r) => {
+        expect(Math.abs(2 * halfTaxOn(t, r) - taxOn(t, r))).toBeLessThanOrEqual(1);
       }),
       { numRuns: 500 },
     );
