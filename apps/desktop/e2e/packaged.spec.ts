@@ -20,6 +20,7 @@ test('the packaged app opens, sets up its database and shows the welcome screen'
     args: runningAsRoot ? ['--no-sandbox'] : [],
     env: {
       ...process.env,
+      SHOPLEDGER_E2E: '1',
       SHOPLEDGER_USER_DATA: join(dir, 'userData'),
       SHOPLEDGER_NO_RELAUNCH: '1',
     },

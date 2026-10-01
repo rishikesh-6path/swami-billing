@@ -29,6 +29,7 @@ export async function launch(
     ],
     env: {
       ...process.env,
+      SHOPLEDGER_E2E: '1',
       SHOPLEDGER_USER_DATA: join(dir, 'userData'),
       SHOPLEDGER_DB_PATH: dbPath,
       SHOPLEDGER_NO_RELAUNCH: '1',

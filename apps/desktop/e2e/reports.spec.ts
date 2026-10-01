@@ -100,7 +100,12 @@ test('the owner reads the GST summary and saves GSTR-1 as spreadsheet files', as
     await expect(page.getByRole('heading', { name: /HSN summary/ })).toBeVisible();
     await page.keyboard.press('Control+E');
     await expect(page.getByText(/^Saved to /)).toBeVisible();
-    const files = readdirSync(shop.exportPath).sort();
+    // each export goes into its own folder named for the period
+    const [folderName, ...others] = readdirSync(shop.exportPath);
+    expect(others).toEqual([]);
+    expect(folderName).toMatch(/^gstr1/i);
+    const folder = join(shop.exportPath, folderName ?? '');
+    const files = readdirSync(folder).sort();
     expect(files).toEqual([
       'b2b.csv',
       'b2cl.csv',
@@ -111,10 +116,8 @@ test('the owner reads the GST summary and saves GSTR-1 as spreadsheet files', as
       'exemp.csv',
       'hsn.csv',
     ]);
-    expect(readFileSync(join(shop.exportPath, 'b2b.csv'), 'utf8')).toContain(
-      'GSTIN/UIN of Recipient',
-    );
-    expect(readFileSync(join(shop.exportPath, 'hsn.csv'), 'utf8')).toContain('73079990');
+    expect(readFileSync(join(folder, 'b2b.csv'), 'utf8')).toContain('GSTIN/UIN of Recipient');
+    expect(readFileSync(join(folder, 'hsn.csv'), 'utf8')).toContain('73079990');
   } finally {
     await shop.close();
   }

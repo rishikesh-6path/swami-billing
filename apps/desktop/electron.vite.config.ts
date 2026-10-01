@@ -13,7 +13,7 @@ const productionCsp: Plugin = {
       attrs: {
         'http-equiv': 'Content-Security-Policy',
         content:
-          "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'",
+          "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'",
       },
       injectTo: 'head-prepend',
     },

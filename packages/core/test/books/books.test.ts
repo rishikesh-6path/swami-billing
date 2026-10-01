@@ -59,7 +59,7 @@ describe('financial years', () => {
     expect(receipt(s, '2027-03-31').number).toBe(2);
     const { next } = closeFinancialYear(s.db, s.fyId);
     expect(next.startDate).toBe('2027-04-01');
-    expect(() => receipt(s, '2027-03-31')).toThrow(/locked/);
+    expect(() => receipt(s, '2027-03-31')).toThrow(/closed/);
     expect(receipt(s, '2027-04-01').number).toBe(1);
     expect(() => closeFinancialYear(s.db, s.fyId)).toThrow(/already closed/);
   });

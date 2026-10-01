@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, session as electronSession } from 'electron';
 import {
   ValidationError,
   checkBackupFile,
@@ -15,14 +15,35 @@ import {
   markBackupFailed,
   runBackup,
 } from './backup.ts';
+import { testKnob } from './env.ts';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
 import { handlers } from './handlers/index.ts';
 import { registerHandlers, type Session } from './ipc.ts';
 
 // E2E isolation: must be set before the single-instance lock is requested.
-const userDataOverride = process.env['SHOPLEDGER_USER_DATA'];
+const userDataOverride = testKnob('SHOPLEDGER_USER_DATA');
 if (userDataOverride) {
   app.setPath('userData', userDataOverride);
+}
+
+/** Writes a file the user asked for; a file left open in Excel or a full disk gets a plain message. */
+function writeSafely(path: string, data: string | Uint8Array): void {
+  try {
+    writeFileSync(path, data);
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {
+      throw new ValidationError(
+        'That file could not be saved. If it is open in Excel or another program, close it and try again.',
+      );
+    }
+    if (code === 'ENOSPC') {
+      throw new ValidationError(
+        'There is no space left on the disk. Please free some space and try again.',
+      );
+    }
+    throw error;
+  }
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -46,10 +67,7 @@ function createWindow(): BrowserWindow {
   win.once('ready-to-show', () => win.show());
 
   // The app is fully offline: never open new windows or navigate away from the bundle.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url);
-    return { action: 'deny' };
-  });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event, url) => {
     const devUrl = process.env['ELECTRON_RENDERER_URL'];
     if (!(devUrl && url.startsWith(devUrl))) event.preventDefault();
@@ -79,6 +97,10 @@ if (!app.requestSingleInstanceLock()) {
     if (app.isPackaged && process.platform === 'win32') {
       app.setLoginItemSettings({ openAtLogin: true });
     }
+    // The app never needs the camera, location, notifications and so on: refuse every request.
+    electronSession.defaultSession.setPermissionRequestHandler((_contents, _permission, done) =>
+      done(false),
+    );
     // No menu bar in the shop: its shortcuts (F5 reload, Ctrl+R, zoom, developer tools) must never
     // fire by accident while staff are typing bills. Developers keep the default menu.
     if (!process.env['ELECTRON_RENDERER_URL']) Menu.setApplicationMenu(null);
@@ -99,7 +121,7 @@ if (!app.requestSingleInstanceLock()) {
     const session: Session = { user: null };
     // Business dates are Indian dates; tests can pin the date with SHOPLEDGER_TODAY.
     const today = () =>
-      process.env['SHOPLEDGER_TODAY'] ??
+      testKnob('SHOPLEDGER_TODAY') ??
       new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
     const clock = () => ({
       date: today(),
@@ -113,17 +135,17 @@ if (!app.requestSingleInstanceLock()) {
     });
     const backupPlace = { defaultFolder: defaultBackupFolder(app.getPath('userData')) };
     // Demo mode (development and automated tests only): load a sample shop into an empty database.
-    if (process.env['SHOPLEDGER_DEMO'] === '1') {
+    if (testKnob('SHOPLEDGER_DEMO') === '1') {
       const empty = opened.db.prepare('SELECT COUNT(*) AS n FROM user').get()?.['n'] === 0;
       if (empty) seedDemoShop(opened.db, { today: today() });
     }
     // Exports go where the user chooses. Tests set SHOPLEDGER_EXPORT_DIR to skip the dialogs.
-    const exportDir = process.env['SHOPLEDGER_EXPORT_DIR'];
+    const exportDir = testKnob('SHOPLEDGER_EXPORT_DIR');
     const saveText = async (defaultName: string, content: string) => {
       if (exportDir) {
         mkdirSync(exportDir, { recursive: true });
         const path = join(exportDir, defaultName);
-        writeFileSync(path, content, 'utf8');
+        writeSafely(path, content);
         return path;
       }
       const result = await dialog.showSaveDialog(mainWindow ?? undefined!, {
@@ -132,10 +154,10 @@ if (!app.requestSingleInstanceLock()) {
         filters: [{ name: 'Spreadsheet (CSV)', extensions: ['csv'] }],
       });
       if (result.canceled || !result.filePath) return null;
-      writeFileSync(result.filePath, content, 'utf8');
+      writeSafely(result.filePath, content);
       return result.filePath;
     };
-    const saveFiles = async (files: Record<string, string>) => {
+    const saveFiles = async (files: Record<string, string>, subfolder: string) => {
       let folder = exportDir;
       if (!folder) {
         const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
@@ -146,10 +168,11 @@ if (!app.requestSingleInstanceLock()) {
         if (result.canceled || !result.filePaths[0]) return null;
         folder = result.filePaths[0];
       }
-      mkdirSync(folder, { recursive: true });
-      for (const [name, content] of Object.entries(files))
-        writeFileSync(join(folder, name), content, 'utf8');
-      return folder;
+      // one folder per period, so a new month never overwrites last month's files
+      const target = join(folder, subfolder.replace(/[^A-Za-z0-9._-]+/g, '-'));
+      mkdirSync(target, { recursive: true });
+      for (const [name, content] of Object.entries(files)) writeSafely(join(target, name), content);
+      return target;
     };
     // Bills are rendered in a hidden window and printed from there, so the app window is untouched.
     const withHiddenPage = async <T>(
@@ -198,7 +221,7 @@ if (!app.requestSingleInstanceLock()) {
       if (exportDir) {
         mkdirSync(exportDir, { recursive: true });
         const path = join(exportDir, opts.defaultName);
-        writeFileSync(path, pdf);
+        writeSafely(path, pdf);
         return path;
       }
       const result = await dialog.showSaveDialog(mainWindow ?? undefined!, {
@@ -207,7 +230,7 @@ if (!app.requestSingleInstanceLock()) {
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (result.canceled || !result.filePath) return null;
-      writeFileSync(result.filePath, pdf);
+      writeSafely(result.filePath, pdf);
       return result.filePath;
     };
     const chooseFolder = async (title: string) => {
@@ -220,7 +243,7 @@ if (!app.requestSingleInstanceLock()) {
     };
     const chooseCsv = async () => {
       // tests point this at a prepared file instead of opening the file window
-      const fixed = process.env['SHOPLEDGER_IMPORT_FILE'];
+      const fixed = testKnob('SHOPLEDGER_IMPORT_FILE');
       let path = fixed ?? null;
       if (!path) {
         const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
@@ -231,7 +254,14 @@ if (!app.requestSingleInstanceLock()) {
         });
         path = result.canceled ? null : (result.filePaths[0] ?? null);
       }
-      return path ? { name: basename(path), text: readFileSync(path, 'utf8') } : null;
+      if (!path) return null;
+      const text = readFileSync(path, 'utf8');
+      if (text.includes('\uFFFD')) {
+        throw new ValidationError(
+          'Some letters in this file cannot be read. In Excel, save the sheet again as "CSV UTF-8 (Comma delimited)" and choose that file.',
+        );
+      }
+      return { name: basename(path), text };
     };
     const chooseBackupFile = async () => {
       const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
@@ -265,7 +295,7 @@ if (!app.requestSingleInstanceLock()) {
       // either way the app restarts: after a failed swap the old data file is still in place
       setTimeout(() => {
         // tests set this so the checked-out copy does not start a second app
-        if (!process.env['SHOPLEDGER_NO_RELAUNCH']) app.relaunch();
+        if (!testKnob('SHOPLEDGER_NO_RELAUNCH')) app.relaunch();
         app.exit(0);
       }, 800);
       if (failure) {

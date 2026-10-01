@@ -227,10 +227,10 @@ describe('guards', () => {
   it('rejects a date outside every financial year and a locked year', () => {
     const s = seedShop();
     expect(() => postVoucher(s.db, { ...base(s), date: '2030-01-01' })).toThrow(
-      /No financial year/,
+      /no financial year/,
     );
     s.db.exec('UPDATE financial_year SET is_locked = 1');
-    expect(() => postVoucher(s.db, base(s))).toThrow(/locked/);
+    expect(() => postVoucher(s.db, base(s))).toThrow(/closed/);
   });
 
   it('rejects an item with no tax rate unless the sale is exempt', () => {
@@ -247,7 +247,7 @@ describe('guards', () => {
     const s = seedShop();
     expect(() =>
       postVoucher(s.db, { ...base(s), settlements: [{ accountId: s.cash, amountPaise: 999999 }] }),
-    ).toThrow(/exceed/);
+    ).toThrow(/more than the bill total/);
   });
 });
 
@@ -326,7 +326,7 @@ describe('cancelling', () => {
     const s = seedShop();
     const id = postSale(s);
     cancelVoucher(s.db, id);
-    expect(() => cancelVoucher(s.db, id)).toThrow(/not posted/);
+    expect(() => cancelVoucher(s.db, id)).toThrow(/already been cancelled/);
   });
 });
 
@@ -354,7 +354,7 @@ describe('review guards', () => {
     const s = seedShop();
     const id = postVoucher(s.db, sale(s)).voucherId;
     s.db.exec('UPDATE financial_year SET is_locked = 1');
-    expect(() => cancelVoucher(s.db, id)).toThrow(/locked/);
+    expect(() => cancelVoucher(s.db, id)).toThrow(/closed/);
     expect(count(s.db, 'SELECT COUNT(*) AS n FROM journal_line WHERE is_reversal = 1')).toBe(0);
   });
 

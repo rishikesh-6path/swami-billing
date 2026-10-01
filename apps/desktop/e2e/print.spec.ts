@@ -22,6 +22,8 @@ test('a bill can be previewed and saved as a PDF', async () => {
     const frame = page.frameLocator('iframe[title="Bill preview"]');
     await expect(frame.getByText('Demo Hardware & Electricals').first()).toBeVisible();
     await expect(frame.getByText('TAX INVOICE').first()).toBeVisible();
+    // the preview must be laid out like the printout (the page rules allow the invoice's own styles)
+    await expect(frame.locator('.title')).toHaveCSS('text-align', 'center');
 
     await page.getByLabel('Paper').selectOption('thermal');
     await expect(frame.getByText('Demo Hardware & Electricals').first()).toBeVisible();

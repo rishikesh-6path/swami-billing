@@ -133,7 +133,7 @@ export const reportHandlers: Pick<Handlers, 'report.run' | 'report.export' | 'au
     const name = label(req);
     switch (result.kind) {
       case 'gstr1':
-        return { saved: await ctx.saveFiles(gstr1ToCsvFiles(result.data)) };
+        return { saved: await ctx.saveFiles(gstr1ToCsvFiles(result.data), name) };
       case 'ledger':
         return { saved: await ctx.saveText(`${name}.csv`, ledgerToCsv(result.data)) };
       case 'stock':

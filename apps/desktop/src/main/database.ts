@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { app } from 'electron';
+import { testKnob } from './env.ts';
 import { loadMigrationsFromDir, migrate, openDatabase, type Db } from '@shopledger/core';
 
 export interface OpenedDatabase {
@@ -8,7 +9,7 @@ export interface OpenedDatabase {
 }
 
 function resolveDbPath(): string {
-  return process.env['SHOPLEDGER_DB_PATH'] ?? join(app.getPath('userData'), 'shopledger.db');
+  return testKnob('SHOPLEDGER_DB_PATH') ?? join(app.getPath('userData'), 'shopledger.db');
 }
 
 function resolveMigrationsDir(): string {

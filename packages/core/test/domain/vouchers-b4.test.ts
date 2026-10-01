@@ -158,7 +158,7 @@ describe('stock journal', () => {
           { itemId: 1, unitId: 1, qty: 1000, direction: 'in', ratePaise: 1 },
         ]),
       ),
-    ).toThrow(/greater than zero/);
+    ).toThrow(/quantity above zero/);
   });
 
   it('can be cancelled, which puts the stock back', () => {

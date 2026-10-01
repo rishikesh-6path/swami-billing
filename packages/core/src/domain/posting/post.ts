@@ -84,8 +84,14 @@ export function financialYearFor(db: Db, date: string): number {
     date,
     date,
   );
-  if (!fy) throw new PostingError(`No financial year covers ${date}`);
-  if (fy['is_locked']) throw new PostingError(`The financial year for ${date} is locked`);
+  if (!fy)
+    throw new PostingError(
+      `There is no financial year for ${dmy(date)}. Please ask the owner to start the new year in Settings.`,
+    );
+  if (fy['is_locked'])
+    throw new PostingError(
+      `The financial year for ${dmy(date)} has been closed, so no bills can be made or changed in it.`,
+    );
   return Number(fy['id']);
 }
 
@@ -200,6 +206,14 @@ function takeSnapshot(db: Db, h: Header): VoucherSnapshot {
       : null,
     items,
   };
+}
+
+const dmy = (iso: string): string => iso.split('-').reverse().join('-');
+
+/** The item's name in quotes, for messages shown to shop staff (never "Item 5"). */
+function itemName(db: Db, itemId: number): string {
+  const found = row(db, 'SELECT name FROM item WHERE id = ?', itemId);
+  return found ? `"${String(found['name'])}"` : 'An item';
 }
 
 function insertHeader(db: Db, h: Header, now: string): number {
@@ -335,22 +349,28 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   const lines = input.lines.map((l) => {
     const rate = l.taxRateBp ?? resolveTaxRate(db, l.itemId, input.date);
     if (rate === undefined && input.taxMode !== 'exempt') {
-      throw new PostingError(`Item ${l.itemId} has no tax rate effective on ${input.date}`);
+      throw new PostingError(
+        `${itemName(db, l.itemId)} has no GST rate for ${dmy(input.date)}. Please open the item and set its GST rate.`,
+      );
     }
     const item = row(db, 'SELECT hsn, unit_id FROM item WHERE id = ?', l.itemId);
     if (!item) throw new PostingError(`Item ${l.itemId} does not exist`);
     if (Number(item['unit_id']) !== l.unitId) {
-      throw new PostingError(`Item ${l.itemId} is stocked in a different unit than the line uses`);
+      throw new PostingError(
+        `${itemName(db, l.itemId)} is kept in a different unit than the one on this line. Please pick the item again.`,
+      );
     }
     const unit = row(db, 'SELECT decimals FROM unit WHERE id = ?', l.unitId);
     if (Number(unit?.['decimals']) === 0 && l.qty % 1000 !== 0) {
       throw new PostingError(
-        `Item ${l.itemId} is sold in whole units; quantity must not have decimals`,
+        `${itemName(db, l.itemId)} is sold in whole units, so the quantity cannot have decimals.`,
       );
     }
     const hsn = l.hsn ?? (item['hsn'] === null ? null : String(item['hsn']));
     if (input.type === 'sales' && !legacyImport && !(hsn !== null && /^\d{4,8}$/.test(hsn))) {
-      throw new PostingError(`Item ${l.itemId} needs an HSN code of at least 4 digits to be sold`);
+      throw new PostingError(
+        `${itemName(db, l.itemId)} needs an HSN code of at least 4 digits before it can be sold. Please open the item and add it.`,
+      );
     }
     return {
       ...l,
@@ -362,13 +382,14 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   });
 
   const computed = computeItemVoucher(lines, sundryRows, input.taxMode, input.roundOff ?? true);
-  if (computed.totalPaise <= 0) throw new PostingError('Voucher total must be greater than zero');
+  if (computed.totalPaise <= 0) throw new PostingError('The bill total must be more than zero.');
 
   const settlements = input.settlements ?? [];
   const settled = settlements.reduce((a, s) => a + s.amountPaise, 0);
   if (settlements.some((s) => s.amountPaise <= 0))
     throw new PostingError('Settlement amounts must be positive');
-  if (settled > computed.totalPaise) throw new PostingError('Settlements exceed the voucher total');
+  if (settled > computed.totalPaise)
+    throw new PostingError('The amount received or paid is more than the bill total.');
 
   const goodsSide: Side = opposite(rule.partySide);
   const drafts: JournalDraft[] = [
@@ -625,7 +646,7 @@ function postStockVoucher(
 
   if (input.type === 'stock_journal') {
     for (const l of input.lines) {
-      if (l.qty <= 0) throw new PostingError('Item quantity must be greater than zero');
+      if (l.qty <= 0) throw new PostingError('Please enter a quantity above zero for every item.');
       assertItemUnit(db, l.itemId, l.unitId, l.qty);
       movements.push({
         itemId: l.itemId,
@@ -707,7 +728,8 @@ function postEntryVoucher(
   number: number,
   now: string,
 ): PostedVoucher {
-  if (input.entries.length < 2) throw new PostingError('A voucher needs at least two entries');
+  if (input.entries.length < 2)
+    throw new PostingError('Please enter at least two lines: one debit and one credit.');
   assertCashBankRules(db, input);
   const debit = input.entries.filter((e) => e.side === 'dr').reduce((a, e) => a + e.amountPaise, 0);
   const totalPaise = debit;
@@ -755,10 +777,16 @@ export function cancelVoucher(
     );
     if (!v) throw new PostingError(`Voucher ${voucherId} does not exist`);
     if (v['is_locked'])
-      throw new PostingError(`The financial year of voucher ${voucherId} is locked`);
+      throw new PostingError(
+        'The financial year of this bill has been closed, so it cannot be changed.',
+      );
     assertDateOpen(db, String(v['date']), opts.role);
     if (v['status'] !== 'posted')
-      throw new PostingError(`Voucher ${voucherId} is ${String(v['status'])}, not posted`);
+      throw new PostingError(
+        v['status'] === 'cancelled'
+          ? 'This bill has already been cancelled.'
+          : 'This bill is not a saved bill, so it cannot be cancelled.',
+      );
 
     const lines = db
       .prepare(

@@ -1,6 +1,7 @@
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
 import { parseMoney, parseQty } from '../money.ts';
+import type { Ctx } from '../audit.ts';
 import { createAccount } from '../masters/accounts.ts';
 import {
   createItem,
@@ -161,35 +162,47 @@ function rateBp(text: string): number | undefined {
 }
 
 /** Imports items from a spreadsheet. Each row is saved on its own, so one bad row never blocks the rest. */
-export function importItemsCsv(db: Db, text: string): ImportResult {
+export function importItemsCsv(db: Db, text: string, ctx: Ctx = {}): ImportResult {
   return eachRow(text, ['name'], (f) => {
     transaction(db, () => {
       const groupName = f['group'] || 'General';
       const unitName = f['unit'] || 'Pcs';
       let group = listItemGroups(db).find((g) => g.name.toLowerCase() === groupName.toLowerCase());
       if (!group)
-        group = { id: createItemGroup(db, { name: groupName }), name: groupName, parentId: null };
+        group = {
+          id: createItemGroup(db, { name: groupName }, ctx),
+          name: groupName,
+          parentId: null,
+        };
       let unit = listUnits(db).find((u) => u.name.toLowerCase() === unitName.toLowerCase());
       if (!unit) {
-        const id = createUnit(db, {
-          name: unitName,
-          allowDecimals: !WHOLE_NUMBER_UNITS.has(unitName.toLowerCase()),
-        });
+        const id = createUnit(
+          db,
+          {
+            name: unitName,
+            allowDecimals: !WHOLE_NUMBER_UNITS.has(unitName.toLowerCase()),
+          },
+          ctx,
+        );
         unit = listUnits(db).find((u) => u.id === id)!;
       }
-      createItem(db, {
-        name: f['name'] ?? '',
-        alias: f['alias'] || null,
-        groupId: group.id,
-        unitId: unit.id,
-        hsn: f['hsn'] || null,
-        openingQty: f['openingQty'] ? parseQty(f['openingQty']) : 0,
-        openingRatePaise: f['openingRate'] ? parseMoney(f['openingRate']) : 0,
-        salePricePaise: f['price'] ? parseMoney(f['price']) : 0,
-        mrpPaise: f['mrp'] ? parseMoney(f['mrp']) : 0,
-        minStockQty: f['minStock'] ? parseQty(f['minStock']) : 0,
-        taxRateBp: rateBp(f['gst'] ?? ''),
-      });
+      createItem(
+        db,
+        {
+          name: f['name'] ?? '',
+          alias: f['alias'] || null,
+          groupId: group.id,
+          unitId: unit.id,
+          hsn: f['hsn'] || null,
+          openingQty: f['openingQty'] ? parseQty(f['openingQty']) : 0,
+          openingRatePaise: f['openingRate'] ? parseMoney(f['openingRate']) : 0,
+          salePricePaise: f['price'] ? parseMoney(f['price']) : 0,
+          mrpPaise: f['mrp'] ? parseMoney(f['mrp']) : 0,
+          minStockQty: f['minStock'] ? parseQty(f['minStock']) : 0,
+          taxRateBp: rateBp(f['gst'] ?? ''),
+        },
+        ctx,
+      );
     });
   });
 }
@@ -199,6 +212,7 @@ export function importPartiesCsv(
   db: Db,
   text: string,
   defaultKind: 'customer' | 'supplier' = 'customer',
+  ctx: Ctx = {},
 ): ImportResult {
   return eachRow(text, ['name'], (f) => {
     transaction(db, () => {
@@ -210,19 +224,33 @@ export function importPartiesCsv(
         .get(supplier ? 'Sundry Creditors' : 'Sundry Debtors');
       if (!group)
         throw new ValidationError('The account groups are missing. Please contact support.');
-      const credit = /^cr/i.test(f['drCr'] ?? '');
-      createAccount(db, {
-        name: f['name'] ?? '',
-        groupId: Number(group['id']),
-        gstin: f['gstin'] || null,
-        stateCode: f['state'] || null,
-        phone: f['phone'] || null,
-        address: f['address'] || null,
-        creditDays: f['creditDays'] ? Number(f['creditDays']) : 0,
-        openingBalancePaise: f['openingBalance'] ? parseMoney(f['openingBalance']) : 0,
-        // a customer normally owes us (Dr); a supplier is owed by us (Cr), unless the file says otherwise
-        openingIsDr: f['drCr'] ? !credit : !supplier,
-      });
+      const drCr = f['drCr'] ?? '';
+      if (drCr && !/^(dr|cr)/i.test(drCr)) {
+        throw new ValidationError(
+          `"${drCr}" is not Dr or Cr. Please write Dr (they owe you) or Cr (you owe them).`,
+        );
+      }
+      const credit = /^cr/i.test(drCr);
+      const creditDays = f['creditDays'] ?? '';
+      if (creditDays && !/^\d{1,4}$/.test(creditDays)) {
+        throw new ValidationError(`"${creditDays}" is not a valid number of credit days.`);
+      }
+      createAccount(
+        db,
+        {
+          name: f['name'] ?? '',
+          groupId: Number(group['id']),
+          gstin: f['gstin'] || null,
+          stateCode: f['state'] || null,
+          phone: f['phone'] || null,
+          address: f['address'] || null,
+          creditDays: creditDays ? Number(creditDays) : 0,
+          openingBalancePaise: f['openingBalance'] ? parseMoney(f['openingBalance']) : 0,
+          // a customer normally owes us (Dr); a supplier is owed by us (Cr), unless the file says otherwise
+          openingIsDr: drCr ? !credit : !supplier,
+        },
+        ctx,
+      );
     });
   });
 }

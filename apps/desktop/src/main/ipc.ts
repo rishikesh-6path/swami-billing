@@ -30,7 +30,7 @@ export interface HandlerContext {
   /** Saves one text file (CSV) where the user chooses; returns the path, or null if they cancelled. */
   saveText: (defaultName: string, content: string) => Promise<string | null>;
   /** Saves several files into a folder the user chooses; returns the folder, or null if cancelled. */
-  saveFiles: (files: Record<string, string>) => Promise<string | null>;
+  saveFiles: (files: Record<string, string>, subfolder: string) => Promise<string | null>;
   /** Prints a page of HTML. With no printer name the system print dialog is shown. */
   printHtml: (
     html: string,
@@ -64,10 +64,20 @@ export type Handlers = {
 const NOT_SIGNED_IN = 'Please sign in first.';
 const NOT_ALLOWED = 'You do not have permission to do this. Please ask the owner.';
 const GENERIC =
+  'Something went wrong. Please check what you were doing and try again. If it keeps happening, call support.';
+/** Channels that save a bill or a master in one all-or-nothing step, so "nothing was saved" is true. */
+const ALL_OR_NOTHING = new Set<string>([
+  'voucher.post',
+  'voucher.modify',
+  'voucher.cancel',
+  'item.save',
+  'party.save',
+]);
+const GENERIC_SAVE =
   'Something went wrong and nothing was saved. Please try again. If it keeps happening, call support.';
 
 /** Errors written for shop staff are shown as they are; anything else becomes a generic message. */
-export function friendlyMessage(error: unknown): string {
+export function friendlyMessage(error: unknown, channel = ''): string {
   if (
     error instanceof ValidationError ||
     error instanceof PostingError ||
@@ -75,7 +85,7 @@ export function friendlyMessage(error: unknown): string {
   ) {
     return error.message;
   }
-  return GENERIC;
+  return ALL_OR_NOTHING.has(channel) ? GENERIC_SAVE : GENERIC;
 }
 
 /**
@@ -120,7 +130,7 @@ export function registerHandlers(
         if (!(error instanceof ValidationError || error instanceof PostingError)) {
           console.error(`[shopledger] ${channel} failed`, error);
         }
-        return { ok: false, message: friendlyMessage(error) };
+        return { ok: false, message: friendlyMessage(error, channel) };
       }
     });
   }

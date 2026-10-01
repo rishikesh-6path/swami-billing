@@ -181,8 +181,13 @@ export const settingsHandlers: Pick<
     if (!file) return { cancelled: true, fileName: '', created: 0, skipped: [] };
     const result =
       req.kind === 'items'
-        ? importItemsCsv(ctx.db, file.text)
-        : importPartiesCsv(ctx.db, file.text, req.kind === 'suppliers' ? 'supplier' : 'customer');
+        ? importItemsCsv(ctx.db, file.text, audit(ctx))
+        : importPartiesCsv(
+            ctx.db,
+            file.text,
+            req.kind === 'suppliers' ? 'supplier' : 'customer',
+            audit(ctx),
+          );
     return { cancelled: false, fileName: file.name, ...result };
   },
   'import.sample': async (req, ctx) => ({
