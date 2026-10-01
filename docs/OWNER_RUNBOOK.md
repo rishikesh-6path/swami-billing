@@ -8,8 +8,9 @@ For the owner only. Sign in with an owner PIN. The home screen has two extra til
 2. On the welcome screen, enter the shop name, address, state, GST number, and your name with a 4 to 6 digit PIN.
 3. In **Settings > People**, add each staff member with their own PIN. Staff can bill and see daily reports. Only owners see profit, change settings and close days.
 4. In **Settings > Printing**, choose A4 or the 80 mm roll and type the printer name exactly as Windows shows it. Leave it empty to be asked each time.
-5. Bring in items and parties with **Add from a Spreadsheet**. Save a sample sheet, fill it in Excel, save as CSV, and choose it. Rows with problems are listed with the reason; fix them and import the file again.
-6. Opening balances (what customers owed you, and stock on the first day) go in through the Opening balance and Opening stock columns.
+5. In **Settings > Standard notes**, write the short notes staff pick with F4 on a bill (for example "Delivered at site").
+6. Bring in items and parties with **Add from a Spreadsheet**. Save a sample sheet, fill it in Excel, save as CSV, and choose it. Rows with problems are listed with the reason; fix them and import the file again.
+7. Opening balances (what customers owed you, and stock on the first day) go in through the Opening balance and Opening stock columns.
 
 ## Every day
 

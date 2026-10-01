@@ -14,7 +14,6 @@ export interface KindConfig {
   /** The original bill type a return must refer to. */
   returnsAgainst?: 'sales' | 'purchase';
   cashDefault: boolean;
-  standardNarrations: string[];
 }
 
 export const KINDS: Record<ItemVoucherKind, KindConfig> = {
@@ -25,12 +24,6 @@ export const KINDS: Record<ItemVoucherKind, KindConfig> = {
     priceFrom: 'sale',
     settleLabel: 'Received now',
     cashDefault: true,
-    standardNarrations: [
-      'Being goods sold',
-      'Cash sale',
-      'Goods sold on credit',
-      'Delivered at site',
-    ],
   },
   purchase: {
     title: 'New Purchase',
@@ -39,7 +32,6 @@ export const KINDS: Record<ItemVoucherKind, KindConfig> = {
     priceFrom: 'cost',
     settleLabel: 'Paid now',
     cashDefault: false,
-    standardNarrations: ['Being goods purchased', 'Goods purchased on credit', 'Goods received'],
   },
   sales_return: {
     title: 'Sales Return',
@@ -49,11 +41,6 @@ export const KINDS: Record<ItemVoucherKind, KindConfig> = {
     settleLabel: 'Refunded now',
     returnsAgainst: 'sales',
     cashDefault: false,
-    standardNarrations: [
-      'Goods returned by customer',
-      'Damaged goods returned',
-      'Wrong item returned',
-    ],
   },
   purchase_return: {
     title: 'Purchase Return',
@@ -63,7 +50,6 @@ export const KINDS: Record<ItemVoucherKind, KindConfig> = {
     settleLabel: 'Refund received now',
     returnsAgainst: 'purchase',
     cashDefault: false,
-    standardNarrations: ['Goods returned to supplier', 'Damaged goods returned'],
   },
 };
 

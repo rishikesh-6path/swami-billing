@@ -817,7 +817,12 @@ export function ItemVoucher({
       {narrationPicker && (
         <InfoDialog title="Standard notes" onClose={() => setNarrationPicker(false)}>
           <ul className="pick-list">
-            {kind.standardNarrations.map((n) => (
+            {(ready?.narrations ?? []).length === 0 && (
+              <li className="muted">
+                There are no standard notes yet. The owner can add them in Settings.
+              </li>
+            )}
+            {(ready?.narrations ?? []).map((n) => (
               <li key={n}>
                 <Button
                   onClick={() => {

@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/ui.tsx';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { BackupSection } from './BackupSection.tsx';
 import { ClosingSection } from './ClosingSection.tsx';
+import { NotesSection } from './NotesSection.tsx';
 import { PrintSection } from './PrintSection.tsx';
 import { ShopSection } from './ShopSection.tsx';
 import { UsersSection } from './UsersSection.tsx';
@@ -12,6 +13,7 @@ const SECTIONS = [
   { id: 'shop', label: 'Shop details' },
   { id: 'print', label: 'Printing' },
   { id: 'users', label: 'People who use ShopLedger' },
+  { id: 'notes', label: 'Standard notes' },
   { id: 'closing', label: 'Closing days and years' },
   { id: 'backup', label: 'Backup and restore' },
 ] as const;
@@ -30,10 +32,11 @@ export function SettingsScreen({
     'Alt+1': () => setSection('shop'),
     'Alt+2': () => setSection('print'),
     'Alt+3': () => setSection('users'),
-    'Alt+4': () => setSection('closing'),
-    'Alt+5': () => setSection('backup'),
+    'Alt+4': () => setSection('notes'),
+    'Alt+5': () => setSection('closing'),
+    'Alt+6': () => setSection('backup'),
   });
-  useHints(['Alt+1 to Alt+5 Change section', 'F2 Save', 'Esc Back']);
+  useHints(['Alt+1 to Alt+6 Change section', 'F2 Save', 'Esc Back']);
 
   return (
     <main className="page">
@@ -56,6 +59,7 @@ export function SettingsScreen({
           {section === 'shop' && <ShopSection onSession={onSession} />}
           {section === 'print' && <PrintSection />}
           {section === 'users' && <UsersSection />}
+          {section === 'notes' && <NotesSection />}
           {section === 'closing' && <ClosingSection />}
           {section === 'backup' && <BackupSection />}
         </div>

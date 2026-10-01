@@ -300,6 +300,8 @@ export interface VoucherScreenSetup {
   saleTypes: SaleTypeRow[];
   sundries: BillSundryRow[];
   brokers: string[];
+  /** The notes offered on F4 for this kind of bill (editable in Settings). */
+  narrations: string[];
   /** Print the bill straight after a sale is saved, and on which paper. */
   autoPrint: boolean;
   printSize: 'a4' | 'thermal';
@@ -579,6 +581,17 @@ export const contract = {
   'books.lock': ch<ShopSettings['books']>()('lock_books', z.object({ date: isoDate })),
   'books.unlock': ch<ShopSettings['books']>()('lock_books', none),
   'books.closeYear': ch<ShopSettings['years']>()('close_year', z.object({ fyId: id })),
+  'narrations.get': ch<string[]>()(
+    'manage_settings',
+    z.object({ kind: z.enum(['sales', 'purchase', 'sales_return', 'purchase_return']) }),
+  ),
+  'narrations.save': ch<string[]>()(
+    'manage_settings',
+    z.object({
+      kind: z.enum(['sales', 'purchase', 'sales_return', 'purchase_return']),
+      notes: z.array(z.string().max(200)).max(50),
+    }),
+  ),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',

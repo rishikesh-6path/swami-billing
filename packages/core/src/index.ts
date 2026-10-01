@@ -41,3 +41,4 @@ export * from './print/invoice.ts';
 export * from './print/words.ts';
 export * from './backup/backup.ts';
 export * from './calc.ts';
+export * from './masters/narrations.ts';

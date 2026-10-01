@@ -40,7 +40,7 @@ test('the owner closes a day and can open it again', async () => {
     const { page } = shop;
     await signIn(page);
     await page.getByRole('button', { name: /Settings/ }).click();
-    await page.keyboard.press('Alt+4');
+    await page.keyboard.press('Alt+5');
     await page.getByRole('button', { name: 'Close the day' }).click();
     await expect(page.getByText('Day closed.')).toBeVisible();
     await expect(page.getByText(/Days up to 15-10-2026 are closed/)).toBeVisible();
@@ -57,7 +57,7 @@ test('a backup can be made, listed and restored', async () => {
     const { page } = shop;
     await signIn(page);
     await page.getByRole('button', { name: /Settings/ }).click();
-    await page.keyboard.press('Alt+5');
+    await page.keyboard.press('Alt+6');
     await expect(page.getByText('No backup has been made yet.')).toBeVisible();
     await page.getByRole('button', { name: 'Back up now' }).click();
     await expect(page.getByText('Backup saved.')).toBeVisible();
@@ -82,5 +82,30 @@ test('a backup can be made, listed and restored', async () => {
     ).toBeGreaterThanOrEqual(1);
   } finally {
     await shop.close().catch(() => undefined);
+  }
+});
+
+test('standard notes edited in Settings are the ones offered on a bill', async () => {
+  const shop = await launch({ demo: true });
+  try {
+    const { page } = shop;
+    await signIn(page);
+    await page.getByRole('button', { name: /Settings/ }).click();
+    await page.keyboard.press('Alt+4');
+    await expect(page.getByLabel('Notes (one on each line)')).toHaveValue(/Being goods sold/);
+    await page.getByLabel('Notes (one on each line)').fill('Site delivery\nPay by Friday');
+    await page.keyboard.press('F2');
+    await expect(page.getByText('Standard notes saved.')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('Sales today')).toBeVisible();
+    await page.keyboard.press('F8');
+    await expect(page.getByLabel('Customer')).toBeFocused();
+    await page.keyboard.press('F4');
+    const dialog = page.getByRole('dialog', { name: 'Standard notes' });
+    await expect(dialog.getByRole('button', { name: 'Pay by Friday' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Being goods sold' })).toHaveCount(0);
+  } finally {
+    await shop.close();
   }
 });

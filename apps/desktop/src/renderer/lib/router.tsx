@@ -28,7 +28,7 @@ export type Route =
   | { name: 'bill'; id: number }
   | { name: 'audit' }
   | { name: 'import' }
-  | { name: 'settings'; section?: 'shop' | 'print' | 'users' | 'closing' | 'backup' }
+  | { name: 'settings'; section?: 'shop' | 'print' | 'users' | 'notes' | 'closing' | 'backup' }
   | { name: 'reports' }
   | {
       name: 'report';

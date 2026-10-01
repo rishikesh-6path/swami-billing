@@ -1,5 +1,7 @@
 import {
   IMPORT_SAMPLES,
+  getNarrations,
+  saveNarrations,
   calculate,
   ValidationError,
   importItemsCsv,
@@ -54,6 +56,8 @@ export const settingsHandlers: Pick<
   | 'books.lock'
   | 'books.unlock'
   | 'books.closeYear'
+  | 'narrations.get'
+  | 'narrations.save'
   | 'calc.eval'
   | 'import.run'
   | 'import.sample'
@@ -127,6 +131,8 @@ export const settingsHandlers: Pick<
     closeFinancialYear(ctx.db, req.fyId, audit(ctx));
     return years(ctx);
   },
+  'narrations.get': (req, ctx) => getNarrations(ctx.db, req.kind),
+  'narrations.save': (req, ctx) => saveNarrations(ctx.db, req.kind, req.notes, audit(ctx)),
   'calc.eval': (req) => ({ result: String(calculate(req.expression)) }),
   'import.run': async (req, ctx) => {
     const file = await ctx.chooseCsv();

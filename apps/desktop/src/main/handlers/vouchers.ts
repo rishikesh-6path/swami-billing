@@ -1,5 +1,7 @@
 import {
+  NARRATION_KINDS,
   VOUCHER_TYPE_LABELS,
+  getNarrations,
   ValidationError,
   cancelVoucher,
   defaultSeriesId,
@@ -81,6 +83,9 @@ export const voucherHandlers: Pick<
       saleTypes: listSaleTypes(ctx.db),
       sundries: listBillSundries(ctx.db),
       brokers: listBrokers(ctx.db),
+      narrations: (NARRATION_KINDS as readonly string[]).includes(type)
+        ? getNarrations(ctx.db, type)
+        : [],
       paymentAccounts,
       cashAccountId: Number(cash?.['id']),
       shopStateCode: getCompanyStateCode(ctx.db),

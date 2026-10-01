@@ -49,7 +49,7 @@ Items list | F2 | Add an item
 Customer and supplier lists | F3 | Add one
 Item and party forms | F2 | Save
 Item and party forms | Enter | Next box
-Settings | Alt+1 to Alt+5 | Shop details, Printing, People, Closing, Backup
+Settings | Alt+1 to Alt+6 | Shop details, Printing, People, Standard notes, Closing, Backup
 Settings | F2 | Save the current section
 Add from a Spreadsheet | I, C, S | Choose a file for items, customers, suppliers
 Confirm questions | Y / N, Enter, Esc | Yes, no, confirm the highlighted button, cancel
