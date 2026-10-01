@@ -4,12 +4,12 @@ Status: todo | doing | done | blocked. One task per Claude Code session. Claude 
 Format: `id | status | title | acceptance | closed-in-session`
 
 ## Phase 0 — Foundation
-P0-01 | todo | pnpm workspace, packages/core, apps/desktop, TS strict, eslint+prettier | `pnpm typecheck && pnpm lint` clean on empty project |
-P0-02 | todo | Electron 37+ main/preload/renderer with Vite + React 19, single-instance lock | `pnpm dev` opens window |
-P0-03 | todo | node:sqlite wrapper in core: open WAL, foreign_keys ON, integrity_check on start | unit test opens :memory: and on-disk temp DB |
-P0-04 | todo | Migration runner + schema_version + `pnpm migrate:new` | test applies 0001 and refuses to re-apply |
-P0-05 | todo | Typed IPC contract (zod) with one channel `app.info` → renderer shows DB path + schema version | Playwright test reads the text |
-P0-06 | todo | Vitest, fast-check, Playwright wired; `.claude/settings.json` hooks active; DECISIONS.md and SESSION_LOG.md seeded | `pnpm test` and `pnpm e2e` pass |
+P0-01 | done | pnpm workspace, packages/core, apps/desktop, TS strict, eslint+prettier | `pnpm typecheck && pnpm lint` clean on empty project | P0-kickoff
+P0-02 | done | Electron 37+ main/preload/renderer with Vite + React 19, single-instance lock | `pnpm dev` opens window | P0-kickoff
+P0-03 | done | node:sqlite wrapper in core: open WAL, foreign_keys ON, integrity_check on start | unit test opens :memory: and on-disk temp DB | P0-kickoff
+P0-04 | done | Migration runner + schema_version + `pnpm migrate:new` | test applies 0001 and refuses to re-apply | P0-kickoff
+P0-05 | done | Typed IPC contract (zod) with one channel `app.info` → renderer shows DB path + schema version | Playwright test reads the text | P0-kickoff
+P0-06 | done | Vitest, fast-check, Playwright wired; `.claude/settings.json` hooks active; DECISIONS.md and SESSION_LOG.md seeded | `pnpm test` and `pnpm e2e` pass | P0-kickoff
 
 ## Phase 1 — Import and read-only truth
 P1-01 | todo | Busy XML streaming parser: masters | sample fixture parses; idempotent re-import |

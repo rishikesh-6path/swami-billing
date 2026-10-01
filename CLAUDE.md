@@ -5,9 +5,9 @@ Full spec, phases and acceptance criteria: @docs/KICKOFF.md. Current work: @docs
 Read both before planning anything. Do not re-derive architecture that KICKOFF.md already fixes.
 
 ## Stack (fixed — do not substitute)
-- TypeScript strict everywhere. pnpm workspace. Node 24+.
+- TypeScript strict everywhere. pnpm workspace. Node 22.13+ for tooling (Electron 44 bundles Node 24 at runtime).
 - `packages/core`  pure TS: domain logic, SQLite access, migrations, Busy XML import. No Electron imports.
-- `apps/desktop`   Electron 37+ (ships Node 24 → use built-in `node:sqlite`, zero native modules). React 19 + Vite renderer.
+- `apps/desktop`   Electron 44 (ships Node 24 → use built-in `node:sqlite`, zero native modules). React 19 + Vite renderer.
 - SQLite single file, WAL mode, `foreign_keys=ON`. Hand-written numbered SQL migrations in `packages/core/migrations/NNNN_*.sql`.
 - Renderer never touches SQL. All data goes through typed IPC in `apps/desktop/src/ipc/` validated with zod.
 - Tests: Vitest (core, in-memory SQLite), fast-check for ledger invariants, Playwright for Electron E2E.
@@ -17,7 +17,7 @@ Read both before planning anything. Do not re-derive architecture that KICKOFF.m
 - `pnpm i`                      install
 - `pnpm dev`                    run desktop app with hot reload
 - `pnpm test`                   all Vitest (core)
-- `pnpm test:core -- <pattern>` one test file — prefer this over the full suite
+- `pnpm test:core <pattern>`    one test file — prefer this over the full suite (no `--`; vitest ignores patterns after it)
 - `pnpm e2e`                    Playwright Electron tests (slow; run before marking a phase done)
 - `pnpm typecheck`              `tsc --noEmit` across workspace — must pass before any commit
 - `pnpm lint`                   eslint + prettier check
@@ -32,6 +32,7 @@ Read both before planning anything. Do not re-derive architecture that KICKOFF.m
 - Never edit an applied migration file. Add a new one. Migrations run inside a transaction with a `schema_version` check.
 - Dates are ISO `YYYY-MM-DD` strings in Asia/Kolkata. Financial year = 1 April to 31 March.
 - Voucher numbering is per (voucher_type, series, financial_year), gap-free, assigned inside the insert transaction.
+- Users are non-technical shop staff: plain language on every screen (no DB/IPC/stack-trace wording), large text and targets, errors say what happened and what to do next. Technical details go in the "About this computer" panel.
 - Keyboard first. Every entry screen must be fully operable without a mouse. Shortcut map is in KICKOFF.md §7 and must not drift.
 - Do not add dependencies without listing why in `docs/DECISIONS.md`. No ORM. No state library until there is a measured need.
 - No network calls at runtime. The app must work with the network cable unplugged.
