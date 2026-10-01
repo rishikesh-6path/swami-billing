@@ -8,7 +8,7 @@ async function callMain(page: Page, channel: string, request: unknown) {
   return page.evaluate(
     async ([c, r]) => {
       try {
-        const api = (window as unknown as { shopledger: { invoke: Invoke } }).shopledger;
+        const api = (globalThis as unknown as { shopledger: { invoke: Invoke } }).shopledger;
         await api.invoke(c, r);
         return 'ok';
       } catch (e) {
@@ -39,7 +39,7 @@ test('staff cannot post owner entries, open owner accounts or cancel without a r
     expect(journal).toMatch(/for the owner/);
 
     const hits = await page.evaluate(async () => {
-      const api = (window as unknown as { shopledger: { invoke: Invoke } }).shopledger;
+      const api = (globalThis as unknown as { shopledger: { invoke: Invoke } }).shopledger;
       return await api.invoke('account.search', {
         text: 'capital',
         kind: 'any',
