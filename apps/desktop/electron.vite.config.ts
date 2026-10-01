@@ -29,7 +29,8 @@ export default defineConfig({
   },
   preload: {
     build: {
-      externalizeDeps: { exclude: ['@shopledger/core'] },
+      // a sandboxed preload cannot require node_modules, so bundle what it imports (zod)
+      externalizeDeps: { exclude: ['zod'] },
       // sandboxed preload scripts cannot be ES modules
       rollupOptions: { output: { format: 'cjs', entryFileNames: '[name].cjs' } },
     },

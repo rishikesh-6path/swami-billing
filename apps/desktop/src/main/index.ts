@@ -1,5 +1,8 @@
 import { join } from 'node:path';
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { currentSchemaVersion } from '@shopledger/core';
+import { openShopDatabase, type OpenedDatabase } from './database.ts';
+import { registerHandlers } from './ipc.ts';
 
 // E2E isolation: must be set before the single-instance lock is requested.
 const userDataOverride = process.env['SHOPLEDGER_USER_DATA'];
@@ -8,6 +11,7 @@ if (userDataOverride) {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let shopDb: OpenedDatabase | null = null;
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -55,8 +59,33 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
+    try {
+      shopDb = openShopDatabase();
+    } catch (error) {
+      console.error('[shopledger] could not open database', error);
+      dialog.showErrorBox(
+        'ShopLedger cannot open your shop data',
+        'Your data file could not be opened, so ShopLedger will close now. ' +
+          'Please do not enter any bills. Call support and tell them about this message. ' +
+          'Your data has not been changed.',
+      );
+      app.quit();
+      return;
+    }
+    const opened = shopDb;
+    registerHandlers(ipcMain, {
+      'app.info': () => ({
+        dbPath: opened.path,
+        schemaVersion: currentSchemaVersion(opened.db),
+      }),
+    });
     mainWindow = createWindow();
     console.log('[shopledger] window created');
+  });
+
+  app.on('before-quit', () => {
+    shopDb?.db.close();
+    shopDb = null;
   });
 
   app.on('window-all-closed', () => app.quit());
