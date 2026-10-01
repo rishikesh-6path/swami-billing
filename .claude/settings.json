@@ -32,24 +32,18 @@
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/format-on-edit.sh" }
-        ]
+        "hooks": [{ "type": "command", "command": "bash .claude/hooks/format-on-edit.sh" }]
       }
     ],
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/filter-test-output.sh" }
-        ]
+        "hooks": [{ "type": "command", "command": "bash .claude/hooks/filter-test-output.sh" }]
       }
     ],
     "Stop": [
       {
-        "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/typecheck-gate.sh" }
-        ]
+        "hooks": [{ "type": "command", "command": "bash .claude/hooks/typecheck-gate.sh" }]
       }
     ]
   }

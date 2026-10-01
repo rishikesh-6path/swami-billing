@@ -1,0 +1,7 @@
+node_modules
+out
+dist
+pnpm-lock.yaml
+packages/core/migrations
+docs
+*.md
