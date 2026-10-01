@@ -258,6 +258,9 @@ export interface VoucherScreenSetup {
   saleTypes: SaleTypeRow[];
   sundries: BillSundryRow[];
   brokers: string[];
+  /** Print the bill straight after a sale is saved, and on which paper. */
+  autoPrint: boolean;
+  printSize: 'a4' | 'thermal';
   /** Cash and bank accounts a customer can pay into (or we can pay from). */
   paymentAccounts: { id: number; name: string }[];
   cashAccountId: number;
@@ -411,6 +414,18 @@ export const contract = {
     'view_daily_reports',
     reportRequest,
   ),
+  'print.preview': channel<
+    z.ZodObject<{ id: typeof id; size: z.ZodEnum<{ a4: 'a4'; thermal: 'thermal' }> }>,
+    { html: string; title: string }
+  >('bill', z.object({ id, size: z.enum(['a4', 'thermal']) })),
+  'print.run': channel<
+    z.ZodObject<{ id: typeof id; size: z.ZodEnum<{ a4: 'a4'; thermal: 'thermal' }> }>,
+    { printed: boolean }
+  >('bill', z.object({ id, size: z.enum(['a4', 'thermal']) })),
+  'print.pdf': channel<
+    z.ZodObject<{ id: typeof id; size: z.ZodEnum<{ a4: 'a4'; thermal: 'thermal' }> }>,
+    { saved: string | null }
+  >('bill', z.object({ id, size: z.enum(['a4', 'thermal']) })),
   'audit.list': channel<
     z.ZodObject<{
       from: z.ZodOptional<typeof isoDate>;

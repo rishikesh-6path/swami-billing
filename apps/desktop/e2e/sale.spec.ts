@@ -94,6 +94,7 @@ test('a credit sale to a named customer shows what they owe and takes part payme
     const { page } = shop;
     await signIn(page);
     await page.keyboard.press('F8');
+    await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('Control+A');
     await page.keyboard.type('ayap');
     await page.keyboard.press('Enter');

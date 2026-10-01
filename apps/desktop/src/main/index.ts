@@ -122,6 +122,65 @@ if (!app.requestSingleInstanceLock()) {
         writeFileSync(join(folder, name), content, 'utf8');
       return folder;
     };
+    // Bills are rendered in a hidden window and printed from there, so the app window is untouched.
+    const withHiddenPage = async <T>(
+      html: string,
+      use: (win: BrowserWindow) => Promise<T>,
+    ): Promise<T> => {
+      const win = new BrowserWindow({
+        show: false,
+        webPreferences: { sandbox: true, javascript: false },
+      });
+      try {
+        await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+        return await use(win);
+      } finally {
+        win.destroy();
+      }
+    };
+    const pageSize = (size: 'a4' | 'thermal') =>
+      size === 'a4' ? ('A4' as const) : { width: 80_000, height: 297_000 };
+    const printHtml = (
+      html: string,
+      opts: { size: 'a4' | 'thermal'; printerName?: string | undefined },
+    ) =>
+      withHiddenPage(
+        html,
+        (win) =>
+          new Promise<boolean>((resolve) => {
+            win.webContents.print(
+              {
+                silent: Boolean(opts.printerName),
+                ...(opts.printerName ? { deviceName: opts.printerName } : {}),
+                printBackground: true,
+                pageSize: pageSize(opts.size),
+              },
+              (success) => resolve(success),
+            );
+          }),
+      );
+    const savePdf = async (html: string, opts: { size: 'a4' | 'thermal'; defaultName: string }) => {
+      // printToPDF takes custom sizes in inches (print() takes microns).
+      const pdfPageSize =
+        opts.size === 'a4' ? ('A4' as const) : { width: 80 / 25.4, height: 297 / 25.4 };
+      const pdf = await withHiddenPage(html, (win) =>
+        win.webContents.printToPDF({ printBackground: true, pageSize: pdfPageSize }),
+      );
+      if (exportDir) {
+        mkdirSync(exportDir, { recursive: true });
+        const path = join(exportDir, opts.defaultName);
+        writeFileSync(path, pdf);
+        return path;
+      }
+      const result = await dialog.showSaveDialog(mainWindow ?? undefined!, {
+        title: 'Save as PDF',
+        defaultPath: join(app.getPath('documents'), opts.defaultName),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (result.canceled || !result.filePath) return null;
+      writeFileSync(result.filePath, pdf);
+      return result.filePath;
+    };
     registerHandlers(ipcMain, handlers, {
       db: opened.db,
       dbPath: opened.path,
@@ -129,6 +188,8 @@ if (!app.requestSingleInstanceLock()) {
       today,
       saveText,
       saveFiles,
+      printHtml,
+      savePdf,
     });
     mainWindow = createWindow();
     console.log('[shopledger] window created');

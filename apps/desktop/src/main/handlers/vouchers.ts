@@ -4,6 +4,7 @@ import {
   cancelVoucher,
   defaultSeriesId,
   getCompanyStateCode,
+  getSetting,
   getVoucherDetail,
   listBillSundries,
   listBrokers,
@@ -74,6 +75,9 @@ export const voucherHandlers: Pick<
       series,
       defaultSeriesId: seriesId,
       nextNumber: nextVoucherNumber(ctx.db, type, seriesId, req.date),
+      autoPrint: getSetting(ctx.db, 'print.auto') === '1',
+      printSize:
+        getSetting(ctx.db, 'print.size') === 'thermal' ? ('thermal' as const) : ('a4' as const),
       saleTypes: listSaleTypes(ctx.db),
       sundries: listBillSundries(ctx.db),
       brokers: listBrokers(ctx.db),

@@ -37,7 +37,7 @@ P3-04 | done | Sales bill screen (grid, lookup, sundries, tax preview, settlemen
 P3-05 | done | Purchase, returns, receipt, payment, journal, contra, notes, stock journal, physical stock screens | E2E receipt then ledger | P0-kickoff
 P3-06 | done | Report screens + exports | E2E | P0-kickoff
 P3-07 | done | Voucher list, modify, cancel, audit viewer | E2E cancel verifies reversal | P0-kickoff
-P3-08 | todo | Print: A4 invoice, 80 mm thermal, PDF | unit tests on HTML; manual printer check |
+P3-08 | done | Print: A4 invoice, 80 mm thermal, PDF | unit tests on HTML; E2E preview and PDF; manual printer check pending | P0-kickoff
 
 ## Phase 4 — Operations
 P4-01 | todo | Backup (VACUUM INTO, schedule, retention, removable drive) + restore with integrity check | unit tests |

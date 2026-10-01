@@ -31,6 +31,16 @@ export interface HandlerContext {
   saveText: (defaultName: string, content: string) => Promise<string | null>;
   /** Saves several files into a folder the user chooses; returns the folder, or null if cancelled. */
   saveFiles: (files: Record<string, string>) => Promise<string | null>;
+  /** Prints a page of HTML. With no printer name the system print dialog is shown. */
+  printHtml: (
+    html: string,
+    opts: { size: 'a4' | 'thermal'; printerName?: string | undefined },
+  ) => Promise<boolean>;
+  /** Renders HTML to a PDF and lets the user save it; returns the path, or null if cancelled. */
+  savePdf: (
+    html: string,
+    opts: { size: 'a4' | 'thermal'; defaultName: string },
+  ) => Promise<string | null>;
   /** The signed-in user; throws if nobody is signed in (handlers on non-public channels). */
   user: () => SessionUser & { role: Role };
 }

@@ -10,6 +10,7 @@ import {
   PageHeader,
   useToast,
 } from '../../components/ui.tsx';
+import { PrintDialog } from '../../components/PrintDialog.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { useCellFocus } from './cells.ts';
 import { call, useCall } from '../../lib/api.ts';
@@ -92,6 +93,7 @@ export function ItemVoucher({
   const [confirmExit, setConfirmExit] = useState(false);
   const [narrationPicker, setNarrationPicker] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [printAfter, setPrintAfter] = useState<number | null>(null);
 
   const cells = useCellFocus();
   const ready = setup.status === 'ready' ? setup.data : null;
@@ -320,7 +322,8 @@ export function ItemVoucher({
       setPreview(null);
       setDirty(false);
       setup.reload();
-      cells.focusId('party');
+      if (ready.autoPrint && kindName === 'sales') setPrintAfter(posted.voucherId);
+      else cells.focusId('party');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong and nothing was saved.');
     } finally {
@@ -789,6 +792,16 @@ export function ItemVoucher({
         </aside>
       </div>
 
+      {printAfter !== null && ready && (
+        <PrintDialog
+          id={printAfter}
+          initialSize={ready.printSize}
+          onClose={() => {
+            setPrintAfter(null);
+            cells.focusId('party');
+          }}
+        />
+      )}
       {confirmExit && (
         <ConfirmDialog
           title="Leave this bill?"

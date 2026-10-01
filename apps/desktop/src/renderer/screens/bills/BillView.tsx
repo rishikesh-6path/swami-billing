@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { VoucherDetail } from '@shopledger/core';
 import { DataTable } from '../../components/DataTable.tsx';
+import { PrintDialog } from '../../components/PrintDialog.tsx';
 import { Button, Card, LoadState, Notice, PageHeader, useToast } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
 import {
@@ -38,6 +39,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
   const router = useRouter();
   const toast = useToast();
   const [asking, setAsking] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const label = VOUCHER_LABELS[bill.voucherType] ?? bill.voucherType;
@@ -65,15 +67,25 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
     );
   };
 
+  const printable = [
+    'sales',
+    'sales_return',
+    'purchase',
+    'purchase_return',
+    'receipt',
+    'payment',
+  ].includes(bill.voucherType);
   useHotkeys(
-    asking
-      ? { Escape: () => setAsking(false), Enter: cancel }
-      : {
-          Escape: router.back,
-          'Alt+B': change,
-          'Alt+C': () => (cancelled ? undefined : setAsking(true)),
-          'Ctrl+P': () => window.print(),
-        },
+    printing
+      ? {}
+      : asking
+        ? { Escape: () => setAsking(false), Enter: cancel }
+        : {
+            Escape: router.back,
+            'Alt+B': change,
+            'Alt+C': () => (cancelled ? undefined : setAsking(true)),
+            'Ctrl+P': () => (printable ? setPrinting(true) : undefined),
+          },
   );
   useHints(
     asking
@@ -94,7 +106,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
         actions={
           <>
             <Button onClick={router.back}>Back (Esc)</Button>
-            <Button onClick={() => window.print()}>Print</Button>
+            {printable && <Button onClick={() => setPrinting(true)}>Print (Ctrl+P)</Button>}
             {changeable && <Button onClick={change}>Change (Alt+B)</Button>}
             {!cancelled && (
               <Button variant="danger" onClick={() => setAsking(true)}>
@@ -218,6 +230,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
         </Card>
       )}
 
+      {printing && <PrintDialog id={bill.id} initialSize="a4" onClose={() => setPrinting(false)} />}
       {asking && (
         <div className="overlay">
           <div

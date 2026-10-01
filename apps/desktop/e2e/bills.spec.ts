@@ -43,11 +43,15 @@ test('a bill is cancelled with a reason, the totals drop, and the owner can see 
     await expect(page.getByText(/Please write a short reason/)).toBeVisible();
     await page.keyboard.type('Wrong customer');
     await page.keyboard.press('Enter');
-    await expect(page.getByText(/has been cancelled\./)).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: /has been cancelled\./ }),
+    ).toBeVisible();
     await expect(page.getByText('This bill has been cancelled.')).toBeVisible();
 
     await page.keyboard.press('Escape'); // list
+    await expect(page.getByRole('heading', { name: 'Find a Bill' })).toBeVisible();
     await page.keyboard.press('Escape'); // home
+    await expect(page.getByText('Sales today')).toBeVisible();
     await expect(page.getByText('₹15,176.00')).toBeVisible();
     await expect(page.getByText('4 bills')).toBeVisible();
 
@@ -81,9 +85,10 @@ test('changing a bill replaces it with a corrected one', async () => {
     await page.keyboard.press('F2');
     await expect(page.getByText(/Saved\. Bill number \d+, total ₹106\.00/)).toBeVisible();
 
-    await page.keyboard.press('Escape'); // bill view
-    await page.keyboard.press('Escape'); // list
+    await page.keyboard.press('Escape'); // the changed bill replaced the old one, so back is the list
+    await expect(page.getByRole('heading', { name: 'Find a Bill' })).toBeVisible();
     await page.keyboard.press('Escape'); // home
+    await expect(page.getByText('Sales today')).toBeVisible();
     await expect(page.getByText('₹15,282.00')).toBeVisible(); // 15,176 + 106; the first bill no longer counts
     await expect(page.getByText('5 bills')).toBeVisible();
   } finally {

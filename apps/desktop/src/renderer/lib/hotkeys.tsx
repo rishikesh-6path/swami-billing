@@ -96,7 +96,8 @@ export function useHotkeys(keys: Record<string, Handler>, enabled = true): void 
   useLayoutEffect(() => {
     latest.current = keys;
   });
-  useEffect(() => {
+  // also a layout effect: the layer exists the moment the screen is on display
+  useLayoutEffect(() => {
     if (!enabled) return;
     return add((key) => latest.current[key]);
   }, [add, enabled]);

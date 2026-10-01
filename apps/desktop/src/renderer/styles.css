@@ -769,3 +769,32 @@ tr.clickable:hover td {
   max-width: 26rem;
   margin: 1rem 0 0 auto;
 }
+
+/* ---- print preview ---- */
+.print-dialog {
+  width: min(62rem, 96vw);
+}
+
+.print-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.print-size {
+  min-width: 14rem;
+}
+
+.print-frame {
+  width: 100%;
+  height: 52vh;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.print-frame-thermal {
+  width: 22rem;
+  display: block;
+  margin: 0 auto;
+}
