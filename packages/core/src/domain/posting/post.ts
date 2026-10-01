@@ -1,4 +1,5 @@
 import { transaction, type Db } from '../../db/connection.ts';
+import { assertDateOpen } from '../../books/control.ts';
 import { getCompanyStateCode } from '../../settings.ts';
 import { computeItemVoucher, type ComputedVoucher } from './compute.ts';
 import {
@@ -379,6 +380,7 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
   const now = opts.now ?? new Date().toISOString();
   const legacyImport = opts.legacyImport ?? false;
   return transaction(db, () => {
+    assertDateOpen(db, input.date, opts.role);
     const fyId = financialYearFor(db, input.date);
     assertReference(db, input, legacyImport);
     const number = nextNumber(db, input.type, input.seriesId, fyId);
@@ -499,7 +501,7 @@ function postEntryVoucher(
 export function cancelVoucher(
   db: Db,
   voucherId: number,
-  opts: { userId?: number | undefined; now?: string } = {},
+  opts: { userId?: number | undefined; now?: string; role?: 'owner' | 'staff' } = {},
 ): void {
   const now = opts.now ?? new Date().toISOString();
   transaction(db, () => {
@@ -511,6 +513,7 @@ export function cancelVoucher(
     if (!v) throw new PostingError(`Voucher ${voucherId} does not exist`);
     if (v['is_locked'])
       throw new PostingError(`The financial year of voucher ${voucherId} is locked`);
+    assertDateOpen(db, String(v['date']), opts.role);
     if (v['status'] !== 'posted')
       throw new PostingError(`Voucher ${voucherId} is ${String(v['status'])}, not posted`);
 

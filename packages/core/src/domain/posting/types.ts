@@ -67,6 +67,8 @@ export type VoucherInput = ItemVoucherInput | EntryVoucherInput;
 
 export interface PostOptions {
   now?: string;
+  /** Who is posting. Staff are stopped by day close; the owner is not. Defaults to owner. */
+  role?: 'owner' | 'staff';
   /**
    * For the Busy importer only: skip checks that real-world legacy data may fail (missing
    * original-invoice reference on returns/notes, missing or short HSN on sales). Everything

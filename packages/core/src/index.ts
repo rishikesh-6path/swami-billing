@@ -29,3 +29,5 @@ export * from './masters/validation.ts';
 export * from './masters/accounts.ts';
 export * from './masters/items.ts';
 export * from './masters/setup.ts';
+export * from './books/financial-year.ts';
+export * from './books/control.ts';
