@@ -18,11 +18,12 @@ function migrationDir(files: Record<string, string>): string {
 }
 
 describe('migrations', () => {
-  it('applies 0001 and records it in schema_version', () => {
+  it('applies every shipped migration and records 0001 in schema_version', () => {
     const db = openDatabase(':memory:');
-    const applied = migrate(db, loadMigrationsFromDir(MIGRATIONS_DIR));
-    expect(applied).toEqual([1]);
-    expect(currentSchemaVersion(db)).toBe(1);
+    const all = loadMigrationsFromDir(MIGRATIONS_DIR);
+    const applied = migrate(db, all);
+    expect(applied).toEqual(all.map((m) => m.version));
+    expect(currentSchemaVersion(db)).toBe(all.length);
     expect(db.prepare('SELECT name FROM schema_version WHERE version = 1').get()).toEqual({
       name: 'init',
     });
