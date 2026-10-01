@@ -23,8 +23,9 @@ const productionCsp: Plugin = {
 export default defineConfig({
   main: {
     build: {
-      // core is TypeScript source consumed directly, so it must be bundled, not externalized
-      externalizeDeps: { exclude: ['@shopledger/core'] },
+      // core is TypeScript source consumed directly, so it must be bundled, not externalized;
+      // zod is bundled too, so the installed app needs no node_modules at all
+      externalizeDeps: { exclude: ['@shopledger/core', 'zod'] },
     },
   },
   preload: {

@@ -69,6 +69,10 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   void app.whenReady().then(() => {
+    // The shop PC opens ShopLedger when Windows starts, so billing is never blocked by a closed app.
+    if (app.isPackaged && process.platform === 'win32') {
+      app.setLoginItemSettings({ openAtLogin: true });
+    }
     // No menu bar in the shop: its shortcuts (F5 reload, Ctrl+R, zoom, developer tools) must never
     // fire by accident while staff are typing bills. Developers keep the default menu.
     if (!process.env['ELECTRON_RENDERER_URL']) Menu.setApplicationMenu(null);

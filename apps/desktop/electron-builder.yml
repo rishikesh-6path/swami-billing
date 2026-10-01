@@ -1,0 +1,34 @@
+# Windows installer. Everything the app needs is bundled into out/ by electron-vite
+# (core, zod, React), and SQLite is built into Electron's Node, so no node_modules ship.
+appId: in.shopledger.desktop
+productName: ShopLedger
+copyright: ShopLedger
+directories:
+  output: ../../dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+# Read at run time by resolveMigrationsDir() as <resources>/migrations
+extraResources:
+  - from: ../../packages/core/migrations
+    to: migrations
+    filter:
+      - '*.sql'
+win:
+  executableName: ShopLedger
+  artifactName: ShopLedger-Setup-${version}.${ext}
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  # Uninstalling must never delete the shop's data (it lives in %APPDATA%\ShopLedger).
+  deleteAppDataOnUninstall: false

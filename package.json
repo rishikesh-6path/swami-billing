@@ -15,7 +15,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint . && prettier --check .",
     "migrate:new": "node scripts/migrate-new.mjs",
-    "build:win": "node -e \"console.error('build:win is task P5-04'); process.exit(1)\""
+    "build:win": "pnpm --filter @shopledger/desktop package:win"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

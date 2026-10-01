@@ -12,7 +12,7 @@ function resolveDbPath(): string {
 }
 
 function resolveMigrationsDir(): string {
-  // Packaged location is wired in P5-04 (electron-builder extraResources).
+  // Packaged: electron-builder copies packages/core/migrations to <resources>/migrations (electron-builder.yml).
   return app.isPackaged
     ? join(process.resourcesPath, 'migrations')
     : join(import.meta.dirname, '../../../../packages/core/migrations');
