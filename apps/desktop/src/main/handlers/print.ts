@@ -7,7 +7,16 @@ import {
 } from '@shopledger/core';
 import type { HandlerContext, Handlers } from '../ipc.ts';
 
-const PRINTABLE = ['sales', 'sales_return', 'purchase', 'purchase_return', 'receipt', 'payment'];
+const PRINTABLE = [
+  'sales',
+  'sales_return',
+  'purchase',
+  'purchase_return',
+  'receipt',
+  'payment',
+  'credit_note',
+  'debit_note',
+];
 
 function page(ctx: HandlerContext, id: number, size: 'a4' | 'thermal') {
   const detail = getVoucherDetail(ctx.db, id);

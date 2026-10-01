@@ -166,6 +166,7 @@ interface Header {
   totalPaise: number;
   posStateCode?: string | null | undefined;
   partyGstin?: string | null | undefined;
+  taxMode?: 'local' | 'interstate' | 'exempt' | undefined;
 }
 
 function insertHeader(db: Db, h: Header, now: string): number {
@@ -174,8 +175,8 @@ function insertHeader(db: Db, h: Header, now: string): number {
     .prepare(
       `INSERT INTO voucher (voucher_type, series_id, number, date, fy_id, party_account_id, sale_type_id,
          broker, narration, status, subtotal_paise, taxable_paise, tax_paise, round_off_paise, total_paise,
-         ref_voucher_id, created_by, created_at, modified_at, legacy_ref, pos_state_code, party_gstin)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ref_voucher_id, created_by, created_at, modified_at, legacy_ref, pos_state_code, party_gstin, tax_mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       h.type,
@@ -199,6 +200,7 @@ function insertHeader(db: Db, h: Header, now: string): number {
       h.input.legacyRef ?? null,
       h.posStateCode ?? null,
       h.partyGstin ?? null,
+      h.taxMode ?? null,
     );
   return Number(result.lastInsertRowid);
 }
@@ -404,6 +406,7 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
           partyAccountId: input.partyAccountId,
           posStateCode: built.posStateCode,
           partyGstin: built.partyGstin,
+          taxMode: input.taxMode,
           saleTypeId: input.saleTypeId ?? null,
           input,
           computed: built.computed,

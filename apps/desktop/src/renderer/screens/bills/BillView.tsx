@@ -74,6 +74,8 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
     'purchase_return',
     'receipt',
     'payment',
+    'credit_note',
+    'debit_note',
   ].includes(bill.voucherType);
   useHotkeys(
     printing

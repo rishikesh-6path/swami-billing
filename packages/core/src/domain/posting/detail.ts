@@ -50,6 +50,8 @@ export interface VoucherDetail {
   roundOffPaise: Paise;
   totalPaise: Paise;
   posStateCode: string | null;
+  /** How GST was applied when the bill was made: within the state, between states, or none. */
+  taxMode: 'local' | 'interstate' | 'exempt';
   refVoucher: { id: number; displayNumber: string; date: string } | null;
   modifiedFromId: number | null;
   createdByName: string | null;
@@ -138,7 +140,8 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
         : {
             id: Number(partyId),
             name: String(v['party_name']),
-            gstin: str(v['party_gstin']) ?? str(v['acc_gstin']),
+            // the GSTIN frozen on the bill; the customer's current one must never leak into a reprint
+            gstin: str(v['party_gstin']),
             stateCode: str(v['acc_state']),
             address: str(v['party_address']),
             phone: str(v['party_phone']),
@@ -152,6 +155,9 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
     roundOffPaise: Number(v['round_off_paise']),
     totalPaise: Number(v['total_paise']),
     posStateCode: str(v['pos_state_code']),
+    taxMode:
+      (str(v['tax_mode']) as VoucherDetail['taxMode'] | null) ??
+      (lines.some((l) => Number(l['igst_paise']) > 0) ? 'interstate' : 'local'),
     refVoucher:
       v['ref_voucher_id'] === null
         ? null

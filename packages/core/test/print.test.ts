@@ -90,7 +90,7 @@ describe('renderDocument', () => {
     expect(html).toMatch(/5%/);
     expect(html).toContain('Items total');
     expect(html).toContain('Freight &amp; Forwarding');
-    expect(html).toContain('Paid in Cash');
+    expect(html).toContain('Received in Cash');
   });
 
   it('shows IGST for interstate bills and a Bill of Supply for a shop without GSTIN', () => {
