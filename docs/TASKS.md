@@ -40,8 +40,8 @@ P3-07 | done | Voucher list, modify, cancel, audit viewer | E2E cancel verifies 
 P3-08 | done | Print: A4 invoice, 80 mm thermal, PDF | unit tests on HTML; E2E preview and PDF; manual printer check pending | P0-kickoff
 
 ## Phase 4 — Operations
-P4-01 | todo | Backup (VACUUM INTO, schedule, retention, removable drive) + restore with integrity check | unit tests |
-P4-02 | todo | Settings screen | E2E |
+P4-01 | done | Backup (VACUUM INTO, schedule, retention, removable drive) + restore with integrity check | unit tests + E2E; real drive and restore drill on the shop PC pending | P0-kickoff
+P4-02 | done | Settings screen (shop, printing, people, day close, books lock, year close, backup) | E2E | P0-kickoff
 P4-03 | todo | electron-builder NSIS config, auto-launch, packaged migrations path | config check; Windows run pending |
 P4-04 | todo | USER_GUIDE.md and owner runbook | review |
 

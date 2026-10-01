@@ -6,7 +6,9 @@ import {
   stockStatus,
   currentSchemaVersion,
   financialYearOn,
+  backupReminder,
   getCompany,
+  getSetting,
   isSetupComplete,
   listUsers,
   login,
@@ -86,6 +88,7 @@ export const sessionHandlers: Pick<
       cashInHandPaise: day.cashClosingPaise,
       toCollectPaise: receivable.reduce((t, p) => t + p.outstandingPaise, 0),
       lowStockItems: stockStatus(ctx.db, { asOn: today, onlyProblems: true }).rows.length,
+      backupWarning: backupReminder(getSetting(ctx.db, 'backup.last_at'), today),
     };
   },
 };

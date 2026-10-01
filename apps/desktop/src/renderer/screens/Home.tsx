@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SessionState } from '../../ipc/contract.ts';
-import { Button, Card, InfoDialog, LoadState } from '../components/ui.tsx';
+import { Button, Card, InfoDialog, LoadState, Notice } from '../components/ui.tsx';
 import { call, useCall } from '../lib/api.ts';
 import { formatDate, rupees } from '../lib/format.ts';
 import { useHints, useHotkeys } from '../lib/hotkeys.tsx';
@@ -63,6 +63,9 @@ export function Home({
       </header>
 
       <LoadState state={summary}>
+        {summary.status === 'ready' && summary.data.backupWarning && (
+          <Notice kind="info">{summary.data.backupWarning}</Notice>
+        )}
         {summary.status === 'ready' && (
           <div className="stat-row">
             <Card className="stat">
@@ -100,6 +103,9 @@ export function Home({
         <Tile title="Find a Bill" keyName="D" onClick={() => router.go({ name: 'bills' })} />
         {session.user?.role === 'owner' && (
           <Tile title="Who Did What" onClick={() => router.go({ name: 'audit' })} />
+        )}
+        {session.user?.role === 'owner' && (
+          <Tile title="Settings" onClick={() => router.go({ name: 'settings' })} />
         )}
         <Tile title="Reports" keyName="R" onClick={() => router.go({ name: 'reports' })} />
         <Tile title="Items" keyName="F2 adds" onClick={() => router.go({ name: 'items' })} />

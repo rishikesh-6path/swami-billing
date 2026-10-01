@@ -31,6 +31,7 @@ export async function launch(
       ...process.env,
       SHOPLEDGER_USER_DATA: join(dir, 'userData'),
       SHOPLEDGER_DB_PATH: dbPath,
+      SHOPLEDGER_NO_RELAUNCH: '1',
       SHOPLEDGER_TODAY: options.today ?? '2026-10-15',
       ...(options.demo ? { SHOPLEDGER_DEMO: '1' } : {}),
       ...(options.exportDir ? { SHOPLEDGER_EXPORT_DIR: join(dir, 'exports') } : {}),

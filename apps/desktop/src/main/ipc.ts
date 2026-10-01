@@ -41,6 +41,16 @@ export interface HandlerContext {
     html: string,
     opts: { size: 'a4' | 'thermal'; defaultName: string },
   ) => Promise<string | null>;
+  /** Where backups go when the owner has not chosen a folder. */
+  backupPlace: { defaultFolder: string };
+  /** The shop's current date and time (YYYY-MM-DD, HH:MM:SS). */
+  clock: () => { date: string; time: string };
+  /** Lets the user pick a folder; null if they cancelled. */
+  chooseFolder: (title: string) => Promise<string | null>;
+  /** Lets the user pick a backup file; null if they cancelled. */
+  chooseBackupFile: () => Promise<string | null>;
+  /** Swaps the shop data for a backup and restarts the app. The caller must have checked the file. */
+  restoreFrom: (path: string) => void;
   /** The signed-in user; throws if nobody is signed in (handlers on non-public channels). */
   user: () => SessionUser & { role: Role };
 }

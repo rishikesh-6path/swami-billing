@@ -1,7 +1,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
-import { seedDemoShop } from '@shopledger/core';
+import {
+  ValidationError,
+  checkBackupFile,
+  createBackup,
+  restoreDatabaseFile,
+  seedDemoShop,
+} from '@shopledger/core';
+import { backupFolder, defaultBackupFolder, dueSlot, runBackup } from './backup.ts';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
 import { handlers } from './handlers/index.ts';
 import { registerHandlers, type Session } from './ipc.ts';
@@ -14,6 +21,7 @@ if (userDataOverride) {
 
 let mainWindow: BrowserWindow | null = null;
 let shopDb: OpenedDatabase | null = null;
+let quitBackup: (() => void) | null = null;
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -83,6 +91,17 @@ if (!app.requestSingleInstanceLock()) {
     const today = () =>
       process.env['SHOPLEDGER_TODAY'] ??
       new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const clock = () => ({
+      date: today(),
+      time: new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(new Date()),
+    });
+    const backupPlace = { defaultFolder: defaultBackupFolder(app.getPath('userData')) };
     // Demo mode (development and automated tests only): load a sample shop into an empty database.
     if (process.env['SHOPLEDGER_DEMO'] === '1') {
       const empty = opened.db.prepare('SELECT COUNT(*) AS n FROM user').get()?.['n'] === 0;
@@ -181,7 +200,68 @@ if (!app.requestSingleInstanceLock()) {
       writeFileSync(result.filePath, pdf);
       return result.filePath;
     };
+    const chooseFolder = async (title: string) => {
+      if (exportDir) return exportDir;
+      const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
+        title,
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    };
+    const chooseBackupFile = async () => {
+      const result = await dialog.showOpenDialog(mainWindow ?? undefined!, {
+        title: 'Choose a backup file',
+        defaultPath: backupFolder(opened.db, backupPlace),
+        filters: [{ name: 'ShopLedger backup', extensions: ['db'] }],
+        properties: ['openFile'],
+      });
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    };
+    const restoreFrom = (path: string) => {
+      const check = checkBackupFile(path);
+      if (!check.ok) {
+        throw new ValidationError(
+          `This backup cannot be used. ${check.message} Nothing was changed.`,
+        );
+      }
+      const { date, time } = clock();
+      // The current data is saved first, so a wrong choice can be undone from the same list.
+      createBackup(opened.db, backupFolder(opened.db, backupPlace), date, time);
+      stopBackups();
+      opened.db.close();
+      shopDb = null;
+      restoreDatabaseFile(path, opened.path);
+      setTimeout(() => {
+        // tests set this so the checked-out copy does not start a second app
+        if (!process.env['SHOPLEDGER_NO_RELAUNCH']) app.relaunch();
+        app.exit(0);
+      }, 800);
+    };
+    // Backups: twice a day while the app is open (checked every minute), and when it closes.
+    const backupNow = (slot?: string) => {
+      try {
+        const { date, time } = clock();
+        runBackup(opened.db, backupPlace, date, time, slot);
+      } catch (error) {
+        console.error('[shopledger] backup failed', error);
+      }
+    };
+    const timer = setInterval(() => {
+      const { date, time } = clock();
+      const slot = dueSlot(opened.db, date, time.slice(0, 5));
+      if (slot) backupNow(slot);
+    }, 60_000);
+    const stopBackups = () => clearInterval(timer);
+    quitBackup = () => {
+      stopBackups();
+      if (shopDb) backupNow();
+    };
     registerHandlers(ipcMain, handlers, {
+      backupPlace,
+      clock,
+      chooseFolder,
+      chooseBackupFile,
+      restoreFrom,
       db: opened.db,
       dbPath: opened.path,
       session,
@@ -196,6 +276,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('before-quit', () => {
+    quitBackup?.();
+    quitBackup = null;
     shopDb?.db.close();
     shopDb = null;
   });

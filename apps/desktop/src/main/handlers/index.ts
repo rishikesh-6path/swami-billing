@@ -3,6 +3,7 @@ import { masterHandlers } from './masters.ts';
 import { printHandlers } from './print.ts';
 import { reportHandlers } from './reports.ts';
 import { sessionHandlers } from './session.ts';
+import { settingsHandlers } from './settings.ts';
 import { voucherHandlers } from './vouchers.ts';
 
 export const handlers: Handlers = {
@@ -11,4 +12,5 @@ export const handlers: Handlers = {
   ...masterHandlers,
   ...reportHandlers,
   ...printHandlers,
+  ...settingsHandlers,
 };

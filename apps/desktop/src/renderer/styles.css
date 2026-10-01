@@ -798,3 +798,53 @@ tr.clickable:hover td {
   display: block;
   margin: 0 auto;
 }
+
+/* ---- settings ---- */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 17rem 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.settings-tab {
+  font: inherit;
+  text-align: left;
+  min-height: 2.9rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.settings-tab-on {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.settings-body {
+  min-width: 0;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 1100px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+}

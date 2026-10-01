@@ -4,6 +4,9 @@ import type {
   BillSundryRow,
   Company,
   AccountHit,
+  BackupFile,
+  FinancialYearRow,
+  UserRow,
   AccountLedger,
   BalanceSheet,
   DayBookRow,
@@ -49,6 +52,12 @@ function channel<Q extends z.ZodType, R>(access: Access, request: Q) {
   return { access, request, response: null as unknown as R };
 }
 
+/** Same as `channel`, with the response type given first and the request type inferred. */
+const ch =
+  <R>() =>
+  <Q extends z.ZodType>(access: Access, request: Q) =>
+    channel<Q, R>(access, request);
+
 export interface SessionUser {
   id: number;
   name: string;
@@ -70,9 +79,34 @@ export interface HomeSummary {
   cashInHandPaise: number;
   toCollectPaise: number;
   lowStockItems: number;
+  /** Plain-language warning when backups are overdue; null when all is well. */
+  backupWarning: string | null;
 }
 
 const none = z.object({}).strict();
+
+export interface ShopSettings {
+  company: Company | null;
+  print: { printer: string; size: 'a4' | 'thermal'; auto: boolean };
+  books: { dayClosedThrough: string | null; lockedThrough: string | null };
+  years: (FinancialYearRow & { current: boolean })[];
+}
+
+export interface BackupStatus {
+  folder: string;
+  copyFolder: string | null;
+  /** Shop-time stamp of the last successful backup, e.g. "2026-10-15 14:00". */
+  lastAt: string | null;
+  /** The newest backups first (at most 30 shown). */
+  backups: BackupFile[];
+}
+
+export interface RestoreCheck {
+  ok: boolean;
+  message: string;
+  vouchers: number;
+  path: string;
+}
 
 const paise = z.number().int().min(0);
 
@@ -491,6 +525,66 @@ export const contract = {
     z.ZodObject<{ id: typeof id; input: typeof voucherInput }>,
     PostedVoucher
   >('cancel_voucher', z.object({ id, input: voucherInput })),
+  'settings.get': ch<ShopSettings>()('manage_settings', none),
+  'settings.saveCompany': ch<Company>()(
+    'manage_settings',
+    z.object({
+      name: z.string().max(120),
+      address: z.string().max(300),
+      stateCode: z.string().max(2),
+      gstin: z.string().max(15),
+      phone: z.string().max(20),
+      invoiceFooter: z.string().max(300),
+    }),
+  ),
+  'settings.savePrint': ch<null>()(
+    'manage_settings',
+    z.object({
+      printer: z.string().max(200),
+      size: z.enum(['a4', 'thermal']),
+      auto: z.boolean(),
+    }),
+  ),
+  'users.list': ch<UserRow[]>()('manage_users', none),
+  'users.create': ch<UserRow[]>()(
+    'manage_users',
+    z.object({
+      name: z.string().max(60),
+      pin: z.string().max(6),
+      role: z.enum(['owner', 'staff']),
+    }),
+  ),
+  'users.update': ch<UserRow[]>()(
+    'manage_users',
+    z.object({
+      id,
+      role: z.enum(['owner', 'staff']).optional(),
+      isActive: z.boolean().optional(),
+    }),
+  ),
+  'users.changePin': ch<null>()('manage_users', z.object({ id, pin: z.string().max(6) })),
+  'books.closeDay': ch<ShopSettings['books']>()('close_day', z.object({ date: isoDate })),
+  'books.reopenDay': ch<ShopSettings['books']>()(
+    'close_day',
+    z.object({ date: isoDate.nullable() }),
+  ),
+  'books.lock': ch<ShopSettings['books']>()('lock_books', z.object({ date: isoDate })),
+  'books.unlock': ch<ShopSettings['books']>()('lock_books', none),
+  'books.closeYear': ch<ShopSettings['years']>()('close_year', z.object({ fyId: id })),
+  'backup.status': ch<BackupStatus>()('user', none),
+  'backup.run': ch<BackupStatus & { copied: boolean | null }>()('backup_restore', none),
+  'backup.chooseFolder': ch<BackupStatus>()(
+    'backup_restore',
+    z.object({ which: z.enum(['main', 'copy']), clear: z.boolean().optional() }),
+  ),
+  'backup.check': ch<RestoreCheck | null>()(
+    'backup_restore',
+    z.object({ path: z.string().max(1000).optional() }),
+  ),
+  'backup.restore': ch<{ restarting: true }>()(
+    'backup_restore',
+    z.object({ path: z.string().max(1000) }),
+  ),
 } as const;
 
 export type Channel = keyof typeof contract;
