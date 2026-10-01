@@ -135,3 +135,23 @@ export class UnbalancedVoucherError extends PostingError {
     this.name = 'UnbalancedVoucherError';
   }
 }
+
+/** What a printed bill shows about the shop, the party and the items, copied when the bill is posted. */
+export interface VoucherSnapshot {
+  company: {
+    name: string;
+    address: string;
+    gstin: string | null;
+    stateCode: string;
+    phone: string | null;
+    invoiceFooter: string;
+  } | null;
+  party: {
+    name: string;
+    address: string | null;
+    phone: string | null;
+    stateCode: string | null;
+  } | null;
+  /** Item names by item id. */
+  items: Record<string, string>;
+}

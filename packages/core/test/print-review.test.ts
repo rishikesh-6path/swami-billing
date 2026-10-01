@@ -97,3 +97,25 @@ describe('print review defects', () => {
     expect(html).not.toContain('29ABCDE1234F1Z5');
   });
 });
+
+describe('a reprint is identical to the original', () => {
+  it('ignores later changes to the shop details, the party and the item names', () => {
+    const s = seedShop();
+    s.db.exec(`INSERT INTO setting (key, value) VALUES ('company.name', 'Old Shop Name'),
+      ('company.state_code', '33'), ('company.gstin', '33AAPFU0939F1Z2')
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value`);
+    const { voucherId } = sale(s);
+    const first = renderDocument(getVoucherDetail(s.db, voucherId)!, company, 'a4');
+    s.db.exec(`UPDATE setting SET value = 'Brand New Name' WHERE key = 'company.name';
+      UPDATE account SET name = 'RENAMED CUSTOMER', address = 'New Address 9' WHERE id = 11;
+      UPDATE item SET name = 'RENAMED ITEM' WHERE id = 1`);
+    const later = renderDocument(
+      getVoucherDetail(s.db, voucherId)!,
+      { ...company, name: 'Brand New Name' },
+      'a4',
+    );
+    expect(later).toBe(first);
+    expect(later).not.toContain('RENAMED');
+    expect(later).not.toContain('New Address 9');
+  });
+});

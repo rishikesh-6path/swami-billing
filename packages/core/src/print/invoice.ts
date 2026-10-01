@@ -310,7 +310,13 @@ ${d.narration ? `<div>${esc(d.narration)}</div>` : ''}
  * date, the customer, place of supply, HSN, quantity, rate, taxable value, rate-wise CGST/SGST or
  * IGST, the total in figures and words, and a signature block.
  */
-export function renderDocument(detail: VoucherDetail, company: Company, size: PaperSize): string {
+export function renderDocument(
+  detail: VoucherDetail,
+  currentCompany: Company,
+  size: PaperSize,
+): string {
+  // the shop's details as they were on the day of the bill; today's settings only for older entries
+  const company = detail.company ?? currentCompany;
   const body = size === 'a4' ? renderA4(detail, company) : renderThermal(detail, company);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(titleOf(detail, company))} ${esc(detail.displayNumber)}</title><style>${size === 'a4' ? CSS_A4 : CSS_THERMAL}</style></head><body>${body}</body></html>`;
 }

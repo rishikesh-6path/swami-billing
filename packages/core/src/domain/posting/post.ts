@@ -1,6 +1,7 @@
 import { transaction, type Db } from '../../db/connection.ts';
 import { assertDateOpen } from '../../books/control.ts';
 import { getCompanyStateCode } from '../../settings.ts';
+import { getCompany } from '../../users/company.ts';
 import { computeItemVoucher, type ComputedVoucher } from './compute.ts';
 import {
   PostingError,
@@ -14,6 +15,7 @@ import {
   isItemInput,
   isStockInput,
   type VoucherInput,
+  type VoucherSnapshot,
 } from './types.ts';
 
 /*
@@ -169,14 +171,46 @@ interface Header {
   taxMode?: 'local' | 'interstate' | 'exempt' | undefined;
 }
 
+/** Copies the details a printed bill shows, so a reprint never changes (see migration 0007). */
+function takeSnapshot(db: Db, h: Header): VoucherSnapshot {
+  const party =
+    h.partyAccountId === null
+      ? null
+      : row(
+          db,
+          'SELECT name, address, phone, state_code FROM account WHERE id = ?',
+          h.partyAccountId,
+        );
+  const items: Record<string, string> = {};
+  if (isItemInput(h.input)) {
+    for (const l of h.input.lines) {
+      const item = row(db, 'SELECT name FROM item WHERE id = ?', l.itemId);
+      if (item) items[String(l.itemId)] = String(item['name']);
+    }
+  }
+  return {
+    company: getCompany(db) ?? null,
+    party: party
+      ? {
+          name: String(party['name']),
+          address: party['address'] === null ? null : String(party['address']),
+          phone: party['phone'] === null ? null : String(party['phone']),
+          stateCode: party['state_code'] === null ? null : String(party['state_code']),
+        }
+      : null,
+    items,
+  };
+}
+
 function insertHeader(db: Db, h: Header, now: string): number {
   const c = h.computed;
   const result = db
     .prepare(
       `INSERT INTO voucher (voucher_type, series_id, number, date, fy_id, party_account_id, sale_type_id,
          broker, narration, status, subtotal_paise, taxable_paise, tax_paise, round_off_paise, total_paise,
-         ref_voucher_id, created_by, created_at, modified_at, legacy_ref, pos_state_code, party_gstin, tax_mode)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ref_voucher_id, created_by, created_at, modified_at, legacy_ref, pos_state_code, party_gstin, tax_mode,
+         snapshot_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       h.type,
@@ -201,6 +235,7 @@ function insertHeader(db: Db, h: Header, now: string): number {
       h.posStateCode ?? null,
       h.partyGstin ?? null,
       h.taxMode ?? null,
+      JSON.stringify(takeSnapshot(db, h)),
     );
   return Number(result.lastInsertRowid);
 }

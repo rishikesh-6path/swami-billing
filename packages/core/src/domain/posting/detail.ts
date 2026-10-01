@@ -2,6 +2,7 @@ import type { SQLOutputValue } from 'node:sqlite';
 import type { Db } from '../../db/connection.ts';
 import type { Milli, Paise } from '../../money.ts';
 import { financialYearOn } from '../../books/financial-year.ts';
+import type { VoucherSnapshot } from './types.ts';
 
 type Row = Record<string, SQLOutputValue>;
 const str = (v: SQLOutputValue | undefined): string | null =>
@@ -22,6 +23,15 @@ export function nextVoucherNumber(
     )
     .get(voucherType, seriesId, fy.id);
   return Number(row?.['last_no'] ?? 0) + 1;
+}
+
+function parseSnapshot(raw: unknown): VoucherSnapshot | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    return JSON.parse(raw) as VoucherSnapshot;
+  } catch {
+    return null;
+  }
 }
 
 export interface VoucherDetail {
@@ -52,6 +62,8 @@ export interface VoucherDetail {
   posStateCode: string | null;
   /** How GST was applied when the bill was made: within the state, between states, or none. */
   taxMode: 'local' | 'interstate' | 'exempt';
+  /** The shop's details as they were when the bill was made (null for older entries). */
+  company: VoucherSnapshot['company'];
   refVoucher: { id: number; displayNumber: string; date: string } | null;
   modifiedFromId: number | null;
   createdByName: string | null;
@@ -125,6 +137,7 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
     )
     .all(id);
 
+  const snapshot = parseSnapshot(v['snapshot_json']);
   const partyId = v['party_account_id'];
   return {
     id: Number(v['id']),
@@ -139,12 +152,12 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
         ? null
         : {
             id: Number(partyId),
-            name: String(v['party_name']),
+            name: snapshot?.party?.name ?? String(v['party_name']),
             // the GSTIN frozen on the bill; the customer's current one must never leak into a reprint
             gstin: str(v['party_gstin']),
-            stateCode: str(v['acc_state']),
-            address: str(v['party_address']),
-            phone: str(v['party_phone']),
+            stateCode: snapshot?.party ? snapshot.party.stateCode : str(v['acc_state']),
+            address: snapshot?.party ? snapshot.party.address : str(v['party_address']),
+            phone: snapshot?.party ? snapshot.party.phone : str(v['party_phone']),
           },
     saleTypeName: str(v['sale_type']),
     broker: str(v['broker']),
@@ -158,6 +171,7 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
     taxMode:
       (str(v['tax_mode']) as VoucherDetail['taxMode'] | null) ??
       (lines.some((l) => Number(l['igst_paise']) > 0) ? 'interstate' : 'local'),
+    company: snapshot?.company ?? null,
     refVoucher:
       v['ref_voucher_id'] === null
         ? null
@@ -172,7 +186,7 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
     lines: lines.map((l) => ({
       lineNo: Number(l['line_no']),
       itemId: Number(l['item_id']),
-      itemName: String(l['item_name']),
+      itemName: snapshot?.items[String(l['item_id'])] ?? String(l['item_name']),
       alias: str(l['alias']),
       unitId: Number(l['unit_id']),
       unitName: String(l['unit_name']),
