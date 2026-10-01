@@ -5,7 +5,13 @@ export type ItemVoucherKind = 'sales' | 'purchase' | 'sales_return' | 'purchase_
 export type EntryKind = 'receipt' | 'payment' | 'journal' | 'contra';
 export type StockKind = 'stock_journal' | 'physical_stock';
 
+export type PartyKind = 'customer' | 'supplier';
+
 export type Route =
+  | { name: 'items' }
+  | { name: 'item'; id?: number }
+  | { name: 'parties'; kind: PartyKind }
+  | { name: 'party'; kind: PartyKind; id?: number }
   | { name: 'entry'; kind: EntryKind; editId?: number }
   | { name: 'stock'; kind: StockKind }
   | { name: 'home' }

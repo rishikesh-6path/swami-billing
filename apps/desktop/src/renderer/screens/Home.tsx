@@ -27,6 +27,8 @@ export function Home({
   useHotkeys({
     F1: () => setHelp(true),
     U: signOut,
+    F2: () => router.go({ name: 'item' }),
+    F3: () => router.go({ name: 'party', kind: 'customer' }),
     F5: entry('payment'),
     F6: entry('receipt'),
     F7: entry('journal'),
@@ -82,6 +84,13 @@ export function Home({
         <Tile title="Cash / Bank Transfer" onClick={entry('contra')} />
         <Tile title="Stock Journal" onClick={stock('stock_journal')} />
         <Tile title="Stock Count" onClick={stock('physical_stock')} />
+        <Tile title="Items" keyName="F2 adds" onClick={() => router.go({ name: 'items' })} />
+        <Tile
+          title="Customers"
+          keyName="F3 adds"
+          onClick={() => router.go({ name: 'parties', kind: 'customer' })}
+        />
+        <Tile title="Suppliers" onClick={() => router.go({ name: 'parties', kind: 'supplier' })} />
       </div>
 
       {help && (
@@ -107,6 +116,12 @@ export function Home({
             </li>
             <li>
               <kbd>F7</kbd> New journal entry
+            </li>
+            <li>
+              <kbd>F2</kbd> Add an item
+            </li>
+            <li>
+              <kbd>F3</kbd> Add a customer
             </li>
           </ul>
           <details>

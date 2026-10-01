@@ -4,6 +4,10 @@ import type {
   BillSundryRow,
   Company,
   AccountHit,
+  AccountRow,
+  ItemGroupRow,
+  ItemRow,
+  UnitRow,
   ItemSearchRow,
   PartyHit,
   PostedVoucher,
@@ -160,6 +164,35 @@ export const stockVoucherInput = z.union([
 
 export const voucherInput = z.union([itemVoucherInput, entryVoucherInput, stockVoucherInput]);
 
+export interface ItemDetail {
+  item: ItemRow;
+  taxHistory: { effectiveFrom: string; rateBp: number }[];
+}
+
+const itemFields = {
+  name: z.string().max(120),
+  alias: z.string().max(40).nullable(),
+  groupId: id,
+  unitId: id,
+  hsn: z.string().max(12).nullable(),
+  openingQty: z.number().int(),
+  openingRatePaise: paise,
+  salePricePaise: paise,
+  mrpPaise: paise,
+  minStockQty: paise,
+};
+
+const partyFields = {
+  name: z.string().max(120),
+  gstin: z.string().max(20).nullable(),
+  stateCode: z.string().max(4).nullable(),
+  phone: z.string().max(30).nullable(),
+  address: z.string().max(300).nullable(),
+  creditDays: z.number().int().min(0).max(3650),
+  openingBalancePaise: paise,
+  openingIsDr: z.boolean(),
+};
+
 export interface VoucherScreenSetup {
   today: string;
   series: SeriesRow[];
@@ -238,6 +271,84 @@ export const contract = {
       asOn: isoDate,
     }),
   ),
+  'item.list': channel<
+    z.ZodObject<{ text: z.ZodOptional<z.ZodString>; includeInactive: z.ZodOptional<z.ZodBoolean> }>,
+    ItemRow[]
+  >(
+    'edit_masters',
+    z.object({ text: z.string().max(100).optional(), includeInactive: z.boolean().optional() }),
+  ),
+  'item.get': channel<z.ZodObject<{ id: typeof id }>, ItemDetail | null>(
+    'edit_masters',
+    z.object({ id }),
+  ),
+  'item.save': channel<
+    z.ZodObject<
+      typeof itemFields & {
+        id: z.ZodOptional<typeof id>;
+        isActive: z.ZodOptional<z.ZodBoolean>;
+        taxRateBp: z.ZodOptional<z.ZodNumber>;
+        taxEffectiveFrom: z.ZodOptional<typeof isoDate>;
+      }
+    >,
+    number
+  >(
+    'edit_masters',
+    z.object({
+      ...itemFields,
+      id: id.optional(),
+      isActive: z.boolean().optional(),
+      taxRateBp: z.number().int().min(0).max(5000).optional(),
+      taxEffectiveFrom: isoDate.optional(),
+    }),
+  ),
+  'item.delete': channel<z.ZodObject<{ id: typeof id }>, null>('edit_masters', z.object({ id })),
+  'itemgroup.list': channel<typeof none, ItemGroupRow[]>('edit_masters', none),
+  'itemgroup.create': channel<z.ZodObject<{ name: z.ZodString }>, number>(
+    'edit_masters',
+    z.object({ name: z.string().max(120) }),
+  ),
+  'unit.list': channel<typeof none, UnitRow[]>('edit_masters', none),
+  'unit.create': channel<z.ZodObject<{ name: z.ZodString; allowDecimals: z.ZodBoolean }>, number>(
+    'edit_masters',
+    z.object({ name: z.string().max(40), allowDecimals: z.boolean() }),
+  ),
+  'party.list': channel<
+    z.ZodObject<{
+      kind: z.ZodEnum<{ customer: 'customer'; supplier: 'supplier'; all: 'all' }>;
+      text: z.ZodOptional<z.ZodString>;
+      asOn: typeof isoDate;
+    }>,
+    (AccountRow & { balancePaise: number })[]
+  >(
+    'edit_masters',
+    z.object({
+      kind: z.enum(['customer', 'supplier', 'all']),
+      text: z.string().max(100).optional(),
+      asOn: isoDate,
+    }),
+  ),
+  'party.get': channel<z.ZodObject<{ id: typeof id }>, AccountRow | null>(
+    'edit_masters',
+    z.object({ id }),
+  ),
+  'party.save': channel<
+    z.ZodObject<
+      typeof partyFields & {
+        id: z.ZodOptional<typeof id>;
+        kind: z.ZodOptional<z.ZodEnum<{ customer: 'customer'; supplier: 'supplier' }>>;
+      }
+    >,
+    number
+  >(
+    'edit_masters',
+    z.object({
+      ...partyFields,
+      id: id.optional(),
+      kind: z.enum(['customer', 'supplier']).optional(),
+    }),
+  ),
+  'party.delete': channel<z.ZodObject<{ id: typeof id }>, null>('edit_masters', z.object({ id })),
   'account.search': channel<
     z.ZodObject<{
       text: z.ZodString;

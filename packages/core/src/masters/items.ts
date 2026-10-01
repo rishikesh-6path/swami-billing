@@ -35,6 +35,8 @@ export interface ItemRow {
   mrpPaise: number;
   minStockQty: number;
   isActive: boolean;
+  /** GST rate in force on the date asked for (today by default), if the item has one. */
+  rateBp: number | null;
 }
 export interface ItemSearchRow {
   id: number;
@@ -126,7 +128,9 @@ export function createItemGroup(
   });
 }
 
-const ITEM_SELECT = `SELECT i.*, g.name AS group_name, u.name AS unit_name, u.decimals AS unit_decimals
+const ITEM_SELECT = `SELECT i.*, g.name AS group_name, u.name AS unit_name, u.decimals AS unit_decimals,
+  (SELECT rate_bp FROM item_tax_rate r WHERE r.item_id = i.id AND r.effective_from <= date('now', '+5 hours', '+30 minutes')
+   ORDER BY r.effective_from DESC LIMIT 1) AS rate_bp
   FROM item i JOIN item_group g ON g.id = i.group_id JOIN unit u ON u.id = i.unit_id`;
 
 const item = (r: Row): ItemRow => ({
@@ -145,6 +149,7 @@ const item = (r: Row): ItemRow => ({
   mrpPaise: Number(r['mrp_paise']),
   minStockQty: Number(r['min_stock_qty']),
   isActive: Boolean(r['is_active']),
+  rateBp: r['rate_bp'] === null ? null : Number(r['rate_bp']),
 });
 
 export function getItem(db: Db, id: number): ItemRow | undefined {
@@ -432,12 +437,16 @@ export function searchItems(
 
 export function listItems(
   db: Db,
-  args: { groupId?: number; includeInactive?: boolean } = {},
+  args: { groupId?: number; includeInactive?: boolean; text?: string } = {},
 ): ItemRow[] {
+  const like = `%${escapeLike((args.text ?? '').trim().toLowerCase())}%`;
   return db
     .prepare(
-      `${ITEM_SELECT} WHERE (? IS NULL OR i.group_id = ?) AND (i.is_active = 1 OR ? = 1) ORDER BY i.name`,
+      `${ITEM_SELECT}
+       WHERE (? IS NULL OR i.group_id = ?) AND (i.is_active = 1 OR ? = 1)
+         AND (lower(i.name) LIKE ? ESCAPE '\\' OR lower(COALESCE(i.alias, '')) LIKE ? ESCAPE '\\')
+       ORDER BY i.name`,
     )
-    .all(args.groupId ?? null, args.groupId ?? null, args.includeInactive ? 1 : 0)
+    .all(args.groupId ?? null, args.groupId ?? null, args.includeInactive ? 1 : 0, like, like)
     .map(item);
 }

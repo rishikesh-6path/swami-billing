@@ -7,6 +7,10 @@ import { HotkeyProvider, useCurrentHints, useHotkeys } from './lib/hotkeys.tsx';
 import { RouterProvider, useRouter } from './lib/router.tsx';
 import { SessionProvider } from './lib/session.tsx';
 import { Home } from './screens/Home.tsx';
+import { ItemForm } from './screens/masters/ItemForm.tsx';
+import { ItemList } from './screens/masters/ItemList.tsx';
+import { PartyForm } from './screens/masters/PartyForm.tsx';
+import { PartyList } from './screens/masters/PartyList.tsx';
 import { EntryRoute } from './screens/voucher/EntryRoute.tsx';
 import { StockVoucher } from './screens/voucher/StockVoucher.tsx';
 import { VoucherRoute } from './screens/voucher/VoucherRoute.tsx';
@@ -22,6 +26,15 @@ function Screens({
 }) {
   const router = useRouter();
   useHotkeys({ Escape: router.back });
+  if (router.route.name === 'items') return <ItemList />;
+  if (router.route.name === 'item')
+    return <ItemForm key={router.route.id ?? 'new'} id={router.route.id} />;
+  if (router.route.name === 'parties')
+    return <PartyList key={router.route.kind} kind={router.route.kind} />;
+  if (router.route.name === 'party') {
+    const { kind, id } = router.route;
+    return <PartyForm key={`${kind}-${id ?? 'new'}`} kind={kind} id={id} />;
+  }
   if (router.route.name === 'entry') {
     const { kind, editId } = router.route;
     return <EntryRoute key={`${kind}-${editId ?? 'new'}`} kind={kind} editId={editId} />;

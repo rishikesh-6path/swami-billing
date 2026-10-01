@@ -344,3 +344,33 @@ export function searchAccounts(
     balancePaise: accountBalance(db, Number(r['id']), args.asOn),
   }));
 }
+
+/** All customers and/or suppliers for the master list, with balances, optionally filtered by name, phone or GST number. */
+export function listParties(
+  db: Db,
+  args: { kind: 'customer' | 'supplier' | 'all'; text?: string; asOn: string },
+): (AccountRow & { balancePaise: number })[] {
+  const groups =
+    args.kind === 'customer'
+      ? ['Sundry Debtors']
+      : args.kind === 'supplier'
+        ? ['Sundry Creditors']
+        : ['Sundry Debtors', 'Sundry Creditors'];
+  const q = (args.text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\\%_]/g, (c) => `\\${c}`);
+  const like = `%${q}%`;
+  return db
+    .prepare(
+      `WITH RECURSIVE tree(id) AS (
+         SELECT id FROM account_group WHERE name IN (${groups.map(() => '?').join(',')})
+         UNION ALL SELECT g.id FROM account_group g JOIN tree t ON g.parent_id = t.id)
+       ${ACCOUNT_SELECT}
+       WHERE a.group_id IN (SELECT id FROM tree)
+         AND (lower(a.name) LIKE ? ESCAPE '\\' OR COALESCE(a.phone, '') LIKE ? ESCAPE '\\' OR lower(COALESCE(a.gstin, '')) LIKE ? ESCAPE '\\')
+       ORDER BY a.name`,
+    )
+    .all(...groups, like, like, like)
+    .map((r) => ({ ...account(r), balancePaise: accountBalance(db, Number(r['id']), args.asOn) }));
+}
