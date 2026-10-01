@@ -1,8 +1,9 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
-import { currentSchemaVersion } from '@shopledger/core';
+import { seedDemoShop } from '@shopledger/core';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
-import { registerHandlers } from './ipc.ts';
+import { handlers } from './handlers/index.ts';
+import { registerHandlers, type Session } from './ipc.ts';
 
 // E2E isolation: must be set before the single-instance lock is requested.
 const userDataOverride = process.env['SHOPLEDGER_USER_DATA'];
@@ -73,12 +74,17 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     const opened = shopDb;
-    registerHandlers(ipcMain, {
-      'app.info': () => ({
-        dbPath: opened.path,
-        schemaVersion: currentSchemaVersion(opened.db),
-      }),
-    });
+    const session: Session = { user: null };
+    // Business dates are Indian dates; tests can pin the date with SHOPLEDGER_TODAY.
+    const today = () =>
+      process.env['SHOPLEDGER_TODAY'] ??
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    // Demo mode (development and automated tests only): load a sample shop into an empty database.
+    if (process.env['SHOPLEDGER_DEMO'] === '1') {
+      const empty = opened.db.prepare('SELECT COUNT(*) AS n FROM user').get()?.['n'] === 0;
+      if (empty) seedDemoShop(opened.db, { today: today() });
+    }
+    registerHandlers(ipcMain, handlers, { db: opened.db, dbPath: opened.path, session, today });
     mainWindow = createWindow();
     console.log('[shopledger] window created');
   });

@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { channels, type Channel, type ShopledgerApi } from '../ipc/contract.ts';
+import { channels, type Channel, type IpcResult, type ShopledgerApi } from '../ipc/contract.ts';
 
 const api: ShopledgerApi = {
-  invoke(channel: Channel, request: unknown) {
-    if (!channels.includes(channel)) {
-      return Promise.reject(new Error(`Unknown channel: ${String(channel)}`));
-    }
-    return ipcRenderer.invoke(channel, request) as never;
+  async invoke(channel: Channel, request: unknown) {
+    if (!channels.includes(channel)) throw new Error(`Unknown channel: ${String(channel)}`);
+    const result = (await ipcRenderer.invoke(channel, request)) as IpcResult<never>;
+    if (!result.ok) throw new Error(result.message);
+    return result.data;
   },
 };
 

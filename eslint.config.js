@@ -52,8 +52,13 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['electron', 'electron/*', 'node:*', '@shopledger/core', '@shopledger/core/*'],
+              group: ['electron', 'electron/*', 'node:*'],
               message: 'Renderer must use the typed IPC bridge only.',
+            },
+            {
+              group: ['@shopledger/core', '@shopledger/core/*'],
+              allowTypeImports: true,
+              message: 'Renderer may import types from core, never its code.',
             },
           ],
         },
