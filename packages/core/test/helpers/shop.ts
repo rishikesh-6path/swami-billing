@@ -13,6 +13,8 @@ export const VOUCHER_TYPES: VoucherType[] = [
   'contra',
   'debit_note',
   'credit_note',
+  'stock_journal',
+  'physical_stock',
 ];
 
 export interface Shop {

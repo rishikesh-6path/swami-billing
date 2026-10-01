@@ -120,7 +120,7 @@ describe('GSTR-1 other tables', () => {
       refVoucherId: first.voucherId,
       entries: [
         { accountId: s.partyB, side: 'cr', amountPaise: 100 },
-        { accountId: s.cash, side: 'dr', amountPaise: 100 },
+        { accountId: 14, side: 'dr', amountPaise: 100 },
       ],
     });
     expect(gstr1(s.db, P).documents.map((d) => [d.nature, d.total])).toEqual([

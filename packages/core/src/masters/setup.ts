@@ -16,6 +16,8 @@ export const VOUCHER_TYPE_LABELS: Record<VoucherType, string> = {
   contra: 'Contra',
   debit_note: 'Debit Note',
   credit_note: 'Credit Note',
+  stock_journal: 'Stock Journal',
+  physical_stock: 'Physical Stock',
 };
 
 export interface SaleTypeRow {

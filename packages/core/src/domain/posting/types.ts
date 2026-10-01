@@ -3,7 +3,8 @@ import type { BasisPoints, Milli, Paise } from '../../money.ts';
 export type ItemVoucherType = 'sales' | 'sales_return' | 'purchase' | 'purchase_return';
 export type EntryVoucherType =
   'receipt' | 'payment' | 'journal' | 'contra' | 'debit_note' | 'credit_note';
-export type VoucherType = ItemVoucherType | EntryVoucherType;
+export type StockVoucherType = 'stock_journal' | 'physical_stock';
+export type VoucherType = ItemVoucherType | EntryVoucherType | StockVoucherType;
 export type TaxMode = 'local' | 'interstate' | 'exempt';
 
 interface VoucherCommon {
@@ -63,7 +64,42 @@ export interface EntryVoucherInput extends VoucherCommon {
   entries: JournalEntryInput[];
 }
 
-export type VoucherInput = ItemVoucherInput | EntryVoucherInput;
+export interface StockJournalLineInput {
+  itemId: number;
+  qty: Milli;
+  unitId: number;
+  /** 'out' = material issued, 'in' = material received. */
+  direction: 'in' | 'out';
+  /** Cost per unit of items received; required for 'in' lines so stock value stays right. */
+  ratePaise?: Paise | undefined;
+}
+
+/** Moves stock between items (e.g. cutting a length into pieces). No accounts are touched. */
+export interface StockJournalInput extends VoucherCommon {
+  type: 'stock_journal';
+  lines: StockJournalLineInput[];
+}
+
+export interface PhysicalStockLineInput {
+  itemId: number;
+  unitId: number;
+  /** The quantity actually counted; the voucher posts the difference from the books. */
+  countedQty: Milli;
+}
+
+/** A stock count: posts the difference between what was counted and what the books say. */
+export interface PhysicalStockInput extends VoucherCommon {
+  type: 'physical_stock';
+  lines: PhysicalStockLineInput[];
+}
+
+export type StockVoucherInput = StockJournalInput | PhysicalStockInput;
+export type VoucherInput = ItemVoucherInput | EntryVoucherInput | StockVoucherInput;
+
+export const isStockInput = (input: VoucherInput): input is StockVoucherInput =>
+  input.type === 'stock_journal' || input.type === 'physical_stock';
+export const isItemInput = (input: VoucherInput): input is ItemVoucherInput =>
+  !isStockInput(input) && 'lines' in input;
 
 export interface PostOptions {
   now?: string;

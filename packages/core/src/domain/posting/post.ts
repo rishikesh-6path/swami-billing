@@ -10,6 +10,9 @@ import {
   type ItemVoucherType,
   type PostedVoucher,
   type PostOptions,
+  type StockVoucherInput,
+  isItemInput,
+  isStockInput,
   type VoucherInput,
 } from './types.ts';
 
@@ -71,7 +74,7 @@ function assertRealDate(date: string): void {
   if (!valid) throw new PostingError(`Invalid date "${date}"`);
 }
 
-function financialYearFor(db: Db, date: string): number {
+export function financialYearFor(db: Db, date: string): number {
   assertRealDate(date);
   const fy = row(
     db,
@@ -385,7 +388,10 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
     assertReference(db, input, legacyImport);
     const number = nextNumber(db, input.type, input.seriesId, fyId);
 
-    if ('lines' in input) {
+    if (isStockInput(input)) return postStockVoucher(db, input, fyId, number, now);
+
+    if (isItemInput(input)) {
+      assertReturnQuantities(db, input, legacyImport);
       const built = buildItemVoucher(db, input, legacyImport);
       const voucherId = insertHeader(
         db,
@@ -463,6 +469,199 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
   });
 }
 
+/** Returns cannot take back more of an item than the original bill sold, less earlier returns. */
+function assertReturnQuantities(db: Db, input: ItemVoucherInput, legacyImport: boolean): void {
+  if (legacyImport || input.refVoucherId === undefined) return;
+  if (input.type !== 'sales_return' && input.type !== 'purchase_return') return;
+  const wanted = new Map<number, number>();
+  for (const l of input.lines) wanted.set(l.itemId, (wanted.get(l.itemId) ?? 0) + l.qty);
+  for (const [itemId, qty] of wanted) {
+    const sold = row(
+      db,
+      'SELECT COALESCE(SUM(qty), 0) AS n FROM voucher_item WHERE voucher_id = ? AND item_id = ?',
+      input.refVoucherId,
+      itemId,
+    );
+    const name = String(row(db, 'SELECT name FROM item WHERE id = ?', itemId)?.['name']);
+    if (Number(sold?.['n']) === 0) {
+      throw new PostingError(`"${name}" is not on the bill you are returning against.`);
+    }
+    const returned = row(
+      db,
+      `SELECT COALESCE(SUM(vi.qty), 0) AS n FROM voucher_item vi JOIN voucher v ON v.id = vi.voucher_id
+       WHERE v.ref_voucher_id = ? AND v.voucher_type = ? AND v.status = 'posted' AND vi.item_id = ?`,
+      input.refVoucherId,
+      input.type,
+      itemId,
+    );
+    const remaining = Number(sold?.['n']) - Number(returned?.['n']);
+    if (qty > remaining) {
+      throw new PostingError(
+        `You are returning more of "${name}" than the bill allows (bill ${Number(sold?.['n']) / 1000}, already returned ${Number(returned?.['n']) / 1000}).`,
+      );
+    }
+  }
+}
+
+const CASH_BANK_GROUPS = ['Cash-in-Hand', 'Bank Accounts'];
+
+function isCashOrBank(db: Db, accountId: number): boolean {
+  const found = db
+    .prepare(
+      `WITH RECURSIVE up(id, name, parent_id) AS (
+         SELECT g.id, g.name, g.parent_id FROM account a JOIN account_group g ON g.id = a.group_id WHERE a.id = ?
+         UNION ALL SELECT g.id, g.name, g.parent_id FROM account_group g JOIN up ON g.id = up.parent_id)
+       SELECT 1 FROM up WHERE name IN (${CASH_BANK_GROUPS.map(() => '?').join(',')}) LIMIT 1`,
+    )
+    .get(accountId, ...CASH_BANK_GROUPS);
+  return found !== undefined;
+}
+
+/** Receipts and payments move cash or bank; journals and notes never do; contras move only cash and bank. */
+function assertCashBankRules(db: Db, input: EntryVoucherInput): void {
+  const cash = (e: { accountId: number }) => isCashOrBank(db, e.accountId);
+  const dr = input.entries.filter((e) => e.side === 'dr');
+  const cr = input.entries.filter((e) => e.side === 'cr');
+  switch (input.type) {
+    case 'receipt':
+      if (!dr.some(cash) || cr.some(cash)) {
+        throw new PostingError('A receipt must debit a Cash or Bank account and credit the party.');
+      }
+      break;
+    case 'payment':
+      if (!cr.some(cash) || dr.some(cash)) {
+        throw new PostingError(
+          'A payment must credit a Cash or Bank account and debit the party or expense.',
+        );
+      }
+      break;
+    case 'contra':
+      if (!input.entries.every(cash)) {
+        throw new PostingError(
+          'A contra entry can only move money between Cash and Bank accounts.',
+        );
+      }
+      break;
+    default:
+      if (input.entries.some(cash)) {
+        throw new PostingError(
+          'Cash and Bank accounts cannot be used here. Please use a Receipt, Payment or Contra.',
+        );
+      }
+  }
+}
+
+function assertItemUnit(db: Db, itemId: number, unitId: number, qty: number): void {
+  const item = row(db, 'SELECT name, unit_id FROM item WHERE id = ?', itemId);
+  if (!item) throw new PostingError(`Item ${itemId} does not exist`);
+  if (Number(item['unit_id']) !== unitId) {
+    throw new PostingError(
+      `"${String(item['name'])}" is counted in a different unit than the line uses.`,
+    );
+  }
+  const unit = row(db, 'SELECT decimals FROM unit WHERE id = ?', unitId);
+  if (Number(unit?.['decimals']) === 0 && qty % 1000 !== 0) {
+    throw new PostingError(
+      `"${String(item['name'])}" is counted in whole units; quantity must not have decimals.`,
+    );
+  }
+}
+
+function postStockVoucher(
+  db: Db,
+  input: StockVoucherInput,
+  fyId: number,
+  number: number,
+  now: string,
+): PostedVoucher {
+  if (input.lines.length === 0) throw new PostingError('Please add at least one item.');
+  const seen = new Set<number>();
+  const movements: {
+    itemId: number;
+    unitId: number;
+    shown: number;
+    qtyIn: number;
+    qtyOut: number;
+    rate: number;
+  }[] = [];
+
+  if (input.type === 'stock_journal') {
+    for (const l of input.lines) {
+      if (l.qty <= 0) throw new PostingError('Item quantity must be greater than zero');
+      assertItemUnit(db, l.itemId, l.unitId, l.qty);
+      movements.push({
+        itemId: l.itemId,
+        unitId: l.unitId,
+        shown: l.qty,
+        qtyIn: l.direction === 'in' ? l.qty : 0,
+        qtyOut: l.direction === 'out' ? l.qty : 0,
+        rate: l.direction === 'in' ? (l.ratePaise ?? -1) : 0,
+      });
+    }
+    if (!movements.some((m) => m.qtyIn > 0) || !movements.some((m) => m.qtyOut > 0)) {
+      throw new PostingError('A stock journal needs items issued and items received.');
+    }
+    if (movements.some((m) => m.qtyIn > 0 && m.rate < 0)) {
+      throw new PostingError('Please enter the cost per unit of the items received.');
+    }
+  } else {
+    for (const l of input.lines) {
+      if (l.countedQty < 0) throw new PostingError('The counted quantity cannot be negative.');
+      if (seen.has(l.itemId)) throw new PostingError('An item appears twice in the stock count.');
+      seen.add(l.itemId);
+      assertItemUnit(db, l.itemId, l.unitId, l.countedQty);
+      const book = row(
+        db,
+        `SELECT i.opening_qty + COALESCE((SELECT SUM(m.qty_in) - SUM(m.qty_out) FROM stock_movement m
+           JOIN voucher v ON v.id = m.voucher_id
+           WHERE m.item_id = i.id AND v.status = 'posted' AND m.date <= ?), 0) AS qty
+         FROM item i WHERE i.id = ?`,
+        input.date,
+        l.itemId,
+      );
+      const diff = l.countedQty - Number(book?.['qty']);
+      movements.push({
+        itemId: l.itemId,
+        unitId: l.unitId,
+        shown: l.countedQty,
+        qtyIn: diff > 0 ? diff : 0,
+        qtyOut: diff < 0 ? -diff : 0,
+        rate: 0,
+      });
+    }
+  }
+
+  const voucherId = insertHeader(
+    db,
+    {
+      type: input.type,
+      seriesId: input.seriesId,
+      date: input.date,
+      fyId,
+      number,
+      partyAccountId: null,
+      saleTypeId: null,
+      input,
+      totalPaise: 0,
+    },
+    now,
+  );
+  const insertLine = db.prepare(
+    `INSERT INTO voucher_item (voucher_id, line_no, item_id, qty, unit_id, list_price_paise, disc_bp, price_paise, amount_paise)
+     VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0)`,
+  );
+  const insertStock = db.prepare(
+    'INSERT INTO stock_movement (voucher_id, item_id, qty_in, qty_out, rate_paise, date) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  movements.forEach((m, i) => {
+    insertLine.run(voucherId, i + 1, m.itemId, m.shown, m.unitId);
+    if (m.qtyIn > 0 || m.qtyOut > 0)
+      insertStock.run(voucherId, m.itemId, m.qtyIn, m.qtyOut, Math.max(m.rate, 0), input.date);
+  });
+  audit(db, now, input.createdBy, 'create', voucherId);
+  return { voucherId, number, totalPaise: 0 };
+}
+
 function postEntryVoucher(
   db: Db,
   input: EntryVoucherInput,
@@ -471,6 +670,7 @@ function postEntryVoucher(
   now: string,
 ): PostedVoucher {
   if (input.entries.length < 2) throw new PostingError('A voucher needs at least two entries');
+  assertCashBankRules(db, input);
   const debit = input.entries.filter((e) => e.side === 'dr').reduce((a, e) => a + e.amountPaise, 0);
   const totalPaise = debit;
   const voucherId = insertHeader(
@@ -578,6 +778,6 @@ export function cancelVoucher(
       JSON.stringify(before),
       JSON.stringify(after),
     );
-    assertBalanced(db, voucherId);
+    if (lines.length > 0) assertBalanced(db, voucherId); // stock-only vouchers have no journal
   });
 }

@@ -187,7 +187,7 @@ describe('entry vouchers', () => {
       seriesId: s.seriesId.journal,
       date: DATE,
       entries: [
-        { accountId: s.cash, side: 'dr' as const, amountPaise: 100 },
+        { accountId: s.partyB, side: 'dr' as const, amountPaise: 100 },
         { accountId: s.partyA, side: 'cr' as const, amountPaise: 99 },
       ],
     };
@@ -199,7 +199,7 @@ describe('entry vouchers', () => {
     const good = postVoucher(s.db, {
       ...bad,
       entries: [
-        { accountId: s.cash, side: 'dr', amountPaise: 100 },
+        { accountId: s.partyB, side: 'dr', amountPaise: 100 },
         { accountId: s.partyA, side: 'cr', amountPaise: 100 },
       ],
     });
@@ -368,7 +368,7 @@ describe('review guards', () => {
         date: DATE,
         entries: [
           { accountId: s.partyA, side: 'dr', amountPaise: 100 },
-          { accountId: s.cash, side: 'cr', amountPaise: 100 },
+          { accountId: s.partyB, side: 'cr', amountPaise: 100 },
         ],
       }),
     ).toThrow(/original invoice/);

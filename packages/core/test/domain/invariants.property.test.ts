@@ -43,7 +43,9 @@ const itemCommand = fc.record({
   roundOff: fc.boolean(),
 });
 
-const ACCOUNTS = [1, 2, 3, 11, 12, 13, 14];
+// Cash and bank accounts vs everything else: receipts, payments, contras and journals keep to their own side.
+const CASH = [1, 13];
+const OTHER = [2, 3, 11, 12, 14];
 const entryCommand = fc.record({
   kind: fc.constant('entry' as const),
   type: fc.constantFrom<EntryVoucherType>(
@@ -57,14 +59,29 @@ const entryCommand = fc.record({
   date: dateArb,
   amount: fc.integer({ min: 1, max: 5_000_000 }),
   split: fc.integer({ min: 0, max: 100 }),
-  drAccount: fc.constantFrom(...ACCOUNTS),
-  crAccounts: fc.tuple(fc.constantFrom(...ACCOUNTS), fc.constantFrom(...ACCOUNTS)),
+  drPick: fc.nat(10),
+  crPicks: fc.tuple(fc.nat(10), fc.nat(10)),
   unbalanced: fc.boolean(),
+});
+
+// whole units for Pcs items, three decimals for the Metre item
+const qtyFor = (itemId: number, n: number) => (itemId === 2 ? n * 37 : n * 1000);
+const stockCommand = fc.record({
+  kind: fc.constant('stock' as const),
+  variant: fc.constantFrom('journal' as const, 'physical' as const),
+  date: dateArb,
+  itemOut: fc.constantFrom(1, 2, 3),
+  itemIn: fc.constantFrom(1, 2, 3),
+  outN: fc.integer({ min: 1, max: 50 }),
+  inN: fc.integer({ min: 1, max: 50 }),
+  rate: fc.integer({ min: 0, max: 100000 }),
+  counted: fc.integer({ min: 0, max: 100 }),
 });
 
 const command = fc.oneof(
   { weight: 5, arbitrary: itemCommand },
   { weight: 3, arbitrary: entryCommand },
+  { weight: 2, arbitrary: stockCommand },
   { weight: 2, arbitrary: fc.record({ kind: fc.constant('cancel' as const), pick: fc.nat(50) }) },
 );
 function snapshot(db: Shop['db']) {
@@ -116,23 +133,62 @@ describe('ledger invariants (KICKOFF section 6)', () => {
               })),
               sundries: c.sundries.map((s) => ({ billSundryId: s.id, amountPaise: s.a })),
             };
+          } else if (c.kind === 'stock') {
+            const unit = (id: number) => (id === 2 ? 2 : 1);
+            input =
+              c.variant === 'journal'
+                ? {
+                    type: 'stock_journal',
+                    seriesId: shop.seriesId.stock_journal,
+                    date: c.date,
+                    lines: [
+                      {
+                        itemId: c.itemOut,
+                        unitId: unit(c.itemOut),
+                        qty: qtyFor(c.itemOut, c.outN),
+                        direction: 'out',
+                      },
+                      {
+                        itemId: c.itemIn,
+                        unitId: unit(c.itemIn),
+                        qty: qtyFor(c.itemIn, c.inN),
+                        direction: 'in',
+                        ratePaise: c.rate,
+                      },
+                    ],
+                  }
+                : {
+                    type: 'physical_stock',
+                    seriesId: shop.seriesId.physical_stock,
+                    date: c.date,
+                    lines: [
+                      {
+                        itemId: c.itemOut,
+                        unitId: unit(c.itemOut),
+                        countedQty: qtyFor(c.itemOut, c.counted),
+                      },
+                    ],
+                  };
           } else {
             const first = Math.floor((c.amount * c.split) / 100);
             const crParts = [first, c.amount - first].filter((x) => x > 0);
-            const accounts = c.crAccounts.slice(0, crParts.length);
             expectUnbalanced = c.unbalanced;
+            const pick = (list: number[], n: number) => list[n % list.length]!;
+            // which accounts each kind of voucher may use
+            const drList = c.type === 'receipt' || c.type === 'contra' ? CASH : OTHER;
+            const crList = c.type === 'payment' || c.type === 'contra' ? CASH : OTHER;
             input = {
               type: c.type,
               seriesId: shop.seriesId[c.type],
               date: c.date,
               entries: [
                 {
-                  accountId: c.drAccount,
+                  accountId: pick(drList, c.drPick),
                   side: 'dr',
                   amountPaise: c.amount + (c.unbalanced ? 1 : 0),
                 },
                 ...crParts.map((amountPaise, i) => ({
-                  accountId: accounts[i]!,
+                  accountId: pick(crList, c.crPicks[i]!),
                   side: 'cr' as const,
                   amountPaise,
                 })),
@@ -174,7 +230,8 @@ describe('ledger invariants (KICKOFF section 6)', () => {
           .prepare(
             `SELECT v.id FROM voucher v LEFT JOIN journal_line j ON j.voucher_id = v.id
              GROUP BY v.id HAVING COALESCE(SUM(j.dr_paise), 0) <> COALESCE(SUM(j.cr_paise), 0)
-                OR (v.status = 'posted' AND COALESCE(SUM(j.dr_paise), 0) = 0)`,
+                OR (v.status = 'posted' AND COALESCE(SUM(j.dr_paise), 0) = 0
+                    AND v.voucher_type NOT IN ('stock_journal', 'physical_stock'))`,
           )
           .all();
         expect(unbalanced).toEqual([]);

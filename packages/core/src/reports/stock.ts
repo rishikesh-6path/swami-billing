@@ -52,19 +52,20 @@ export function stockStatus(
     moved.set(Number(r['item_id']), Number(r['net']));
   }
 
-  // weighted-average cost basis: opening stock plus purchases, less purchase returns at the price returned
+  // weighted-average cost basis: opening stock, purchases and stock-journal receipts, less purchase returns at the price returned
   const purchased = new Map<number, { qty: Milli; cost: Paise }>();
   for (const r of db
     .prepare(
       `SELECT m.item_id, v.voucher_type, m.qty_in, m.qty_out, m.rate_paise
        FROM stock_movement m JOIN voucher v ON v.id = m.voucher_id
-       WHERE v.status = 'posted' AND v.voucher_type IN ('purchase', 'purchase_return')
-         AND m.is_reversal = 0 AND m.date <= ?`,
+       WHERE v.status = 'posted' AND m.is_reversal = 0 AND m.date <= ?
+         AND (v.voucher_type IN ('purchase', 'purchase_return')
+              OR (v.voucher_type = 'stock_journal' AND m.qty_in > 0))`,
     )
     .all(args.asOn)) {
     const id = Number(r['item_id']);
     const entry = purchased.get(id) ?? { qty: 0, cost: 0 };
-    const sign = r['voucher_type'] === 'purchase' ? 1 : -1;
+    const sign = r['voucher_type'] === 'purchase_return' ? -1 : 1;
     const qty = Number(r['qty_in']) + Number(r['qty_out']);
     entry.qty += sign * qty;
     entry.cost += sign * lineAmount(qty, Number(r['rate_paise']));
