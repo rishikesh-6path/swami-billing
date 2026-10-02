@@ -66,7 +66,8 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 ## Customers, suppliers and items
 
 - Home tiles **Items**, **Customers** and **Suppliers** list them. Type to search, press Enter to open.
-- Press Enter on a customer or supplier to see their page: what they owe, how much of it is late, and their latest bills and payments. **L** shows the full ledger and **F2** changes their details.
+- Press Enter on a customer or supplier to see their page: what they owe, how much of it is late, and their latest bills and payments. **L** shows the full ledger and **F2** changes their details. On a customer's page **F8** starts a sale and **F6** a receipt; on a supplier's page **F9** starts a purchase and **F5** a payment. The person is already filled in.
+- On a bill, after you choose the customer and an item, the price that customer paid last time is shown under the price box. Press **F3** to use it; otherwise the list price stays.
 - **F2** adds an item, **F3** adds a customer. Fill the boxes with Enter and save with **F2**.
 - The item "code" (alias) is the short number you type when billing. Keep each code different.
 
@@ -79,8 +80,9 @@ Press **R** for the list. Every report can be saved as a spreadsheet (**Ctrl+E**
 - **Outstanding**: who owes you and whom you owe, with how many days overdue.
 - **Account Ledger**: every entry for one customer or account. Press **L**.
 - **Item History**: every movement of one item. Press **G**.
+- **Items to Order**: items below their minimum stock, with how much is needed and who you last bought them from, at what price and when.
 
-The owner also sees Profit and Loss, Balance Sheet, Trial Balance and the GST reports.
+The owner also sees Profit and Loss, Balance Sheet, Trial Balance and the GST reports, including **Purchases for the CA**: every supplier invoice by GST rate, saved as a spreadsheet for your accountant.
 
 ## If something goes wrong
 
