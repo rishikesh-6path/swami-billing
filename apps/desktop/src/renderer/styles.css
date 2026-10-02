@@ -865,3 +865,13 @@ tr.clickable:hover td {
   white-space: normal;
   text-align: right;
 }
+
+.lock-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

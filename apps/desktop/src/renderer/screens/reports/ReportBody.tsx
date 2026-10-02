@@ -255,7 +255,11 @@ export function ReportBody({ result }: { result: ReportResult }) {
             { header: 'Supplier', cell: (r) => r.supplierName },
             { header: 'GST number', cell: (r) => r.supplierGstin },
             { header: 'Invoice', cell: (r) => r.invoiceNumber },
-            { header: 'Invoice date', cell: (r) => formatDate(r.invoiceDate) },
+            {
+              header: 'Invoice date',
+              cell: (r) => (r.invoiceDate ? formatDate(r.invoiceDate) : ''),
+            },
+            { header: 'Corrects invoice', cell: (r) => r.originalInvoiceNumber },
             { header: 'Kind', cell: (r) => r.kind },
             { header: 'GST %', num: true, cell: (r) => formatPercent(r.rateBp) },
             { header: 'Taxable', num: true, cell: (r) => m(r.taxablePaise) },
@@ -265,6 +269,7 @@ export function ReportBody({ result }: { result: ReportResult }) {
           ]}
           footer={[
             'Total (returns and notes taken off)',
+            '',
             '',
             '',
             '',

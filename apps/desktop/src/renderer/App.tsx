@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SessionState } from '../ipc/contract.ts';
 import { Calculator } from './components/Calculator.tsx';
+import { LockScreen } from './components/LockScreen.tsx';
 import { Notice } from './components/ui.tsx';
 import { ToastProvider } from './components/ui.tsx';
 import { call } from './lib/api.ts';
@@ -30,11 +31,41 @@ import { Setup } from './screens/Setup.tsx';
 function Screens(props: { session: SessionState; onSession: (s: SessionState) => void }) {
   const router = useRouter();
   const [calculating, setCalculating] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const seconds = props.session.lockAfterSeconds;
   useHotkeys({ Escape: router.back, F10: () => setCalculating(true) });
+
+  // lock the screen after a while without a key or a mouse movement
+  useEffect(() => {
+    if (seconds <= 0 || locked) return;
+    const lock = () => setLocked(true);
+    let timer = setTimeout(lock, seconds * 1000);
+    const bump = () => {
+      clearTimeout(timer);
+      timer = setTimeout(lock, seconds * 1000);
+    };
+    const events = ['keydown', 'mousedown', 'mousemove', 'wheel'] as const;
+    for (const name of events) window.addEventListener(name, bump, true);
+    return () => {
+      clearTimeout(timer);
+      for (const name of events) window.removeEventListener(name, bump, true);
+    };
+  }, [seconds, locked]);
+
   return (
     <>
       <Routes {...props} />
       {calculating && <Calculator onClose={() => setCalculating(false)} />}
+      {locked && props.session.user && (
+        <LockScreen
+          userName={props.session.user.name}
+          onUnlocked={() => setLocked(false)}
+          onSwitchUser={() => {
+            setLocked(false);
+            void call('auth.logout', {}).then(props.onSession);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { ValidationError, getSetting, listBackups, setSetting, type Db } from '@shopledger/core';
+import { log } from './log.ts';
 import BackupWorker from './backup-worker?nodeWorker';
 import type { BackupJob, BackupJobResult } from './backup-worker.ts';
 import type { BackupStatus } from '../ipc/contract.ts';
@@ -115,7 +116,7 @@ async function backupOnce(
     };
     worker.once('message', finish);
     worker.once('error', (e) => {
-      console.error('[shopledger] backup worker error', e);
+      log('error', 'backup worker error', e);
       finish({
         ok: false,
         message: 'The backup could not be completed. An unexpected problem stopped it.',
@@ -130,7 +131,10 @@ async function backupOnce(
       }
     });
   });
-  if (!result.ok) throw new ValidationError(result.message);
+  if (!result.ok) {
+    log('warn', `backup did not complete: ${result.detail ?? result.message}`);
+    throw new ValidationError(result.message);
+  }
   setSetting(db, LAST_AT, `${date} ${time.slice(0, 5)}`);
   setSetting(db, FAILED, '');
   // remembered so the home screen can say the second copy did not happen

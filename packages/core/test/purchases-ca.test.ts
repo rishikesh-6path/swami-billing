@@ -60,13 +60,15 @@ describe('purchase register and the accountant purchases file', () => {
       lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000 }],
     });
     const r = gstPurchases(s.db, P);
-    expect(r.rows.map((x) => [x.invoiceNumber, x.kind, x.rateBp, x.taxablePaise])).toEqual(
-      [
-        ['SUP/77', 'Purchase', 1800, 80000],
-        ['SUP/78', 'Purchase', 500, 1000],
-        ['D1', 'Debit note', 1800, -10000],
-      ].map((row) => (row[0] === 'D1' ? [expect.any(String) as string, ...row.slice(1)] : row)),
-    );
+    expect(r.rows.map((x) => [x.invoiceNumber, x.kind, x.rateBp, x.taxablePaise])).toEqual([
+      ['SUP/77', 'Purchase', 1800, 80000],
+      ['SUP/78', 'Purchase', 500, 1000],
+      ['', 'Debit note', 1800, -10000],
+    ]);
+    expect(r.rows[2]).toMatchObject({
+      originalInvoiceNumber: 'SUP/77',
+      originalInvoiceDate: '2026-10-03',
+    });
     expect(r.totals.taxablePaise).toBe(80000 + 1000 - 10000);
     const csv = gstPurchasesToCsv(r);
     expect(csv).toContain('SUP/77');

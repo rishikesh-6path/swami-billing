@@ -18,6 +18,7 @@ import {
   settleBackups,
 } from './backup.ts';
 import { testKnob } from './env.ts';
+import { log } from './log.ts';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
 import { handlers } from './handlers/index.ts';
 import { registerHandlers, type Session } from './ipc.ts';
@@ -111,7 +112,7 @@ if (!app.requestSingleInstanceLock()) {
     try {
       shopDb = openShopDatabase();
     } catch (error) {
-      console.error('[shopledger] could not open database', error);
+      log('error', 'could not open the data file', error);
       dialog.showErrorBox(
         'ShopLedger cannot open your shop data',
         'Your data file could not be opened, so ShopLedger will close now. ' +
@@ -307,7 +308,7 @@ if (!app.requestSingleInstanceLock()) {
         restoreDatabaseFile(path, opened.path);
       } catch (error) {
         failure = error;
-        console.error('[shopledger] restore failed', error);
+        log('error', 'restore failed', error);
       }
       // either way the app restarts: after a failed swap the old data file is still in place
       setTimeout(() => {
@@ -329,7 +330,7 @@ if (!app.requestSingleInstanceLock()) {
         const { date, time } = clock();
         await runBackup(opened.db, backupPlace, opened.path, date, time, slot, timeoutMs);
       } catch (error) {
-        console.error('[shopledger] backup failed', error);
+        log('error', 'backup failed', error);
         try {
           markBackupFailed(opened.db, clock().date, slot);
         } catch {
@@ -343,7 +344,7 @@ if (!app.requestSingleInstanceLock()) {
         const slot = dueSlot(opened.db, date, time.slice(0, 5));
         if (slot && !backupBusy()) void backupNow(slot);
       } catch (error) {
-        console.error('[shopledger] backup schedule failed', error);
+        log('error', 'backup schedule failed', error);
       }
     }, 60_000);
     const stopBackups = () => clearInterval(timer);
@@ -362,6 +363,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     };
     registerHandlers(ipcMain, handlers, {
+      appVersion: app.getVersion(),
       listPrinters,
       backupPlace,
       clock,
@@ -382,7 +384,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
-    console.log('[shopledger] window created');
+    log('info', `started, version ${app.getVersion()}`);
   });
 
   app.on('before-quit', (event) => {
@@ -400,7 +402,7 @@ if (!app.requestSingleInstanceLock()) {
           try {
             shopDb?.db.close();
           } catch (error) {
-            console.error('[shopledger] closing the database failed', error);
+            log('error', 'closing the data file failed', error);
           } finally {
             shopDb = null;
             // exit (not quit): it also ends a backup worker that is stuck on a slow drive

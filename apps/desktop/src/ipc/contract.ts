@@ -75,6 +75,8 @@ export interface SessionState {
   user: SessionUser | null;
   today: string;
   company: Company | null;
+  /** Seconds without use after which the screen locks and asks for the PIN again; 0 = never. */
+  lockAfterSeconds: number;
 }
 
 export interface HomeSummary {
@@ -94,6 +96,9 @@ export interface ShopSettings {
   print: { printer: string; size: 'a4' | 'thermal'; auto: boolean };
   books: { dayClosedThrough: string | null; lockedThrough: string | null };
   years: (FinancialYearRow & { current: boolean })[];
+  /** Minutes without use before the screen locks; 0 = never. */
+  lockMinutes: number;
+  about: { appVersion: string; dbPath: string; schemaVersion: number };
 }
 
 export interface ImportOutcome {
@@ -615,6 +620,12 @@ export const contract = {
     }),
   ),
   'party.summary': ch<PartySummary>()('view_daily_reports', z.object({ id, asOn: isoDate })),
+  'settings.saveLock': ch<null>()(
+    'manage_settings',
+    z.object({ minutes: z.number().int().min(0).max(480) }),
+  ),
+  'auth.unlock': ch<null>()('user', z.object({ pin: z.string().max(6) })),
+  'support.save': ch<{ saved: string | null }>()('manage_settings', none),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',

@@ -17,7 +17,7 @@ export interface Launched {
  * (Owner PIN 1234, Staff PIN 1111). The date is pinned so results do not depend on the day.
  */
 export async function launch(
-  options: { demo?: boolean; today?: string; exportDir?: boolean } = {},
+  options: { demo?: boolean; today?: string; exportDir?: boolean; lockSeconds?: number } = {},
 ): Promise<Launched> {
   const dir = mkdtempSync(join(tmpdir(), 'shopledger-e2e-'));
   const dbPath = join(dir, 'shopledger.db');
@@ -34,6 +34,8 @@ export async function launch(
       SHOPLEDGER_DB_PATH: dbPath,
       SHOPLEDGER_NO_RELAUNCH: '1',
       SHOPLEDGER_TODAY: options.today ?? '2026-10-15',
+      // the screen lock is off in tests unless asked for, so slow steps never get locked out
+      SHOPLEDGER_LOCK_SECONDS: String(options.lockSeconds ?? 0),
       ...(options.demo ? { SHOPLEDGER_DEMO: '1' } : {}),
       ...(options.exportDir ? { SHOPLEDGER_EXPORT_DIR: join(dir, 'exports') } : {}),
     },

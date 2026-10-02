@@ -15,7 +15,8 @@ export interface BackupJob {
 }
 
 export type BackupJobResult =
-  { ok: true; name: string; copied: boolean | null } | { ok: false; message: string };
+  | { ok: true; name: string; copied: boolean | null }
+  | { ok: false; message: string; detail?: string };
 
 /**
  * Runs in a background thread: copies the database, tidies old backups and copies to the second
@@ -33,8 +34,11 @@ function run(job: BackupJob): BackupJobResult {
     return { ok: true, name: file.name, copied };
   } catch (error) {
     // the raw system text is never shown to shop staff
-    console.error('[shopledger] backup worker failed', error);
-    return { ok: false, message: describeBackupError(error) };
+    return {
+      ok: false,
+      message: describeBackupError(error),
+      detail: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+    };
   }
 }
 

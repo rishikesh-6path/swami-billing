@@ -129,6 +129,9 @@ export interface GstLine {
   voucherTotalPaise: Paise;
   refDocNumber: string | null;
   refDate: string | null;
+  /** The supplier's own invoice number and date on the bill a return or note refers to. */
+  refPartyBillNo: string | null;
+  refPartyBillDate: string | null;
   /** Total of the original invoice a return refers to. */
   refTotalPaise: Paise | null;
   hsn: string | null;
@@ -164,6 +167,7 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
               r.total_paise AS ref_total,
               r.date AS ref_date, rs.prefix AS ref_prefix, r.number AS ref_number,
               v.party_bill_no, v.party_bill_date,
+              r.party_bill_no AS ref_bill_no, r.party_bill_date AS ref_bill_date,
               vi.hsn, u.name AS unit, vi.tax_rate_bp, vi.qty, vi.amount_paise, vi.taxable_paise,
               vi.cgst_paise, vi.sgst_paise, vi.igst_paise
        FROM voucher v
@@ -194,6 +198,8 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
         refDocNumber:
           r['ref_number'] === null ? null : `${String(r['ref_prefix'])}${Number(r['ref_number'])}`,
         refDate: r['ref_date'] === null ? null : String(r['ref_date']),
+        refPartyBillNo: r['ref_bill_no'] === null ? null : String(r['ref_bill_no']),
+        refPartyBillDate: r['ref_bill_date'] === null ? null : String(r['ref_bill_date']),
         refTotalPaise: r['ref_total'] === null ? null : Number(r['ref_total']),
         hsn: r['hsn'] === null ? null : String(r['hsn']),
         partyBillNo: r['party_bill_no'] === null ? null : String(r['party_bill_no']),

@@ -18,6 +18,12 @@ For the owner only. Sign in with an owner PIN. The home screen has two extra til
 - **Settings > Closing days and years > Close the day**. Staff can then no longer change that day's bills. You still can. If one of the latest days must be changed, use "keep closed up to" to reopen only the days after a date.
 - Switch off the computer from the Windows Start menu, not the power button. ShopLedger makes a backup when it closes.
 
+## Locking the screen and getting help
+
+- ShopLedger hides the screen after 10 minutes without a key or the mouse and asks for the person's PIN. A bill being made is kept. Change the time, or switch it off with 0, in **Settings > Locking and support**.
+- If something is not working, open **Settings > Locking and support > Save information for support** and send the file to whoever supports you. It describes the program, the data file's health, free disk space, the last backup and recent problems. It does not contain bills, customers, amounts or PINs.
+- ShopLedger also keeps a short log of problems in its data folder (`logs`), at most six files of 1 MB.
+
 ## Backups
 
 ShopLedger saves a backup by itself at 2 pm, 8 pm and each time it is closed. It keeps the last 30 days and one backup for each of the last 12 months.

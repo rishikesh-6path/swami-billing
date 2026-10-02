@@ -28,6 +28,8 @@ export function lastPriceFor(
        FROM voucher_item vi JOIN voucher v ON v.id = vi.voucher_id
        WHERE v.party_account_id = ? AND vi.item_id = ? AND v.voucher_type = ?
          AND v.status = 'posted' AND (? IS NULL OR v.date <= ?)
+         AND v.party_account_id NOT IN (SELECT id FROM account WHERE name = 'Cash' AND is_system = 1)
+         AND v.party_account_id NOT IN (SELECT id FROM account WHERE name = 'Cash' AND is_system = 1)
        ORDER BY v.date DESC, v.id DESC, vi.line_no DESC LIMIT 1`,
     )
     .get(args.partyId, args.itemId, args.type, args.before ?? null, args.before ?? null);

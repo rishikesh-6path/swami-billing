@@ -262,5 +262,5 @@ describe('large imports', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });

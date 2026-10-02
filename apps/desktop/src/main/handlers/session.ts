@@ -1,5 +1,7 @@
 import {
   STATE_NAMES,
+  ValidationError,
+  type Db,
   completeSetup,
   daySummary,
   outstanding,
@@ -14,8 +16,17 @@ import {
   login,
 } from '@shopledger/core';
 import { backupProblem } from '../backup.ts';
+import { testKnob } from '../env.ts';
 import type { Handlers, HandlerContext } from '../ipc.ts';
 import type { SessionState } from '../../ipc/contract.ts';
+
+/** How long the screen may sit unused before it locks (tests can shorten it). */
+export function lockSeconds(db: Db): number {
+  const forTests = testKnob('SHOPLEDGER_LOCK_SECONDS');
+  if (forTests !== undefined) return Number(forTests) || 0;
+  const minutes = Number(getSetting(db, 'lock.minutes') ?? '10');
+  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : 0;
+}
 
 export function sessionState(ctx: Omit<HandlerContext, 'user'>): SessionState {
   const fy = financialYearOn(ctx.db, ctx.today());
@@ -25,6 +36,7 @@ export function sessionState(ctx: Omit<HandlerContext, 'user'>): SessionState {
     user: ctx.session.user,
     today: ctx.today(),
     company: getCompany(ctx.db) ?? null,
+    lockAfterSeconds: lockSeconds(ctx.db),
   };
 }
 
@@ -36,6 +48,7 @@ export const sessionHandlers: Pick<
   | 'auth.users'
   | 'auth.login'
   | 'auth.logout'
+  | 'auth.unlock'
   | 'lookup.states'
   | 'home.summary'
 > = {
@@ -69,6 +82,14 @@ export const sessionHandlers: Pick<
     const user = login(ctx.db, req.name, req.pin);
     ctx.session.user = { id: user.id, name: user.name, role: user.role };
     return sessionState(ctx);
+  },
+  'auth.unlock': (req, ctx) => {
+    // the locked screen asks the signed-in person for their PIN again; wrong tries count like at sign-in
+    const me = ctx.user();
+    const again = login(ctx.db, me.name, req.pin, { userId: me.id });
+    if (again.id !== me.id)
+      throw new ValidationError('The name or PIN is not right. Please try again.');
+    return null;
   },
   'auth.logout': (_req, ctx) => {
     ctx.session.user = null;

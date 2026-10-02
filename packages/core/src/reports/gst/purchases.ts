@@ -2,6 +2,7 @@ import type { Db } from '../../db/connection.ts';
 import type { BasisPoints, Paise } from '../../money.ts';
 import { formatMoneyOrEmpty, toCsv } from '../csv.ts';
 import {
+  companyStateCode,
   gstLines,
   offlineDate,
   placeOfSupplyLabel,
@@ -13,14 +14,20 @@ export interface PurchaseForCaRow {
   voucherId: number;
   supplierGstin: string;
   supplierName: string;
-  /** The supplier's own invoice number, or ShopLedger's number when none was entered. */
+  /** The supplier's own invoice number and date; empty when none was entered. */
   invoiceNumber: string;
   invoiceDate: string;
+  /** For a return or debit note: the invoice it corrects (the supplier's own number if known). */
+  originalInvoiceNumber: string;
+  originalInvoiceDate: string;
   /** Purchase, Purchase Return or Debit Note. */
   kind: string;
   entryNumber: string;
   entryDate: string;
+  /** The shop's state: for a purchase the place of supply is where the goods are received. */
   placeOfSupply: string;
+  /** The supplier's state. */
+  supplierState: string;
   rateBp: BasisPoints;
   /** Returns and debit notes carry negative amounts so totals are net. */
   taxablePaise: Paise;
@@ -47,6 +54,7 @@ const KIND: Record<string, string> = {
  * negative. Cancelled bills are left out.
  */
 export function gstPurchases(db: Db, period: GstPeriod): PurchasesForCa {
+  const home = companyStateCode(db);
   const map = new Map<string, PurchaseForCaRow>();
   for (const l of gstLines(db, period)) {
     if (
@@ -63,12 +71,15 @@ export function gstPurchases(db: Db, period: GstPeriod): PurchasesForCa {
         voucherId: l.voucherId,
         supplierGstin: l.gstin ?? '',
         supplierName: l.partyName ?? '',
-        invoiceNumber: l.partyBillNo ?? l.docNumber,
-        invoiceDate: l.partyBillDate ?? l.date,
+        invoiceNumber: l.partyBillNo ?? '',
+        invoiceDate: l.partyBillDate ?? '',
+        originalInvoiceNumber: l.refDocNumber === null ? '' : (l.refPartyBillNo ?? l.refDocNumber),
+        originalInvoiceDate: l.refDate === null ? '' : (l.refPartyBillDate ?? l.refDate),
         kind: KIND[l.voucherType] ?? l.voucherType,
         entryNumber: l.docNumber,
         entryDate: l.date,
-        placeOfSupply: l.pos,
+        placeOfSupply: home,
+        supplierState: l.pos,
         rateBp: l.rateBp,
         taxablePaise: 0,
         igstPaise: 0,
@@ -106,6 +117,8 @@ export function gstPurchasesToCsv(p: PurchasesForCa): string {
       'Supplier',
       'Invoice number',
       'Invoice date',
+      'Original invoice no.',
+      'Original invoice date',
       'Kind',
       'Our entry no.',
       'Our entry date',
@@ -122,11 +135,13 @@ export function gstPurchasesToCsv(p: PurchasesForCa): string {
         r.supplierGstin,
         r.supplierName,
         r.invoiceNumber,
-        offlineDate(r.invoiceDate),
+        r.invoiceDate ? offlineDate(r.invoiceDate) : '',
+        r.originalInvoiceNumber,
+        r.originalInvoiceDate ? offlineDate(r.originalInvoiceDate) : '',
         r.kind,
         r.entryNumber,
         offlineDate(r.entryDate),
-        r.placeOfSupply ? placeOfSupplyLabel(r.placeOfSupply) : '',
+        placeOfSupplyLabel(r.placeOfSupply),
         ratePercent(r.rateBp),
         f(r.taxablePaise),
         f(r.igstPaise),
@@ -137,6 +152,8 @@ export function gstPurchasesToCsv(p: PurchasesForCa): string {
       [
         '',
         'Total',
+        '',
+        '',
         '',
         '',
         '',

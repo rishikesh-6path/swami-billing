@@ -6,6 +6,7 @@ import { BackupSection } from './BackupSection.tsx';
 import { ClosingSection } from './ClosingSection.tsx';
 import { NotesSection } from './NotesSection.tsx';
 import { PrintSection } from './PrintSection.tsx';
+import { SupportSection } from './SupportSection.tsx';
 import { ShopSection } from './ShopSection.tsx';
 import { UsersSection } from './UsersSection.tsx';
 
@@ -16,6 +17,7 @@ const SECTIONS = [
   { id: 'notes', label: 'Standard notes' },
   { id: 'closing', label: 'Closing days and years' },
   { id: 'backup', label: 'Backup and restore' },
+  { id: 'support', label: 'Locking and support' },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
 
@@ -35,10 +37,11 @@ export function SettingsScreen({
     'Alt+4': () => setSection('notes'),
     'Alt+5': () => setSection('closing'),
     'Alt+6': () => setSection('backup'),
+    'Alt+7': () => setSection('support'),
   });
   useHints([
-    'Alt+1 to Alt+6 Change section',
-    ...(['shop', 'print', 'notes'].includes(section) ? ['F2 Save'] : []),
+    'Alt+1 to Alt+7 Change section',
+    ...(['shop', 'print', 'notes', 'support'].includes(section) ? ['F2 Save'] : []),
     'Esc Back',
   ]);
 
@@ -66,6 +69,7 @@ export function SettingsScreen({
           {section === 'notes' && <NotesSection />}
           {section === 'closing' && <ClosingSection />}
           {section === 'backup' && <BackupSection />}
+          {section === 'support' && <SupportSection onSession={onSession} />}
         </div>
       </div>
     </main>

@@ -1,5 +1,7 @@
 import {
   IMPORT_SAMPLES,
+  buildSupportReport,
+  currentSchemaVersion,
   backupStamp,
   listBackups,
   getNarrations,
@@ -31,8 +33,15 @@ import {
 import { writeFileSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { ShopSettings } from '../../ipc/contract.ts';
+import { logDir } from '../log.ts';
 import { backupStatus, runBackup, setBackupFolder } from '../backup.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
+
+/** Minutes of no use before the screen locks; 10 unless the owner changed it, 0 = never. */
+function lockMinutes(db: Db): number {
+  const n = Number(getSetting(db, 'lock.minutes') ?? '10');
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 10;
+}
 
 const books = (db: Db): ShopSettings['books'] => ({
   dayClosedThrough: dayClosedThrough(db) ?? null,
@@ -87,6 +96,8 @@ export const settingsHandlers: Pick<
   | 'settings.get'
   | 'settings.saveCompany'
   | 'settings.savePrint'
+  | 'settings.saveLock'
+  | 'support.save'
   | 'users.list'
   | 'users.create'
   | 'users.update'
@@ -117,8 +128,28 @@ export const settingsHandlers: Pick<
     },
     books: books(ctx.db),
     years: years(ctx),
+    lockMinutes: lockMinutes(ctx.db),
+    about: {
+      appVersion: ctx.appVersion,
+      dbPath: ctx.dbPath,
+      schemaVersion: currentSchemaVersion(ctx.db),
+    },
   }),
   'settings.saveCompany': (req, ctx) => saveCompany(ctx.db, req, audit(ctx)),
+  'settings.saveLock': (req, ctx) => {
+    setSetting(ctx.db, 'lock.minutes', String(req.minutes));
+    return null;
+  },
+  'support.save': async (_req, ctx) => {
+    const text = buildSupportReport(ctx.db, {
+      appVersion: ctx.appVersion,
+      dbPath: ctx.dbPath,
+      logDir: logDir(),
+      platform: `${process.platform} ${process.arch}`,
+      now: new Date().toISOString(),
+    });
+    return { saved: await ctx.saveText(`shopledger-support-${ctx.today()}.txt`, text) };
+  },
   'settings.savePrint': (req, ctx) => {
     setSetting(ctx.db, 'print.printer', req.printer.trim());
     setSetting(ctx.db, 'print.size', req.size);

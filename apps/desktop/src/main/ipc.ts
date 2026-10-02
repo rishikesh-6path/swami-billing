@@ -1,4 +1,5 @@
 import type { IpcMain } from 'electron';
+import { log } from './log.ts';
 import {
   can,
   MigrationError,
@@ -36,6 +37,8 @@ export interface HandlerContext {
     html: string,
     opts: { size: 'a4' | 'thermal'; printerName?: string | undefined },
   ) => Promise<boolean>;
+  /** The program's version, for the support information. */
+  appVersion: string;
   /** The printers Windows knows about, by name. */
   listPrinters: () => Promise<string[]>;
   /** Renders HTML to a PDF and lets the user save it; returns the path, or null if cancelled. */
@@ -121,7 +124,7 @@ export function registerHandlers(
         }
         const parsed = spec.request.safeParse(raw);
         if (!parsed.success) {
-          console.error(`[shopledger] invalid request on ${channel}`, parsed.error.message);
+          log('warn', `a screen sent an invalid request to ${channel}`);
           return {
             ok: false,
             message: 'Some of the details entered are not valid. Please check and try again.',
@@ -130,7 +133,7 @@ export function registerHandlers(
         return { ok: true, data: await handler(parsed.data, full) };
       } catch (error) {
         if (!(error instanceof ValidationError || error instanceof PostingError)) {
-          console.error(`[shopledger] ${channel} failed`, error);
+          log('error', `${channel} failed`, error);
         }
         return { ok: false, message: friendlyMessage(error, channel) };
       }
