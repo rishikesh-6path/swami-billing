@@ -21,17 +21,35 @@ export interface ReorderRow {
 
 /** Items below their minimum stock (or negative), with the supplier and cost of the last purchase. */
 export function reorderList(db: Db, args: { asOn: string }): ReorderRow[] {
-  const last = db.prepare(
-    `SELECT a.name AS supplier, vi.price_paise AS cost, v.date
-     FROM voucher_item vi JOIN voucher v ON v.id = vi.voucher_id
-     LEFT JOIN account a ON a.id = v.party_account_id
-     WHERE vi.item_id = ? AND v.voucher_type = 'purchase' AND v.status = 'posted' AND v.date <= ?
-     ORDER BY v.date DESC, v.id DESC, vi.line_no DESC LIMIT 1`,
-  );
+  // One pass over the posted purchases up to the date, keeping the newest line of each item.
+  const last = new Map<number, { supplier: string | null; cost: number; date: string }>();
+  const rows = db
+    .prepare(
+      `SELECT vi.item_id AS item_id, a.name AS supplier, vi.price_paise AS cost, v.date AS date
+       FROM (
+         SELECT vi.item_id, MAX(v.date || printf('%012d', v.id) || printf('%06d', vi.line_no)) AS k
+         FROM voucher_item vi JOIN voucher v ON v.id = vi.voucher_id
+         WHERE v.voucher_type = 'purchase' AND v.status = 'posted' AND v.date <= ?
+         GROUP BY vi.item_id
+       ) m
+       JOIN voucher_item vi ON vi.item_id = m.item_id
+       JOIN voucher v ON v.id = vi.voucher_id
+         AND v.date || printf('%012d', v.id) || printf('%06d', vi.line_no) = m.k
+       LEFT JOIN account a ON a.id = v.party_account_id
+       WHERE v.voucher_type = 'purchase' AND v.status = 'posted'`,
+    )
+    .all(args.asOn);
+  for (const r of rows) {
+    last.set(Number(r['item_id']), {
+      supplier: r['supplier'] === null ? null : String(r['supplier']),
+      cost: Number(r['cost']),
+      date: String(r['date']),
+    });
+  }
   return stockStatus(db, { asOn: args.asOn, onlyProblems: true })
     .rows.filter((r) => r.isBelowMinimum || r.isNegative)
     .map((r): ReorderRow => {
-      const l = last.get(r.itemId, args.asOn);
+      const l = last.get(r.itemId);
       return {
         itemId: r.itemId,
         name: r.name,
@@ -41,9 +59,9 @@ export function reorderList(db: Db, args: { asOn: string }): ReorderRow[] {
         qty: r.qty,
         minStockQty: r.minStockQty,
         shortfallQty: Math.max(0, r.minStockQty - r.qty),
-        lastSupplier: l ? (l['supplier'] === null ? null : String(l['supplier'])) : null,
-        lastCostPaise: l ? Number(l['cost']) : null,
-        lastBoughtOn: l ? String(l['date']) : null,
+        lastSupplier: l ? l.supplier : null,
+        lastCostPaise: l ? l.cost : null,
+        lastBoughtOn: l ? l.date : null,
       };
     })
     .sort((a, b) => a.groupName.localeCompare(b.groupName) || a.name.localeCompare(b.name));

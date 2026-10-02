@@ -55,7 +55,7 @@ P5-04 | done | Backup off the main thread, partial day reopen, dialog focus, fas
 P6-01 | done | Start bills from the party page; last price hint | unit + E2E | P0-kickoff
 P6-02 | done | Registers and CA purchases CSV with supplier invoices; reorder list | unit + E2E | P0-kickoff
 P6-03 | done | Support log, support file, idle lock | unit + E2E | P0-kickoff
-P6-04 | todo | Speed at real size (50,000 vouchers) | timing test |
+P6-04 | done | Speed at real size (8,000-bill timing test; indexes in migration 0010) | timing test | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.
