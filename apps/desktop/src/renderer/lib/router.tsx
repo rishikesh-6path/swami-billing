@@ -45,6 +45,7 @@ export type Route =
   | { name: 'stock'; kind: StockKind }
   | { name: 'home' }
   | { name: 'voucher'; kind: ItemVoucherKind; editId?: number }
+  | { name: 'note'; kind: 'credit_note' | 'debit_note' }
   | { name: 'placeholder'; title: string };
 
 interface RouterApi {

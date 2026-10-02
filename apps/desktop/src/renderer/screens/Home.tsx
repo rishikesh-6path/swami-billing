@@ -101,6 +101,18 @@ export function Home({
         <Tile title="Payment (money out)" keyName="F5" onClick={entry('payment')} />
         {isOwner && <Tile title="Journal Entry" keyName="F7" onClick={entry('journal')} />}
         <Tile title="Cash / Bank Transfer" onClick={entry('contra')} />
+        {isOwner && (
+          <Tile
+            title="Credit Note (reduce a sale)"
+            onClick={() => router.go({ name: 'note', kind: 'credit_note' })}
+          />
+        )}
+        {isOwner && (
+          <Tile
+            title="Debit Note (reduce a purchase)"
+            onClick={() => router.go({ name: 'note', kind: 'debit_note' })}
+          />
+        )}
         {isOwner && <Tile title="Stock Journal" onClick={stock('stock_journal')} />}
         {isOwner && <Tile title="Stock Count" onClick={stock('physical_stock')} />}
         <Tile title="Find a Bill" keyName="D" onClick={() => router.go({ name: 'bills' })} />

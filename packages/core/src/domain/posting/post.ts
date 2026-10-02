@@ -13,6 +13,7 @@ import {
   type PostOptions,
   type StockVoucherInput,
   isItemInput,
+  isNoteType,
   isStockInput,
   type VoucherInput,
   type VoucherSnapshot,
@@ -26,18 +27,20 @@ import {
  *   sales_return     C      Sales D      Output D    in
  *   purchase         C      Purchase D   Input D     in
  *   purchase_return  D      Purchase C   Input C     out
+ *   credit_note      C      Sales D      Output D    none (value only)
+ *   debit_note       D      Purchase C   Input C     none (value only)
  *
  * Bill sundries post to their own account on the goods side when they add to the invoice
  * (sign +1) and on the opposite side when they subtract. Round-off follows the same rule.
  * A settlement (cash/UPI received or paid on the spot) debits/credits the settlement account
  * on the party's side and takes the opposite side against the party.
- * Entry vouchers (receipt, payment, journal, contra, debit/credit note) post their entries as given.
+ * Entry vouchers (receipt, payment, journal, contra) post their entries as given.
  */
 interface Rule {
   partySide: 'dr' | 'cr';
   goodsAccount: 'Sales' | 'Purchase';
   taxPrefix: 'Output' | 'Input';
-  stock: 'in' | 'out';
+  stock: 'in' | 'out' | 'none';
 }
 
 const RULES: Record<ItemVoucherType, Rule> = {
@@ -45,6 +48,9 @@ const RULES: Record<ItemVoucherType, Rule> = {
   sales_return: { partySide: 'cr', goodsAccount: 'Sales', taxPrefix: 'Output', stock: 'in' },
   purchase: { partySide: 'cr', goodsAccount: 'Purchase', taxPrefix: 'Input', stock: 'in' },
   purchase_return: { partySide: 'dr', goodsAccount: 'Purchase', taxPrefix: 'Input', stock: 'out' },
+  // value-only adjustments: they change money and tax but never stock
+  credit_note: { partySide: 'cr', goodsAccount: 'Sales', taxPrefix: 'Output', stock: 'none' },
+  debit_note: { partySide: 'dr', goodsAccount: 'Purchase', taxPrefix: 'Input', stock: 'none' },
 };
 
 type Side = 'dr' | 'cr';
@@ -210,6 +216,14 @@ function takeSnapshot(db: Db, h: Header): VoucherSnapshot {
   };
 }
 
+const fyStartOf = (iso: string): string => {
+  const year = Number(iso.slice(0, 4));
+  return `${Number(iso.slice(5, 7)) >= 4 ? year : year - 1}-04-01`;
+};
+const fyEndOf = (iso: string): string => `${Number(fyStartOf(iso).slice(0, 4)) + 1}-03-31`;
+/** Voucher types that take value away from an earlier bill. */
+const ADJUSTS = new Set<string>(['sales_return', 'purchase_return', 'credit_note', 'debit_note']);
+
 const dmy = (iso: string): string => iso.split('-').reverse().join('-');
 
 /** The item's name in quotes, for messages shown to shop staff (never "Item 5"). */
@@ -346,15 +360,16 @@ function checkSupplierInvoice(
       db,
       `SELECT s.prefix, v.number, v.date FROM voucher v
          JOIN voucher_series s ON s.id = v.series_id
-         JOIN financial_year f ON f.id = v.fy_id
         WHERE v.voucher_type = 'purchase' AND v.status = 'posted' AND v.party_account_id = ?
           AND lower(v.party_bill_no) = lower(?)
-          AND f.start_date <= ? AND f.end_date >= ?
+          AND v.party_bill_date BETWEEN ? AND ?
         LIMIT 1`,
       input.partyAccountId,
       no,
-      input.date,
-      input.date,
+      // a supplier's invoice numbers restart each financial year of the supplier, counted by the
+      // invoice's own date (1 April to 31 March), not by the day it was entered here
+      fyStartOf(date),
+      fyEndOf(date),
     );
     if (earlier) {
       throw new PostingError(
@@ -365,6 +380,81 @@ function checkSupplierInvoice(
   return { no, date };
 }
 
+/**
+ * The GST rate for a line. A note uses the rate its original bill charged for that item (the
+ * rate may have changed since); anything else uses the item's rate on the bill's date.
+ */
+export function lineTaxRate(
+  db: Db,
+  input: { type: string; date: string; refVoucherId?: number | undefined },
+  line: { itemId: number; taxRateBp?: number | undefined },
+): number | undefined {
+  if (isNoteType(input.type) && input.refVoucherId !== undefined) {
+    // always the rate the original bill charged; a rate typed on the line cannot override it,
+    // and an item that is not on the bill has no rate here
+    return billLine(db, input.refVoucherId, line.itemId)?.rate;
+  }
+  return line.taxRateBp ?? resolveTaxRate(db, line.itemId, input.date);
+}
+
+/** The rate and HSN a bill charged for an item (first line of that item). */
+function billLine(
+  db: Db,
+  voucherId: number,
+  itemId: number,
+): { rate: number; hsn: string | null } | undefined {
+  const found = row(
+    db,
+    'SELECT tax_rate_bp, hsn FROM voucher_item WHERE voucher_id = ? AND item_id = ? ORDER BY line_no LIMIT 1',
+    voucherId,
+    itemId,
+  );
+  return found
+    ? {
+        rate: Number(found['tax_rate_bp']),
+        hsn: found['hsn'] === null ? null : String(found['hsn']),
+      }
+    : undefined;
+}
+
+/** Rules that only credit and debit notes have: a reason, the same party and tax mode, and a ceiling. */
+function assertNoteAgainstInvoice(db: Db, input: ItemVoucherInput, legacyImport: boolean): void {
+  if (!isNoteType(input.type) || legacyImport || input.refVoucherId === undefined) return;
+  const label = input.type === 'credit_note' ? 'credit note' : 'debit note';
+  if (!(input.narration ?? '').trim()) {
+    throw new PostingError(`Please write the reason for this ${label}.`);
+  }
+  const original = row(
+    db,
+    `SELECT v.party_account_id, v.tax_mode, v.total_paise, s.prefix, v.number
+       FROM voucher v JOIN voucher_series s ON s.id = v.series_id WHERE v.id = ?`,
+    input.refVoucherId,
+  );
+  if (!original) return; // assertReference has already refused a missing bill
+  if (Number(original['party_account_id']) !== input.partyAccountId) {
+    throw new PostingError(
+      `This ${label} must be made out to the same party as the bill it corrects.`,
+    );
+  }
+  if (original['tax_mode'] !== null && original['tax_mode'] !== input.taxMode) {
+    throw new PostingError(
+      `The bill being corrected was made with "${String(original['tax_mode'])}" GST, so this ${label} must be too.`,
+    );
+  }
+  const earlier = row(
+    db,
+    `SELECT COALESCE(SUM(total_paise), 0) AS n FROM voucher
+      WHERE ref_voucher_id = ? AND status = 'posted'
+        AND voucher_type IN ('credit_note', 'debit_note', 'sales_return', 'purchase_return')`,
+    input.refVoucherId,
+  );
+  if (Number(earlier?.['n']) >= Number(original['total_paise'])) {
+    throw new PostingError(
+      `Bill ${String(original['prefix'])}${Number(original['number'])} has already been returned or adjusted in full.`,
+    );
+  }
+}
+
 function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean) {
   const rule = RULES[input.type];
 
@@ -373,8 +463,17 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   const party = row(db, 'SELECT gstin, state_code FROM account WHERE id = ?', input.partyAccountId);
   if (!party) throw new PostingError(`Party account ${input.partyAccountId} does not exist`);
   const partyState = party['state_code'] === null ? null : String(party['state_code']);
+  // a return or note keeps the place of supply and GSTIN of the bill it corrects, so it is reported
+  // together with that bill even if the customer's details have changed since
+  const corrected =
+    ADJUSTS.has(input.type) && input.refVoucherId !== undefined && !legacyImport
+      ? row(db, 'SELECT pos_state_code, party_gstin FROM voucher WHERE id = ?', input.refVoucherId)
+      : undefined;
+  const frozen = corrected !== undefined && corrected['pos_state_code'] !== null;
   let posStateCode = home;
-  if (input.taxMode === 'interstate') {
+  if (frozen) {
+    posStateCode = String(corrected['pos_state_code']);
+  } else if (input.taxMode === 'interstate') {
     if (!partyState) {
       throw new PostingError("Please add the customer's state before making an interstate bill.");
     }
@@ -387,7 +486,13 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   } else if (input.taxMode === 'exempt') {
     posStateCode = partyState ?? home;
   }
-  const partyGstin = party['gstin'] === null ? null : String(party['gstin']);
+  const partyGstin = frozen
+    ? corrected['party_gstin'] === null
+      ? null
+      : String(corrected['party_gstin'])
+    : party['gstin'] === null
+      ? null
+      : String(party['gstin']);
   if (input.saleTypeId !== undefined) {
     const saleType = row(db, 'SELECT tax_mode FROM sale_type WHERE id = ?', input.saleTypeId);
     if (!saleType) throw new PostingError(`Sale type ${input.saleTypeId} does not exist`);
@@ -415,7 +520,18 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   });
 
   const lines = input.lines.map((l) => {
-    const rate = l.taxRateBp ?? resolveTaxRate(db, l.itemId, input.date);
+    const onBill =
+      isNoteType(input.type) && input.refVoucherId !== undefined && !legacyImport
+        ? billLine(db, input.refVoucherId, l.itemId)
+        : undefined;
+    if (isNoteType(input.type) && input.refVoucherId !== undefined && !legacyImport && !onBill) {
+      throw new PostingError(
+        `${itemName(db, l.itemId)} is not on the bill you are correcting. A note can only cover items that were on that bill.`,
+      );
+    }
+    const rate = legacyImport
+      ? (l.taxRateBp ?? resolveTaxRate(db, l.itemId, input.date))
+      : lineTaxRate(db, input, l);
     if (rate === undefined && input.taxMode !== 'exempt') {
       throw new PostingError(
         `${itemName(db, l.itemId)} has no GST rate for ${dmy(input.date)}. Please open the item and set its GST rate.`,
@@ -428,20 +544,29 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
         `${itemName(db, l.itemId)} is kept in a different unit than the one on this line. Please pick the item again.`,
       );
     }
+    // a note's line is a value, not a quantity: it counts as one unit and never touches stock
+    const qty = isNoteType(input.type) ? 1000 : l.qty;
     const unit = row(db, 'SELECT decimals FROM unit WHERE id = ?', l.unitId);
-    if (Number(unit?.['decimals']) === 0 && l.qty % 1000 !== 0) {
+    if (Number(unit?.['decimals']) === 0 && qty % 1000 !== 0) {
       throw new PostingError(
         `${itemName(db, l.itemId)} is sold in whole units, so the quantity cannot have decimals.`,
       );
     }
-    const hsn = l.hsn ?? (item['hsn'] === null ? null : String(item['hsn']));
-    if (input.type === 'sales' && !legacyImport && !(hsn !== null && /^\d{4,8}$/.test(hsn))) {
+    const hsn = onBill
+      ? onBill.hsn
+      : (l.hsn ?? (item['hsn'] === null ? null : String(item['hsn'])));
+    if (
+      (input.type === 'sales' || input.type === 'credit_note') &&
+      !legacyImport &&
+      !(hsn !== null && /^\d{4,8}$/.test(hsn))
+    ) {
       throw new PostingError(
         `${itemName(db, l.itemId)} needs an HSN code of at least 4 digits before it can be sold. Please open the item and add it.`,
       );
     }
     return {
       ...l,
+      qty,
       discBp: l.discBp ?? 0,
       // an exempt sale charges no tax, so no rate is frozen on the line
       taxRateBp: input.taxMode === 'exempt' ? 0 : (rate ?? 0),
@@ -451,6 +576,24 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
 
   const computed = computeItemVoucher(lines, sundryRows, input.taxMode, input.roundOff ?? true);
   if (computed.totalPaise <= 0) throw new PostingError('The bill total must be more than zero.');
+  if (ADJUSTS.has(input.type) && !legacyImport && input.refVoucherId !== undefined) {
+    const original = row(db, 'SELECT total_paise FROM voucher WHERE id = ?', input.refVoucherId);
+    const earlier = row(
+      db,
+      `SELECT COALESCE(SUM(total_paise), 0) AS n FROM voucher
+        WHERE ref_voucher_id = ? AND status = 'posted'
+          AND voucher_type IN ('credit_note', 'debit_note', 'sales_return', 'purchase_return')`,
+      input.refVoucherId,
+    );
+    if (
+      original &&
+      Number(earlier?.['n']) + computed.totalPaise > Number(original['total_paise'])
+    ) {
+      throw new PostingError(
+        'Together with what was already returned or adjusted, this is more than the bill itself. Please check the amounts.',
+      );
+    }
+  }
 
   const settlements = input.settlements ?? [];
   const settled = settlements.reduce((a, s) => a + s.amountPaise, 0);
@@ -527,6 +670,7 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
 
     if (isItemInput(input)) {
       assertReturnQuantities(db, input, legacyImport);
+      assertNoteAgainstInvoice(db, input, legacyImport);
       const built = buildItemVoucher(db, input, legacyImport);
       const voucherId = insertHeader(
         db,
@@ -557,14 +701,16 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
       const insertStock = db.prepare(
         'INSERT INTO stock_movement (voucher_id, item_id, qty_in, qty_out, rate_paise, date) VALUES (?, ?, ?, ?, ?, ?)',
       );
-      const stockIn = RULES[input.type].stock === 'in';
+      const stockMode = RULES[input.type].stock;
+      const stockIn = stockMode === 'in';
+      const isNote = isNoteType(input.type);
       built.lines.forEach((l, i) => {
         const c = built.computed.lines[i]!;
         insertLine.run(
           voucherId,
           i + 1,
           l.itemId,
-          l.qty,
+          isNote ? 0 : l.qty,
           l.unitId,
           l.listPricePaise,
           l.discBp,
@@ -577,14 +723,16 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
           c.sgstPaise,
           c.igstPaise,
         );
-        insertStock.run(
-          voucherId,
-          l.itemId,
-          stockIn ? l.qty : 0,
-          stockIn ? 0 : l.qty,
-          c.pricePaise,
-          input.date,
-        );
+        if (stockMode !== 'none') {
+          insertStock.run(
+            voucherId,
+            l.itemId,
+            stockIn ? l.qty : 0,
+            stockIn ? 0 : l.qty,
+            c.pricePaise,
+            input.date,
+          );
+        }
       });
       const insertSundry = db.prepare(
         'INSERT INTO voucher_sundry (voucher_id, bill_sundry_id, amount_paise) VALUES (?, ?, ?)',
@@ -866,6 +1014,17 @@ export function cancelVoucher(
           ? 'This bill has already been cancelled.'
           : 'This bill is not a saved bill, so it cannot be cancelled.',
       );
+    const dependent = row(
+      db,
+      `SELECT s.prefix, d.number FROM voucher d JOIN voucher_series s ON s.id = d.series_id
+        WHERE d.ref_voucher_id = ? AND d.status = 'posted' LIMIT 1`,
+      voucherId,
+    );
+    if (dependent) {
+      throw new PostingError(
+        `A return or note (${String(dependent['prefix'])}${Number(dependent['number'])}) has been made against this bill. Please cancel that first.`,
+      );
+    }
 
     const lines = db
       .prepare(

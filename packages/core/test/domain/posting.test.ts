@@ -366,10 +366,10 @@ describe('review guards', () => {
         type: 'credit_note',
         seriesId: s.seriesId.credit_note,
         date: DATE,
-        entries: [
-          { accountId: s.partyA, side: 'dr', amountPaise: 100 },
-          { accountId: s.partyB, side: 'cr', amountPaise: 100 },
-        ],
+        partyAccountId: s.partyA,
+        taxMode: 'local',
+        narration: 'Rate difference',
+        lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 100 }],
       }),
     ).toThrow(/original invoice/);
   });

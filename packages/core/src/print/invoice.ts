@@ -190,13 +190,14 @@ function partyBlock(d: VoucherDetail): string {
 
 function renderA4(d: VoucherDetail, c: Company): string {
   const interstate = d.taxMode === 'interstate';
+  const isNote = d.voucherType === 'credit_note' || d.voucherType === 'debit_note';
   const tax = taxSummary(d);
   const itemsTable = isItemBill(d)
     ? `<table><thead><tr><th>#</th><th>Description</th><th>HSN</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate</th><th class="n">Disc %</th><th class="n">Taxable value</th><th class="n">GST %</th><th class="n">GST amount</th><th class="n">Amount</th></tr></thead><tbody>
 ${d.lines
   .map(
     (l) =>
-      `<tr><td>${l.lineNo}</td><td>${esc(l.itemName)}</td><td>${esc(l.hsn)}</td><td class="n">${qty(l.qty)}</td><td>${esc(l.unitName)}</td><td class="n">${inr(l.listPricePaise)}</td><td class="n">${l.discBp ? pct(l.discBp) : ''}</td><td class="n">${inr(l.taxablePaise)}</td><td class="n">${l.taxRateBp ? pct(l.taxRateBp) : ''}</td><td class="n">${inr(l.cgstPaise + l.sgstPaise + l.igstPaise)}</td><td class="n">${inr(l.taxablePaise + l.cgstPaise + l.sgstPaise + l.igstPaise)}</td></tr>`,
+      `<tr><td>${l.lineNo}</td><td>${esc(l.itemName)}</td><td>${esc(l.hsn)}</td><td class="n">${isNote ? '' : qty(l.qty)}</td><td>${isNote ? '' : esc(l.unitName)}</td><td class="n">${inr(l.listPricePaise)}</td><td class="n">${l.discBp ? pct(l.discBp) : ''}</td><td class="n">${inr(l.taxablePaise)}</td><td class="n">${l.taxRateBp ? pct(l.taxRateBp) : ''}</td><td class="n">${inr(l.cgstPaise + l.sgstPaise + l.igstPaise)}</td><td class="n">${inr(l.taxablePaise + l.cgstPaise + l.sgstPaise + l.igstPaise)}</td></tr>`,
   )
   .join('\n')}
 </tbody></table>`
@@ -251,6 +252,7 @@ ${d.narration ? `<div class="muted">${esc(d.narration)}</div>` : ''}
 
 function renderThermal(d: VoucherDetail, c: Company): string {
   const itemBill = isItemBill(d);
+  const isNote = d.voucherType === 'credit_note' || d.voucherType === 'debit_note';
   const tax = taxSummary(d).filter((t) => t.rateBp > 0);
   const interstate = d.taxMode === 'interstate';
   const party = d.party
@@ -267,7 +269,7 @@ function renderThermal(d: VoucherDetail, c: Company): string {
     ? `${d.lines
         .map(
           (l) =>
-            `<div>${esc(l.itemName)}${l.hsn ? ` (${esc(l.hsn)})` : ''}</div><div class="row"><span>${qty(l.qty)} ${esc(l.unitName)} x ${inr(l.listPricePaise)}${l.discBp ? ` -${pct(l.discBp)}` : ''}</span><span>${inr(l.taxablePaise)}</span></div>`,
+            `<div>${esc(l.itemName)}${l.hsn ? ` (${esc(l.hsn)})` : ''}</div><div class="row"><span>${isNote ? 'Value' : `${qty(l.qty)} ${esc(l.unitName)} x ${inr(l.listPricePaise)}`}${l.discBp ? ` -${pct(l.discBp)}` : ''}</span><span>${inr(l.taxablePaise)}</span></div>`,
         )
         .join('\n')}
 <hr>

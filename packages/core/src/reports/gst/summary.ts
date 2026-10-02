@@ -1,7 +1,7 @@
 import type { Db } from '../../db/connection.ts';
 import type { BasisPoints, Paise } from '../../money.ts';
 import { formatMoneyOrEmpty, toCsv } from '../csv.ts';
-import { gstLines, type GstPeriod } from './common.ts';
+import { gstLines, isOutwardType, type GstPeriod } from './common.ts';
 
 export interface TaxAmounts {
   taxablePaise: Paise;
@@ -52,7 +52,7 @@ export function gstSummary(db: Db, period: GstPeriod): GstSummary {
   const pick = (outward: boolean) =>
     byRate(
       lines
-        .filter((l) => (l.voucherType === 'sales' || l.voucherType === 'sales_return') === outward)
+        .filter((l) => isOutwardType(l.voucherType) === outward)
         .map((l) => ({ rateBp: l.rateBp, sign: l.sign, t: l })),
     );
   const output = pick(true);

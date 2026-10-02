@@ -1,10 +1,18 @@
 import type { BasisPoints, Milli, Paise } from '../../money.ts';
 
-export type ItemVoucherType = 'sales' | 'sales_return' | 'purchase' | 'purchase_return';
-export type EntryVoucherType =
-  'receipt' | 'payment' | 'journal' | 'contra' | 'debit_note' | 'credit_note';
+export type ItemVoucherType =
+  'sales' | 'sales_return' | 'purchase' | 'purchase_return' | 'credit_note' | 'debit_note';
+export type EntryVoucherType = 'receipt' | 'payment' | 'journal' | 'contra';
 export type StockVoucherType = 'stock_journal' | 'physical_stock';
 export type VoucherType = ItemVoucherType | EntryVoucherType | StockVoucherType;
+/**
+ * Credit and debit notes adjust the value of an earlier bill (a price difference, a discount
+ * given later) without moving any stock. Their lines carry a taxable value and a GST rate, so they
+ * flow into the GST returns like the bill they correct.
+ */
+export const isNoteType = (type: string): boolean =>
+  type === 'credit_note' || type === 'debit_note';
+
 export type TaxMode = 'local' | 'interstate' | 'exempt';
 
 interface VoucherCommon {
@@ -21,6 +29,7 @@ export interface ItemLineInput {
   itemId: number;
   qty: Milli;
   unitId: number;
+  /** For credit and debit notes this is the value of the line before GST, and `qty` is ignored. */
   listPricePaise: Paise;
   discBp?: BasisPoints | undefined;
   /** Frozen on the voucher. When omitted, resolved from item_tax_rate as of the voucher date. */

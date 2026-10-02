@@ -1,7 +1,13 @@
 import type { Db } from '../../db/connection.ts';
 import type { Paise } from '../../money.ts';
 import { toCsv, formatMoneyOrEmpty } from '../csv.ts';
-import { companyStateCode, gstLines, isRegistered, type GstPeriod } from './common.ts';
+import {
+  companyStateCode,
+  gstLines,
+  isOutwardType,
+  isRegistered,
+  type GstPeriod,
+} from './common.ts';
 
 export interface Gstr3b {
   period: GstPeriod;
@@ -20,12 +26,8 @@ export interface Gstr3b {
 export function gstr3b(db: Db, period: GstPeriod): Gstr3b {
   const home = companyStateCode(db);
   const lines = gstLines(db, period);
-  const outward = lines.filter(
-    (l) => l.voucherType === 'sales' || l.voucherType === 'sales_return',
-  );
-  const inward = lines.filter(
-    (l) => l.voucherType === 'purchase' || l.voucherType === 'purchase_return',
-  );
+  const outward = lines.filter((l) => isOutwardType(l.voucherType));
+  const inward = lines.filter((l) => !isOutwardType(l.voucherType));
   const sum = (src: typeof lines, pick: (l: (typeof lines)[number]) => number) =>
     src.reduce((t, l) => t + l.sign * pick(l), 0);
 

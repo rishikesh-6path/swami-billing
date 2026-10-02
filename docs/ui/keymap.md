@@ -27,6 +27,8 @@ Home | B | Balance sheet (owner)
 Home | V | GST summary (owner)
 Home | D | Find a bill
 Home | Alt+B | Find a sale to change
+Credit and debit note screens (owner) | F2, Esc, Enter | Save, cancel, next box (party, bill, reason, item, amount)
+Purchase screen | Enter | After the supplier: supplier's invoice number, then its date, then the items
 Home | U | Switch user
 Bill, receipt, payment, journal, contra, stock screens | F2 | Save
 Bill, receipt, payment, journal, contra, stock screens | Enter | Next box

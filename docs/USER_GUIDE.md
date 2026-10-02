@@ -40,11 +40,13 @@ If you make a mistake in a line, move to the box and type over it. You cannot sa
 
 | Key | Screen | Use it for |
 | --- | --- | --- |
-| F9 | New Purchase | Goods bought from a supplier |
+| F9 | New Purchase | Goods bought from a supplier. Type the supplier's own invoice number and date from their bill; ShopLedger refuses the same invoice twice |
 | F6 | Receipt | Money received from a customer |
 | F5 | Payment | Money paid to a supplier or for an expense |
 | F7 | Journal Entry | Moving an amount between accounts without cash (ask the owner first) |
 | Home tile | Sales Return | A customer returns goods. Choose the original bill first |
+| Home tile (owner) | Credit Note | A customer is given money off an earlier bill without goods coming back (a rate difference or later discount). GST is reduced too |
+| Home tile (owner) | Debit Note | A supplier reduces the price of an earlier purchase. Your GST claim is reduced too |
 | Home tile | Purchase Return | You return goods to a supplier |
 | Home tile | Cash / Bank Transfer | Putting cash in the bank or taking it out |
 | Home tile | Stock Count | Writing in what you counted on the shelf |

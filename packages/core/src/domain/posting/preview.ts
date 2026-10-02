@@ -1,8 +1,8 @@
 import type { Db } from '../../db/connection.ts';
 import type { BasisPoints, Paise } from '../../money.ts';
 import { computeItemVoucher, type ComputeSundry } from './compute.ts';
-import { resolveTaxRate } from './post.ts';
-import { PostingError, type ItemVoucherInput } from './types.ts';
+import { lineTaxRate } from './post.ts';
+import { PostingError, isNoteType, type ItemVoucherInput } from './types.ts';
 
 export interface PreviewProblem {
   /** 'error' means the bill cannot be saved yet; 'warning' is shown but allowed. */
@@ -63,22 +63,28 @@ export function previewItemVoucher(db: Db, input: ItemVoucherInput): VoucherPrev
   const index: number[] = [];
   const lines = input.lines
     .map((l, i) => ({ l, i }))
-    .filter(({ l }) => l.itemId > 0 && l.qty > 0)
+    // a note's line is a value (qty is ignored), so only the item and amount matter
+    .filter(({ l }) => l.itemId > 0 && (isNoteType(input.type) || l.qty > 0))
     .map(({ l, i }) => {
       index.push(i);
       const item = db.prepare('SELECT name, hsn FROM item WHERE id = ?').get(l.itemId) as
         { name: string; hsn: string | null } | undefined;
       const name = item?.name ?? `Item ${l.itemId}`;
-      const rate =
-        input.taxMode === 'exempt' ? 0 : (l.taxRateBp ?? resolveTaxRate(db, l.itemId, input.date));
+      const rate = input.taxMode === 'exempt' ? 0 : lineTaxRate(db, input, l);
       if (rate === undefined) {
         problems.push({
           kind: 'error',
-          message: `"${name}" has no GST rate. Please set one in Items.`,
+          message:
+            isNoteType(input.type) && input.refVoucherId !== undefined
+              ? `"${name}" is not on the bill you are correcting.`
+              : `"${name}" has no GST rate. Please set one in Items.`,
         });
       }
       const hsn = l.hsn ?? item?.hsn ?? null;
-      if (input.type === 'sales' && !(hsn !== null && /^\d{4,8}$/.test(hsn))) {
+      if (
+        (input.type === 'sales' || input.type === 'credit_note') &&
+        !(hsn !== null && /^\d{4,8}$/.test(hsn))
+      ) {
         problems.push({
           kind: 'error',
           message: `"${name}" needs an HSN code (4 to 8 digits). Please add it in Items.`,
@@ -100,7 +106,7 @@ export function previewItemVoucher(db: Db, input: ItemVoucherInput): VoucherPrev
         }
       }
       return {
-        qty: l.qty,
+        qty: isNoteType(input.type) ? 1000 : l.qty,
         listPricePaise: l.listPricePaise,
         discBp: l.discBp ?? 0,
         taxRateBp: rate ?? 0,

@@ -118,10 +118,10 @@ describe('GSTR-1 other tables', () => {
       seriesId: s.seriesId.credit_note,
       date: '2026-10-10',
       refVoucherId: first.voucherId,
-      entries: [
-        { accountId: s.partyB, side: 'cr', amountPaise: 100 },
-        { accountId: 14, side: 'dr', amountPaise: 100 },
-      ],
+      partyAccountId: s.partyB,
+      taxMode: 'local',
+      narration: 'Rate difference',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 100 }],
     });
     expect(gstr1(s.db, P).documents.map((d) => [d.nature, d.total])).toEqual([
       ['Invoices for outward supply', 1],

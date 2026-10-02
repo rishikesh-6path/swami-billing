@@ -18,6 +18,7 @@ import { ItemList } from './screens/masters/ItemList.tsx';
 import { PartyForm } from './screens/masters/PartyForm.tsx';
 import { PartyList } from './screens/masters/PartyList.tsx';
 import { EntryRoute } from './screens/voucher/EntryRoute.tsx';
+import { NoteVoucher } from './screens/voucher/NoteVoucher.tsx';
 import { StockVoucher } from './screens/voucher/StockVoucher.tsx';
 import { VoucherRoute } from './screens/voucher/VoucherRoute.tsx';
 import { ImportScreen } from './screens/import/ImportScreen.tsx';
@@ -79,6 +80,9 @@ function Routes({
   }
   if (router.route.name === 'stock') {
     return <StockVoucher key={router.route.kind} kind={router.route.kind} />;
+  }
+  if (router.route.name === 'note') {
+    return <NoteVoucher key={router.route.kind} kind={router.route.kind} />;
   }
   if (router.route.name === 'voucher') {
     const { kind, editId } = router.route;

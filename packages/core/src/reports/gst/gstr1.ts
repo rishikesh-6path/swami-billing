@@ -4,6 +4,8 @@ import { toCsv } from '../csv.ts';
 import {
   companyStateCode,
   gstLines,
+  isCreditNoteType,
+  isOutwardType,
   isRegistered,
   offlineDate,
   placeOfSupplyLabel,
@@ -89,12 +91,10 @@ export interface Gstr1 {
 
 export function gstr1(db: Db, period: GstPeriod): Gstr1 {
   const home = companyStateCode(db);
-  const all = gstLines(db, period).filter(
-    (l) => l.voucherType === 'sales' || l.voucherType === 'sales_return',
-  );
+  const all = gstLines(db, period).filter((l) => isOutwardType(l.voucherType));
   const taxed = all.filter((l) => l.rateBp > 0);
   const invoices = taxed.filter((l) => l.voucherType === 'sales');
-  const notes = taxed.filter((l) => l.voucherType === 'sales_return');
+  const notes = taxed.filter((l) => isCreditNoteType(l.voucherType));
 
   const isInterState = (l: GstLine) => l.pos !== '' && l.pos !== home;
   // an invoice is "large" on its own value; a credit note follows the invoice it refers to

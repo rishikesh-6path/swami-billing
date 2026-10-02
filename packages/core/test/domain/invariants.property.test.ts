@@ -22,7 +22,14 @@ const dateArb = fc
 
 const itemCommand = fc.record({
   kind: fc.constant('item' as const),
-  type: fc.constantFrom<ItemVoucherType>('sales', 'sales_return', 'purchase', 'purchase_return'),
+  type: fc.constantFrom<ItemVoucherType>(
+    'sales',
+    'sales_return',
+    'purchase',
+    'purchase_return',
+    'credit_note',
+    'debit_note',
+  ),
   taxMode: fc.constantFrom('local' as const, 'interstate' as const, 'exempt' as const),
   date: dateArb,
   party: fc.constantFrom('A', 'B'),
@@ -48,14 +55,7 @@ const CASH = [1, 13];
 const OTHER = [2, 3, 11, 12, 14];
 const entryCommand = fc.record({
   kind: fc.constant('entry' as const),
-  type: fc.constantFrom<EntryVoucherType>(
-    'receipt',
-    'payment',
-    'journal',
-    'contra',
-    'debit_note',
-    'credit_note',
-  ),
+  type: fc.constantFrom<EntryVoucherType>('receipt', 'payment', 'journal', 'contra'),
   date: dateArb,
   amount: fc.integer({ min: 1, max: 5_000_000 }),
   split: fc.integer({ min: 0, max: 100 }),

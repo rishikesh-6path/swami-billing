@@ -121,15 +121,15 @@ export interface RestoreCheck {
 const paise = z.number().int().min(0);
 
 const taxMode = z.enum(['local', 'interstate', 'exempt']);
-const itemVoucherType = z.enum(['sales', 'sales_return', 'purchase', 'purchase_return']);
-const entryVoucherType = z.enum([
-  'receipt',
-  'payment',
-  'journal',
-  'contra',
-  'debit_note',
+const itemVoucherType = z.enum([
+  'sales',
+  'sales_return',
+  'purchase',
+  'purchase_return',
   'credit_note',
+  'debit_note',
 ]);
+const entryVoucherType = z.enum(['receipt', 'payment', 'journal', 'contra']);
 
 const commonVoucher = {
   date: isoDate,

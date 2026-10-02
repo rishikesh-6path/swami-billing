@@ -30,7 +30,13 @@ export interface Register {
   };
 }
 
-function register(db: Db, types: [string, string], args: { from: string; to: string }): Register {
+function register(
+  db: Db,
+  positive: string,
+  reducing: string[],
+  args: { from: string; to: string },
+): Register {
+  const types = [positive, ...reducing];
   const rows = db
     .prepare(
       `SELECT v.id, v.date, v.voucher_type, v.number, a.name AS party, a.gstin,
@@ -39,12 +45,12 @@ function register(db: Db, types: [string, string], args: { from: string; to: str
               COALESCE((SELECT SUM(sgst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS sgst,
               COALESCE((SELECT SUM(igst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS igst
        FROM voucher v LEFT JOIN account a ON a.id = v.party_account_id
-       WHERE v.status <> 'draft' AND v.voucher_type IN (?, ?) AND v.date BETWEEN ? AND ?
+       WHERE v.status <> 'draft' AND v.voucher_type IN (${types.map(() => '?').join(', ')}) AND v.date BETWEEN ? AND ?
        ORDER BY v.date, v.id`,
     )
-    .all(types[0], types[1], args.from, args.to)
+    .all(...types, args.from, args.to)
     .map((r): RegisterRow => {
-      const sign = String(r['voucher_type']) === types[1] ? -1 : 1;
+      const sign = String(r['voucher_type']) === positive ? 1 : -1;
       return {
         voucherId: Number(r['id']),
         date: String(r['date']),
@@ -76,10 +82,10 @@ function register(db: Db, types: [string, string], args: { from: string; to: str
 }
 
 export const salesRegister = (db: Db, args: { from: string; to: string }) =>
-  register(db, ['sales', 'sales_return'], args);
+  register(db, 'sales', ['sales_return', 'credit_note'], args);
 
 export const purchaseRegister = (db: Db, args: { from: string; to: string }) =>
-  register(db, ['purchase', 'purchase_return'], args);
+  register(db, 'purchase', ['purchase_return', 'debit_note'], args);
 
 export function registerToCsv(reg: Register): string {
   return toCsv(

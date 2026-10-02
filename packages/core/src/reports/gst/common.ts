@@ -105,9 +105,21 @@ export function offlineDate(iso: string): string {
   return `${d}-${months[Number(m) - 1]}-${y?.slice(2)}`;
 }
 
+/** Returns and notes take value away from the bill they correct. */
+const REDUCES = new Set<string>(['sales_return', 'credit_note', 'purchase_return', 'debit_note']);
+
+/** Outward supplies (what the shop sold) and the returns and notes that correct them. */
+export const isOutwardType = (t: GstLine['voucherType']): boolean =>
+  t === 'sales' || t === 'sales_return' || t === 'credit_note';
+
+/** Credit notes the shop issued to customers (sales returns are credit notes in the return). */
+export const isCreditNoteType = (t: GstLine['voucherType']): boolean =>
+  t === 'sales_return' || t === 'credit_note';
+
 export interface GstLine {
   voucherId: number;
-  voucherType: 'sales' | 'sales_return' | 'purchase' | 'purchase_return';
+  voucherType:
+    'sales' | 'sales_return' | 'credit_note' | 'purchase' | 'purchase_return' | 'debit_note';
   docNumber: string;
   date: string;
   partyName: string | null;
@@ -122,7 +134,7 @@ export interface GstLine {
   hsn: string | null;
   unit: string;
   rateBp: BasisPoints;
-  /** +1 for invoices, -1 for returns, so sums are net. */
+  /** +1 for invoices, -1 for returns and notes, so sums are net. */
   sign: 1 | -1;
   qty: Milli;
   amountPaise: Paise;
@@ -158,7 +170,7 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
        LEFT JOIN voucher r ON r.id = v.ref_voucher_id
        LEFT JOIN voucher_series rs ON rs.id = r.series_id
        WHERE v.status = 'posted'
-         AND v.voucher_type IN ('sales', 'sales_return', 'purchase', 'purchase_return')
+         AND v.voucher_type IN ('sales', 'sales_return', 'credit_note', 'purchase', 'purchase_return', 'debit_note')
          AND v.date BETWEEN ? AND ?
        ORDER BY v.date, v.id, vi.line_no`,
     )
@@ -182,7 +194,7 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
         hsn: r['hsn'] === null ? null : String(r['hsn']),
         unit: String(r['unit']),
         rateBp: Number(r['tax_rate_bp']),
-        sign: type === 'sales_return' || type === 'purchase_return' ? -1 : 1,
+        sign: REDUCES.has(type) ? -1 : 1,
         qty: Number(r['qty']),
         amountPaise: Number(r['amount_paise']),
         taxablePaise: Number(r['taxable_paise']),
