@@ -13,6 +13,7 @@ import {
   listItemGroups,
   listItems,
   listParties,
+  partySummary,
   listUnits,
   setItemTaxRate,
   taxRateHistory,
@@ -42,6 +43,7 @@ export const masterHandlers: Pick<
   | 'unit.create'
   | 'party.list'
   | 'party.get'
+  | 'party.summary'
   | 'party.save'
   | 'party.delete'
 > = {
@@ -100,6 +102,7 @@ export const masterHandlers: Pick<
       asOn: req.asOn,
       ...(req.text ? { text: req.text } : {}),
     }),
+  'party.summary': (req, ctx) => partySummary(ctx.db, req.id, req.asOn),
   'party.get': (req, ctx) => getAccount(ctx.db, req.id) ?? null,
   'party.save': (req, ctx) => {
     const { id, kind, ...fields } = req;

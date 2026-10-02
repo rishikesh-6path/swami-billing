@@ -41,6 +41,7 @@ export type Route =
   | { name: 'item'; id?: number }
   | { name: 'parties'; kind: PartyKind }
   | { name: 'party'; kind: PartyKind; id?: number }
+  | { name: 'partySummary'; id: number; kind: PartyKind }
   | { name: 'entry'; kind: EntryKind; editId?: number }
   | { name: 'stock'; kind: StockKind }
   | { name: 'home' }

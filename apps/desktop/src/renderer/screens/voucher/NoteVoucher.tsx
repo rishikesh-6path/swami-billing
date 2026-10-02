@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { ItemSearchRow, PartyHit, VoucherPreview } from '@shopledger/core';
 import { DateField } from '../../components/DateField.tsx';
@@ -78,6 +78,14 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
     ...(party ? { partyId: party.id } : {}),
   });
 
+  // the bill list is switched on by picking the party, so move there once it is enabled
+  const wantBillFocus = useRef(false);
+  useEffect(() => {
+    if (party && wantBillFocus.current) {
+      wantBillFocus.current = false;
+      document.getElementById('note-bill')?.focus();
+    }
+  }, [party]);
   const touch = () => setDirty(true);
   // nothing to total until at least one item is picked
   const hasLines = rows.some((r) => r.item);
@@ -241,8 +249,7 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
               setPartyText(null);
               setRefId(null);
               touch();
-              // the bill list is switched on by this very pick, so wait for it before moving there
-              setTimeout(() => document.getElementById('note-bill')?.focus(), 0);
+              wantBillFocus.current = true;
             }}
             onNoMatch={(t) => setError(`No ${kind.partyLabel.toLowerCase()} named "${t}".`)}
           />

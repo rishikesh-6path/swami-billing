@@ -51,6 +51,8 @@ Report | Ctrl+P | Print the report
 Items and customer lists | Type, Up/Down, Enter | Search, choose, open
 Items list | F2 | Add an item
 Customer and supplier lists | F3 | Add one
+Customer and supplier lists | Enter | Open the summary page (balance, late amount, latest bills and payments)
+Party summary | L, F2, F8, F9, F6, F5, Esc | Full ledger, change details, new sale, purchase, receipt, payment, back
 Item and party forms | F2 | Save
 Item and party forms | Enter | Next box
 Settings | Alt+1 to Alt+6 | Shop details, Printing, People, Standard notes, Closing, Backup

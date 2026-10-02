@@ -27,6 +27,7 @@ import type {
   UnitRow,
   ItemSearchRow,
   PartyHit,
+  PartySummary,
   PostedVoucher,
   Role,
   SaleTypeRow,
@@ -597,6 +598,7 @@ export const contract = {
     }),
   ),
   'print.printers': ch<string[]>()('manage_settings', none),
+  'party.summary': ch<PartySummary>()('view_daily_reports', z.object({ id, asOn: isoDate })),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',

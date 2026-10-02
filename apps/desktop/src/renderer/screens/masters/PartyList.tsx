@@ -15,9 +15,15 @@ export function PartyList({ kind }: { kind: PartyKind }) {
   const rows = parties.status === 'ready' ? parties.data : [];
   const word = kind === 'customer' ? 'customer' : 'supplier';
   const add = () => router.go({ name: 'party', kind });
-  const open = (id: number) => router.go({ name: 'party', kind, id });
+  const open = (id: number) => router.go({ name: 'partySummary', kind, id });
   useHotkeys({ F3: add });
-  useHints(['Type to search', 'Up/Down Choose', 'Enter Open', `F3 Add ${word}`, 'Esc Back']);
+  useHints([
+    'Type to search',
+    'Up/Down Choose',
+    'Enter See the summary',
+    `F3 Add ${word}`,
+    'Esc Back',
+  ]);
 
   return (
     <main className="page">

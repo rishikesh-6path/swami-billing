@@ -66,6 +66,7 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 ## Customers, suppliers and items
 
 - Home tiles **Items**, **Customers** and **Suppliers** list them. Type to search, press Enter to open.
+- Press Enter on a customer or supplier to see their page: what they owe, how much of it is late, and their latest bills and payments. **L** shows the full ledger and **F2** changes their details.
 - **F2** adds an item, **F3** adds a customer. Fill the boxes with Enter and save with **F2**.
 - The item "code" (alias) is the short number you type when billing. Keep each code different.
 

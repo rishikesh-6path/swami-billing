@@ -16,6 +16,7 @@ import { ReportsHub } from './screens/reports/ReportsHub.tsx';
 import { ItemForm } from './screens/masters/ItemForm.tsx';
 import { ItemList } from './screens/masters/ItemList.tsx';
 import { PartyForm } from './screens/masters/PartyForm.tsx';
+import { PartySummaryScreen } from './screens/masters/PartySummary.tsx';
 import { PartyList } from './screens/masters/PartyList.tsx';
 import { EntryRoute } from './screens/voucher/EntryRoute.tsx';
 import { NoteVoucher } from './screens/voucher/NoteVoucher.tsx';
@@ -70,6 +71,11 @@ function Routes({
     return <ItemForm key={router.route.id ?? 'new'} id={router.route.id} />;
   if (router.route.name === 'parties')
     return <PartyList key={router.route.kind} kind={router.route.kind} />;
+  if (router.route.name === 'partySummary') {
+    return (
+      <PartySummaryScreen key={router.route.id} id={router.route.id} kind={router.route.kind} />
+    );
+  }
   if (router.route.name === 'party') {
     const { kind, id } = router.route;
     return <PartyForm key={`${kind}-${id ?? 'new'}`} kind={kind} id={id} />;
