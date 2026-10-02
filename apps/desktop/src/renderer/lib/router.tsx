@@ -27,6 +27,8 @@ export type ReportKind =
   | 'gstSummary'
   | 'gstr1'
   | 'gstr3b'
+  | 'purchasesForCa'
+  | 'reorder'
   | 'profitAndLoss'
   | 'balanceSheet';
 

@@ -132,6 +132,9 @@ export interface GstLine {
   /** Total of the original invoice a return refers to. */
   refTotalPaise: Paise | null;
   hsn: string | null;
+  /** The supplier's own invoice number and date (purchases). */
+  partyBillNo: string | null;
+  partyBillDate: string | null;
   unit: string;
   rateBp: BasisPoints;
   /** +1 for invoices, -1 for returns and notes, so sums are net. */
@@ -160,6 +163,7 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
               COALESCE(v.pos_state_code, a.state_code) AS state_code,
               r.total_paise AS ref_total,
               r.date AS ref_date, rs.prefix AS ref_prefix, r.number AS ref_number,
+              v.party_bill_no, v.party_bill_date,
               vi.hsn, u.name AS unit, vi.tax_rate_bp, vi.qty, vi.amount_paise, vi.taxable_paise,
               vi.cgst_paise, vi.sgst_paise, vi.igst_paise
        FROM voucher v
@@ -192,6 +196,8 @@ export function gstLines(db: Db, period: GstPeriod): GstLine[] {
         refDate: r['ref_date'] === null ? null : String(r['ref_date']),
         refTotalPaise: r['ref_total'] === null ? null : Number(r['ref_total']),
         hsn: r['hsn'] === null ? null : String(r['hsn']),
+        partyBillNo: r['party_bill_no'] === null ? null : String(r['party_bill_no']),
+        partyBillDate: r['party_bill_date'] === null ? null : String(r['party_bill_date']),
         unit: String(r['unit']),
         rateBp: Number(r['tax_rate_bp']),
         sign: REDUCES.has(type) ? -1 : 1,

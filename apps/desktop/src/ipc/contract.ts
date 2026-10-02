@@ -28,6 +28,8 @@ import type {
   ItemSearchRow,
   PartyHit,
   PartySummary,
+  PurchasesForCa,
+  ReorderRow,
   LastPrice,
   PostedVoucher,
   Role,
@@ -277,6 +279,8 @@ export const reportRequest = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('gstSummary'), ...period }),
   z.object({ kind: z.literal('gstr1'), ...period }),
   z.object({ kind: z.literal('gstr3b'), ...period }),
+  z.object({ kind: z.literal('purchasesForCa'), ...period }),
+  z.object({ kind: z.literal('reorder'), asOn: isoDate }),
   z.object({ kind: z.literal('profitAndLoss'), ...period }),
   z.object({ kind: z.literal('balanceSheet'), asOn: isoDate }),
 ]);
@@ -295,6 +299,8 @@ export type ReportResult =
   | { kind: 'gstSummary'; data: GstSummary }
   | { kind: 'gstr1'; data: Gstr1 }
   | { kind: 'gstr3b'; data: Gstr3b }
+  | { kind: 'purchasesForCa'; data: PurchasesForCa }
+  | { kind: 'reorder'; data: ReorderRow[] }
   | { kind: 'profitAndLoss'; data: ProfitAndLoss }
   | { kind: 'balanceSheet'; data: BalanceSheet };
 

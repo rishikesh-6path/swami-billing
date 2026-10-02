@@ -14,6 +14,10 @@ import {
   gstr1ToCsvFiles,
   gstr3b,
   gstr3bToCsv,
+  gstPurchases,
+  gstPurchasesToCsv,
+  reorderList,
+  reorderToCsv,
   itemLedger,
   listAudit,
   itemLedgerToCsv,
@@ -50,6 +54,8 @@ const NEEDS: Record<ReportRequest['kind'], Action> = {
   gstSummary: 'view_gst',
   gstr1: 'view_gst',
   gstr3b: 'view_gst',
+  purchasesForCa: 'view_gst',
+  reorder: 'view_daily_reports',
 };
 
 /** Staff may open the ledger of customers, suppliers, cash and bank only. */
@@ -106,6 +112,10 @@ function run(req: ReportRequest, ctx: HandlerContext): ReportResult {
       return { kind: 'gstr1', data: gstr1(db, req) };
     case 'gstr3b':
       return { kind: 'gstr3b', data: gstr3b(db, req) };
+    case 'purchasesForCa':
+      return { kind: 'purchasesForCa', data: gstPurchases(db, req) };
+    case 'reorder':
+      return { kind: 'reorder', data: reorderList(db, req) };
     case 'profitAndLoss':
       return { kind: 'profitAndLoss', data: profitAndLoss(db, req) };
     case 'balanceSheet':
@@ -153,6 +163,10 @@ export const reportHandlers: Pick<Handlers, 'report.run' | 'report.export' | 'au
         return { saved: await ctx.saveText(`${name}.csv`, gstSummaryToCsv(result.data)) };
       case 'gstr3b':
         return { saved: await ctx.saveText(`${name}.csv`, gstr3bToCsv(result.data)) };
+      case 'purchasesForCa':
+        return { saved: await ctx.saveText(`${name}.csv`, gstPurchasesToCsv(result.data)) };
+      case 'reorder':
+        return { saved: await ctx.saveText(`${name}.csv`, reorderToCsv(result.data)) };
       case 'profitAndLoss':
         return { saved: await ctx.saveText(`${name}.csv`, profitAndLossToCsv(result.data)) };
       case 'balanceSheet':

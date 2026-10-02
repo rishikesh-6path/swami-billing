@@ -222,9 +222,77 @@ export function ReportBody({ result }: { result: ReportResult }) {
           ]}
         />
       );
+    case 'reorder':
+      return (
+        <DataTable
+          rowKey={(r) => r.itemId}
+          rows={result.data}
+          empty="Nothing is running low."
+          columns={[
+            { header: 'Group', cell: (r) => r.groupName },
+            { header: 'Item', cell: (r) => r.name },
+            { header: 'Code', cell: (r) => r.alias },
+            { header: 'In stock', num: true, cell: (r) => `${formatQty(r.qty)} ${r.unitName}` },
+            { header: 'Minimum', num: true, cell: (r) => formatQty(r.minStockQty) },
+            { header: 'Needed', num: true, cell: (r) => formatQty(r.shortfallQty) },
+            { header: 'Last bought from', cell: (r) => r.lastSupplier },
+            {
+              header: 'Last cost',
+              num: true,
+              cell: (r) => (r.lastCostPaise === null ? '' : formatMoney(r.lastCostPaise)),
+            },
+          ]}
+        />
+      );
+    case 'purchasesForCa': {
+      const p = result.data;
+      return (
+        <DataTable
+          rowKey={(r, i) => `${r.voucherId}-${r.rateBp}-${i}`}
+          rows={p.rows}
+          empty="No purchases in this period."
+          columns={[
+            { header: 'Supplier', cell: (r) => r.supplierName },
+            { header: 'GST number', cell: (r) => r.supplierGstin },
+            { header: 'Invoice', cell: (r) => r.invoiceNumber },
+            { header: 'Invoice date', cell: (r) => formatDate(r.invoiceDate) },
+            { header: 'Kind', cell: (r) => r.kind },
+            { header: 'GST %', num: true, cell: (r) => formatPercent(r.rateBp) },
+            { header: 'Taxable', num: true, cell: (r) => m(r.taxablePaise) },
+            { header: 'CGST', num: true, cell: (r) => m(r.cgstPaise) },
+            { header: 'SGST', num: true, cell: (r) => m(r.sgstPaise) },
+            { header: 'IGST', num: true, cell: (r) => m(r.igstPaise) },
+          ]}
+          footer={[
+            'Total (returns and notes taken off)',
+            '',
+            '',
+            '',
+            '',
+            '',
+            m(p.totals.taxablePaise),
+            m(p.totals.cgstPaise),
+            m(p.totals.sgstPaise),
+            m(p.totals.igstPaise),
+          ]}
+        />
+      );
+    }
     case 'salesRegister':
     case 'purchaseRegister': {
       const reg = result.data;
+      const supplierColumn =
+        result.kind === 'purchaseRegister'
+          ? [
+              {
+                header: "Supplier's invoice",
+                cell: (r: (typeof reg.rows)[number]) =>
+                  r.partyBillNo
+                    ? `${r.partyBillNo}${r.partyBillDate ? ` (${formatDate(r.partyBillDate)})` : ''}`
+                    : '',
+              },
+            ]
+          : [];
       return (
         <DataTable
           rowKey={(r) => r.voucherId}
@@ -236,6 +304,7 @@ export function ReportBody({ result }: { result: ReportResult }) {
             { header: 'No.', cell: (r) => r.number },
             { header: 'Party', cell: (r) => r.partyName },
             { header: 'GST number', cell: (r) => r.partyGstin },
+            ...supplierColumn,
             { header: 'Taxable', num: true, cell: (r) => m(r.taxablePaise) },
             { header: 'CGST', num: true, cell: (r) => m(r.cgstPaise) },
             { header: 'SGST', num: true, cell: (r) => m(r.sgstPaise) },
@@ -248,6 +317,7 @@ export function ReportBody({ result }: { result: ReportResult }) {
             '',
             'Total (returns taken off)',
             '',
+            ...(supplierColumn.length ? [''] : []),
             m(reg.totals.taxablePaise),
             m(reg.totals.cgstPaise),
             m(reg.totals.sgstPaise),

@@ -44,3 +44,5 @@ export * from './calc.ts';
 export * from './masters/narrations.ts';
 export * from './reports/party-summary.ts';
 export * from './masters/last-price.ts';
+export * from './reports/gst/purchases.ts';
+export * from './reports/reorder.ts';

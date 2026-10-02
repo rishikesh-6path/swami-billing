@@ -143,3 +143,31 @@ test('profit and balance sheet agree with each other for the demo shop', async (
     await shop.close();
   }
 });
+
+test('the purchases file for the CA has the supplier invoices, and the items to order list opens', async () => {
+  const shop = await launch({ demo: true, exportDir: true });
+  try {
+    const { page } = shop;
+    await signIn(page);
+    await page.keyboard.press('R');
+    await page.getByRole('button', { name: /Items to Order/ }).click();
+    await expect(page.getByRole('heading', { name: 'Items to Order' })).toBeVisible();
+    await expect(page.getByText('Last bought from')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: /Purchases for the CA/ }).click();
+    await expect(page.getByRole('heading', { name: 'Purchases for the CA' })).toBeVisible();
+    await page.getByLabel('Period').selectOption('thisYear');
+    await expect(page.getByRole('columnheader', { name: 'Invoice', exact: true })).toBeVisible();
+    await expect(page.getByRole('cell', { name: /^(FIN|HAV|ANC)\/\d+$/ }).first()).toBeVisible();
+    await page.keyboard.press('Control+E');
+    await expect(page.getByText(/^Saved to /)).toBeVisible();
+    const file = readdirSync(shop.exportPath).find((f) => f.startsWith('purchasesForCa'));
+    expect(file).toBeTruthy();
+    const csv = readFileSync(join(shop.exportPath, file ?? ''), 'utf8');
+    expect(csv.split('\n')[0]).toContain('GSTIN of supplier');
+    expect(csv).toMatch(/(FIN|HAV|ANC)\/\d+/);
+  } finally {
+    await shop.close();
+  }
+});

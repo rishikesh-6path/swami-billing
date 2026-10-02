@@ -9,6 +9,9 @@ export interface RegisterRow {
   number: number;
   partyName: string | null;
   partyGstin: string | null;
+  /** The supplier's own invoice number and date (purchases). */
+  partyBillNo: string | null;
+  partyBillDate: string | null;
   /** Returns carry negative amounts so register totals are net. */
   taxablePaise: Paise;
   cgstPaise: Paise;
@@ -40,7 +43,7 @@ function register(
   const rows = db
     .prepare(
       `SELECT v.id, v.date, v.voucher_type, v.number, a.name AS party, a.gstin,
-              v.taxable_paise, v.round_off_paise, v.total_paise, v.status,
+              v.taxable_paise, v.round_off_paise, v.total_paise, v.status, v.party_bill_no, v.party_bill_date,
               COALESCE((SELECT SUM(cgst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS cgst,
               COALESCE((SELECT SUM(sgst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS sgst,
               COALESCE((SELECT SUM(igst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS igst
@@ -58,6 +61,8 @@ function register(
         number: Number(r['number']),
         partyName: r['party'] === null ? null : String(r['party']),
         partyGstin: r['gstin'] === null ? null : String(r['gstin']),
+        partyBillNo: r['party_bill_no'] === null ? null : String(r['party_bill_no']),
+        partyBillDate: r['party_bill_date'] === null ? null : String(r['party_bill_date']),
         taxablePaise: sign * Number(r['taxable_paise']),
         cgstPaise: sign * Number(r['cgst']),
         sgstPaise: sign * Number(r['sgst']),
@@ -95,6 +100,8 @@ export function registerToCsv(reg: Register): string {
       'Number',
       'Party',
       'GSTIN',
+      'Supplier invoice no.',
+      'Supplier invoice date',
       'Taxable',
       'CGST',
       'SGST',
@@ -109,6 +116,8 @@ export function registerToCsv(reg: Register): string {
         r.number,
         r.partyName,
         r.partyGstin,
+        r.partyBillNo,
+        r.partyBillDate,
         formatMoneyOrEmpty(r.taxablePaise),
         formatMoneyOrEmpty(r.cgstPaise),
         formatMoneyOrEmpty(r.sgstPaise),
@@ -121,6 +130,8 @@ export function registerToCsv(reg: Register): string {
         '',
         '',
         'Total',
+        '',
+        '',
         '',
         formatMoneyOrEmpty(reg.totals.taxablePaise),
         formatMoneyOrEmpty(reg.totals.cgstPaise),

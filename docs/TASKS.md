@@ -53,7 +53,7 @@ P5-04 | done | Backup off the main thread, partial day reopen, dialog focus, fas
 
 ## Phase 6 — Everyday conveniences and support
 P6-01 | done | Start bills from the party page; last price hint | unit + E2E | P0-kickoff
-P6-02 | todo | Registers and CA purchases CSV with supplier invoices; reorder list | unit |
+P6-02 | done | Registers and CA purchases CSV with supplier invoices; reorder list | unit + E2E | P0-kickoff
 P6-03 | todo | Support log, support file, idle lock | unit + E2E |
 P6-04 | todo | Speed at real size (50,000 vouchers) | timing test |
 

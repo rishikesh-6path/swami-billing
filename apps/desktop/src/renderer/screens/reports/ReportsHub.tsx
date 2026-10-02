@@ -5,7 +5,7 @@ import { useSession } from '../../lib/session.tsx';
 import { REPORT_INFO } from './ReportScreen.tsx';
 
 const GROUPS: { title: string; kinds: ReportKind[]; ownerOnly?: boolean }[] = [
-  { title: 'Every day', kinds: ['daySummary', 'dayBook', 'stock', 'outstanding'] },
+  { title: 'Every day', kinds: ['daySummary', 'dayBook', 'stock', 'reorder', 'outstanding'] },
   {
     title: 'Customers, suppliers and items',
     kinds: ['ledger', 'itemLedger', 'salesRegister', 'purchaseRegister'],
@@ -15,7 +15,11 @@ const GROUPS: { title: string; kinds: ReportKind[]; ownerOnly?: boolean }[] = [
     kinds: ['profitAndLoss', 'balanceSheet', 'trialBalance'],
     ownerOnly: true,
   },
-  { title: 'GST (owner)', kinds: ['gstSummary', 'gstr1', 'gstr3b'], ownerOnly: true },
+  {
+    title: 'GST (owner)',
+    kinds: ['gstSummary', 'gstr1', 'gstr3b', 'purchasesForCa'],
+    ownerOnly: true,
+  },
 ];
 
 export function ReportsHub() {

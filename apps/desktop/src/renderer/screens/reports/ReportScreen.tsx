@@ -78,6 +78,17 @@ export const REPORT_INFO: Record<
     about: 'The figures for your summary return.',
     shape: 'period',
   },
+  purchasesForCa: {
+    title: 'Purchases for the CA',
+    about:
+      "Every purchase with the supplier's own invoice number, date and GST, ready to match against their filings.",
+    shape: 'period',
+  },
+  reorder: {
+    title: 'Items to Order',
+    about: 'Items that are running below their minimum, with who you last bought them from.',
+    shape: 'asOn',
+  },
   profitAndLoss: {
     title: 'Profit and Loss',
     about: 'What you earned and spent, and the profit.',
@@ -107,7 +118,7 @@ export function ReportScreen({
   const toast = useToast();
   const { today, financialYear } = useSession();
   const defaultPreset: Preset =
-    kind === 'gstSummary' || kind === 'gstr1' || kind === 'gstr3b'
+    kind === 'gstSummary' || kind === 'gstr1' || kind === 'gstr3b' || kind === 'purchasesForCa'
       ? 'thisMonth'
       : kind === 'profitAndLoss' || kind === 'trialBalance'
         ? 'thisYear'
@@ -140,6 +151,7 @@ export function ReportScreen({
       request = { kind, asOn, side: outSide };
       break;
     case 'balanceSheet':
+    case 'reorder':
       request = { kind, asOn };
       break;
     case 'daySummary':
