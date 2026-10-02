@@ -168,6 +168,8 @@ const itemVoucherFields = {
   sundries: z.array(sundryInput).max(20).optional(),
   settlements: z.array(settlementInput).max(5).optional(),
   roundOff: z.boolean().optional(),
+  partyBillNo: z.string().max(60).optional(),
+  partyBillDate: isoDate.optional(),
 };
 export const itemVoucherInput = z.object({
   ...itemVoucherFields,

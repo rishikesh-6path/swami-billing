@@ -175,6 +175,8 @@ interface Header {
   posStateCode?: string | null | undefined;
   partyGstin?: string | null | undefined;
   taxMode?: 'local' | 'interstate' | 'exempt' | undefined;
+  partyBillNo?: string | null | undefined;
+  partyBillDate?: string | null | undefined;
 }
 
 /** Copies the details a printed bill shows, so a reprint never changes (see migration 0007). */
@@ -223,8 +225,8 @@ function insertHeader(db: Db, h: Header, now: string): number {
       `INSERT INTO voucher (voucher_type, series_id, number, date, fy_id, party_account_id, sale_type_id,
          broker, narration, status, subtotal_paise, taxable_paise, tax_paise, round_off_paise, total_paise,
          ref_voucher_id, created_by, created_at, modified_at, legacy_ref, pos_state_code, party_gstin, tax_mode,
-         snapshot_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         snapshot_json, party_bill_no, party_bill_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'posted', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       h.type,
@@ -250,6 +252,8 @@ function insertHeader(db: Db, h: Header, now: string): number {
       h.partyGstin ?? null,
       h.taxMode ?? null,
       JSON.stringify(takeSnapshot(db, h)),
+      h.partyBillNo ?? null,
+      h.partyBillDate ?? null,
     );
   return Number(result.lastInsertRowid);
 }
@@ -298,6 +302,69 @@ function audit(
   ).run(now, userId ?? null, action, 'voucher', voucherId, JSON.stringify(after));
 }
 
+/**
+ * The supplier's invoice number and date. A purchase from a GST-registered supplier must carry
+ * both (they are what the supplier files and what input credit is claimed against), and the same
+ * supplier invoice number cannot be entered twice in a financial year.
+ */
+function checkSupplierInvoice(
+  db: Db,
+  input: ItemVoucherInput,
+  supplierHasGstin: boolean,
+  legacyImport: boolean,
+): { no: string | null; date: string | null } {
+  if (input.type !== 'purchase' && input.type !== 'purchase_return')
+    return { no: null, date: null };
+  const no = (input.partyBillNo ?? '').replace(/\s+/g, ' ').trim();
+  const date = input.partyBillDate ?? '';
+  const isPurchase = input.type === 'purchase';
+  if (no === '' && date === '') {
+    if (isPurchase && supplierHasGstin && !legacyImport) {
+      throw new PostingError(
+        "Please enter the supplier's invoice number and date. You need them to claim the GST on this purchase.",
+      );
+    }
+    return { no: null, date: null };
+  }
+  if (no === '') throw new PostingError("Please enter the supplier's invoice number.");
+  if (no.length > 30)
+    throw new PostingError("The supplier's invoice number is too long (30 letters at most).");
+  if (date === '') throw new PostingError("Please enter the date on the supplier's invoice.");
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date
+  ) {
+    throw new PostingError("The date on the supplier's invoice is not a real date.");
+  }
+  if (date > input.date) {
+    throw new PostingError(
+      "The supplier's invoice is dated after this purchase. Please check the dates.",
+    );
+  }
+  if (isPurchase) {
+    const earlier = row(
+      db,
+      `SELECT s.prefix, v.number, v.date FROM voucher v
+         JOIN voucher_series s ON s.id = v.series_id
+         JOIN financial_year f ON f.id = v.fy_id
+        WHERE v.voucher_type = 'purchase' AND v.status = 'posted' AND v.party_account_id = ?
+          AND lower(v.party_bill_no) = lower(?)
+          AND f.start_date <= ? AND f.end_date >= ?
+        LIMIT 1`,
+      input.partyAccountId,
+      no,
+      input.date,
+      input.date,
+    );
+    if (earlier) {
+      throw new PostingError(
+        `This supplier's invoice ${no} is already entered as Purchase ${String(earlier['prefix'])}${Number(earlier['number'])} on ${dmy(String(earlier['date']))}. Please check that it is not a repeat.`,
+      );
+    }
+  }
+  return { no, date };
+}
+
 function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean) {
   const rule = RULES[input.type];
 
@@ -330,6 +397,7 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
       );
     }
   }
+  const partyBill = checkSupplierInvoice(db, input, partyGstin !== null, legacyImport);
   const sundryRows = (input.sundries ?? []).map((s) => {
     const m = row(
       db,
@@ -430,7 +498,16 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
       amountPaise: s.amountPaise,
     });
   }
-  return { computed, lines, sundryRows, drafts, settlements, posStateCode, partyGstin };
+  return {
+    computed,
+    lines,
+    sundryRows,
+    drafts,
+    settlements,
+    posStateCode,
+    partyGstin,
+    partyBill,
+  };
 }
 
 /**
@@ -463,6 +540,8 @@ export function postVoucher(db: Db, input: VoucherInput, opts: PostOptions = {})
           posStateCode: built.posStateCode,
           partyGstin: built.partyGstin,
           taxMode: input.taxMode,
+          partyBillNo: built.partyBill.no,
+          partyBillDate: built.partyBill.date,
           saleTypeId: input.saleTypeId ?? null,
           input,
           computed: built.computed,

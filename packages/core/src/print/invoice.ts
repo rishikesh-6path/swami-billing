@@ -237,6 +237,7 @@ ${d.status === 'cancelled' ? '<div class="watermark">CANCELLED</div>' : ''}
 No.: <b>${esc(d.displayNumber)}</b><br>Date: <b>${esc(dmy(d.date))}</b>
 ${d.posStateCode ? `<br>Place of supply: ${esc(place(d.posStateCode))}` : ''}
 ${d.refVoucher ? `<br>Against bill: ${esc(d.refVoucher.displayNumber)} dated ${esc(dmy(d.refVoucher.date))}` : ''}
+${d.partyBillNo ? `<br>Supplier invoice: ${esc(d.partyBillNo)}${d.partyBillDate ? ` dated ${esc(dmy(d.partyBillDate))}` : ''}` : ''}
 ${d.saleTypeName ? `<br>Type: ${esc(d.saleTypeName)}` : ''}</div>
 </div>
 ${itemsTable}
@@ -294,6 +295,7 @@ ${d.status === 'cancelled' ? '<div class="watermark">*** CANCELLED ***</div>' : 
 <div class="row"><span>No: ${esc(d.displayNumber)}</span><span>${esc(dmy(d.date))}</span></div>
 ${d.posStateCode ? `<div>Place of supply: ${esc(place(d.posStateCode))}</div>` : ''}
 ${d.refVoucher ? `<div>Against bill: ${esc(d.refVoucher.displayNumber)} dated ${esc(dmy(d.refVoucher.date))}</div>` : ''}
+${d.partyBillNo ? `<div>Supplier invoice: ${esc(d.partyBillNo)}${d.partyBillDate ? ` dated ${esc(dmy(d.partyBillDate))}` : ''}</div>` : ''}
 ${party ? `<div>${esc(partyHeading(d.voucherType))}: ${party}</div>` : ''}
 <hr>
 ${body}

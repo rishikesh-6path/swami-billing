@@ -62,6 +62,9 @@ export interface VoucherDetail {
   posStateCode: string | null;
   /** How GST was applied when the bill was made: within the state, between states, or none. */
   taxMode: 'local' | 'interstate' | 'exempt';
+  /** The supplier's own invoice number and date (purchases). */
+  partyBillNo: string | null;
+  partyBillDate: string | null;
   /** The shop's details as they were when the bill was made (null for older entries). */
   company: VoucherSnapshot['company'];
   refVoucher: { id: number; displayNumber: string; date: string } | null;
@@ -171,6 +174,8 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
     taxMode:
       (str(v['tax_mode']) as VoucherDetail['taxMode'] | null) ??
       (lines.some((l) => Number(l['igst_paise']) > 0) ? 'interstate' : 'local'),
+    partyBillNo: str(v['party_bill_no']),
+    partyBillDate: str(v['party_bill_date']),
     company: snapshot?.company ?? null,
     refVoucher:
       v['ref_voucher_id'] === null
@@ -261,7 +266,8 @@ export function listVouchers(
          AND (? IS NULL OR v.voucher_type = ?) AND (? IS NULL OR v.date >= ?) AND (? IS NULL OR v.date <= ?)
          AND (? IS NULL OR v.party_account_id = ?)
          AND (? = '%%' OR lower(COALESCE(a.name, '')) LIKE ? ESCAPE '\\'
-              OR lower(s.prefix || v.number) LIKE ? ESCAPE '\\' OR lower(COALESCE(v.narration, '')) LIKE ? ESCAPE '\\')
+              OR lower(s.prefix || v.number) LIKE ? ESCAPE '\\' OR lower(COALESCE(v.narration, '')) LIKE ? ESCAPE '\\'
+              OR lower(COALESCE(v.party_bill_no, '')) LIKE ? ESCAPE '\\')
        ORDER BY v.date DESC, v.id DESC LIMIT ?`,
     )
     .all(
@@ -274,6 +280,7 @@ export function listVouchers(
       args.to ?? null,
       args.partyId ?? null,
       args.partyId ?? null,
+      like,
       like,
       like,
       like,

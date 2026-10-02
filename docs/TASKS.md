@@ -45,5 +45,11 @@ P4-02 | done | Settings screen (shop, printing, people, day close, books lock, y
 P4-03 | done | electron-builder NSIS config, auto-launch, packaged migrations path | packaged folder smoke-tested on Linux (E2E, SHOPLEDGER_PACKAGED_EXE); installer build and run on Windows pending | P0-kickoff
 P4-04 | done | USER_GUIDE.md and owner runbook, keymap | review by owner | P0-kickoff
 
+## Phase 5 — Gaps found after the first build
+P5-01 | done | Supplier invoice number and date on purchases (required for GST suppliers, duplicate check) | unit + E2E | P0-kickoff
+P5-02 | todo | Credit Note and Debit Note that reach the GST returns | unit, property, E2E |
+P5-03 | todo | Customer and supplier summary screen | unit + E2E |
+P5-04 | todo | Backup off the main thread, partial day reopen, dialog focus, faster import | unit + E2E |
+
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

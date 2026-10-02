@@ -50,6 +50,9 @@ export interface ItemVoucherInput extends VoucherCommon {
   settlements?: SettlementInput[] | undefined;
   /** Round the grand total to the nearest rupee into the Round Off account. Default true. */
   roundOff?: boolean | undefined;
+  /** The supplier's own invoice number and date (purchase and purchase return only). */
+  partyBillNo?: string | undefined;
+  partyBillDate?: string | undefined;
 }
 
 export interface JournalEntryInput {

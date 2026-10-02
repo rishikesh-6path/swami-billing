@@ -190,6 +190,9 @@ export function seedDemoShop(db: Db, args: { today: string }): DemoSummary {
           partyAccountId: id(supplier),
           taxMode: supplier === 'Anchor Wholesale' ? 'interstate' : 'local',
           lines: unique,
+          // the supplier's own invoice, as a real shop would copy it from the paper bill
+          partyBillNo: `${supplier.slice(0, 3).toUpperCase()}/${100 + vouchers}`,
+          partyBillDate: date,
         });
         vouchers++;
       }

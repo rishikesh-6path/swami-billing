@@ -86,6 +86,11 @@ export function ItemVoucher({
     edit?.settlements[0]?.accountId ?? null,
   );
   const [narration, setNarration] = useState(edit?.narration ?? '');
+  // the supplier's own invoice (purchases only)
+  const [billNo, setBillNo] = useState(edit?.partyBillNo ?? '');
+  const [billDateIso, setBillDateIso] = useState<string | null>(edit?.partyBillDate ?? null);
+  const [billDateText, setBillDateText] = useState<string | null>(null);
+  const [billDateError, setBillDateError] = useState<string | null>(null);
   const [refId, setRefId] = useState<number | null>(edit?.refVoucher?.id ?? null);
   const [preview, setPreview] = useState<VoucherPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -299,6 +304,8 @@ export function ItemVoucher({
       taxMode,
       ...(broker.trim() ? { broker: broker.trim() } : {}),
       ...(narration.trim() ? { narration: narration.trim() } : {}),
+      ...(kindName === 'purchase' && billNo.trim() ? { partyBillNo: billNo.trim() } : {}),
+      ...(kindName === 'purchase' && billDateIso ? { partyBillDate: billDateIso } : {}),
       ...(refId ? { refVoucherId: refId } : {}),
       lines,
       sundries,
@@ -315,6 +322,8 @@ export function ItemVoucher({
       setSundryText({});
       setSettleText('');
       setNarration('');
+      setBillNo('');
+      setBillDateIso(null);
       setBroker('');
       setChosen(undefined);
       setPartyText(null);
@@ -431,7 +440,9 @@ export function ItemVoucher({
               setChosen(p);
               setPartyText(null);
               touch();
-              cells.focus(rows[0]!.key, 'item');
+              // a purchase asks for the supplier's invoice before the items
+              if (kindName === 'purchase') document.getElementById('party-bill-no')?.focus();
+              else cells.focus(rows[0]!.key, 'item');
             }}
             onNoMatch={(t) =>
               setError(
@@ -469,6 +480,61 @@ export function ItemVoucher({
           />
           <div className="field-note">{dateError ?? ''}</div>
         </div>
+        {kindName === 'purchase' && (
+          <>
+            <div className="field">
+              <label htmlFor="party-bill-no">Supplier&apos;s invoice no.</label>
+              <input
+                id="party-bill-no"
+                value={billNo}
+                autoComplete="off"
+                onChange={(e) => {
+                  setBillNo(e.target.value);
+                  touch();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('party-bill-date')?.focus();
+                  }
+                }}
+              />
+              <div className="field-note">The number printed on the supplier&apos;s bill.</div>
+            </div>
+            <div className={`field ${billDateError ? 'field-error' : ''}`}>
+              <label htmlFor="party-bill-date">Supplier&apos;s invoice date</label>
+              <input
+                id="party-bill-date"
+                value={billDateText ?? (billDateIso ? formatDate(billDateIso) : '')}
+                placeholder="dd-mm-yyyy"
+                autoComplete="off"
+                onChange={(e) => setBillDateText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                  cells.focus(rows[0]!.key, 'item');
+                }}
+                onBlur={() => {
+                  if (billDateText === null) return;
+                  if (billDateText.trim() === '') {
+                    setBillDateIso(null);
+                    setBillDateError(null);
+                  } else {
+                    const parsed = parseDateInput(billDateText, today);
+                    if (parsed) {
+                      setBillDateIso(parsed);
+                      setBillDateError(null);
+                      touch();
+                    } else setBillDateError('Please type the date like 05-10-2026.');
+                  }
+                  setBillDateText(null);
+                }}
+              />
+              <div className="field-note">{billDateError ?? ''}</div>
+            </div>
+          </>
+        )}
         <div className="field">
           <label htmlFor="sale-type">Bill type</label>
           <select
