@@ -11,6 +11,7 @@ import {
   type SelectHTMLAttributes,
 } from 'react';
 import { useHotkeys } from '../lib/hotkeys.tsx';
+import { useFocusTrap } from './focus.ts';
 
 export function Button({
   variant = 'secondary',
@@ -156,12 +157,13 @@ export function ConfirmDialog({
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const trap = useFocusTrap<HTMLDivElement>();
   // a destructive question starts on the safe answer, so a double tap of Enter cannot confirm it
   useEffect(() => (danger ? cancelRef : confirmRef).current?.focus(), [danger]);
   useHotkeys({ Escape: onCancel, Y: onConfirm, N: onCancel }, true, true);
   return (
     <div className="overlay">
-      <div className="dialog" role="alertdialog" aria-modal="true" aria-label={title}>
+      <div ref={trap} className="dialog" role="alertdialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         <div className="dialog-body">{children}</div>
         <div className="dialog-actions">
@@ -187,11 +189,12 @@ export function InfoDialog({
   onClose: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const trap = useFocusTrap<HTMLDivElement>();
   useEffect(() => closeRef.current?.focus(), []);
   useHotkeys({ Escape: onClose, Enter: onClose }, true, true);
   return (
     <div className="overlay">
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={trap} className="dialog" role="dialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         <div className="dialog-body">{children}</div>
         <div className="dialog-actions">

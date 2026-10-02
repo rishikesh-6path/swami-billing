@@ -15,7 +15,7 @@ For the owner only. Sign in with an owner PIN. The home screen has two extra til
 ## Every day
 
 - At closing time: count the cash and compare with **Cash in hand** on the home screen.
-- **Settings > Closing days and years > Close the day**. Staff can then no longer change that day's bills. You still can.
+- **Settings > Closing days and years > Close the day**. Staff can then no longer change that day's bills. You still can. If one of the latest days must be changed, use "keep closed up to" to reopen only the days after a date.
 - Switch off the computer from the Windows Start menu, not the power button. ShopLedger makes a backup when it closes.
 
 ## Backups

@@ -1,13 +1,7 @@
 import { join } from 'node:path';
-import {
-  copyBackupTo,
-  createBackup,
-  getSetting,
-  listBackups,
-  pruneBackups,
-  setSetting,
-  type Db,
-} from '@shopledger/core';
+import { ValidationError, getSetting, listBackups, setSetting, type Db } from '@shopledger/core';
+import BackupWorker from './backup-worker?nodeWorker';
+import type { BackupJob, BackupJobResult } from './backup-worker.ts';
 import type { BackupStatus } from '../ipc/contract.ts';
 
 const FOLDER = 'backup.folder';
@@ -43,29 +37,56 @@ export function setBackupFolder(db: Db, which: 'main' | 'copy', folder: string |
   setSetting(db, which === 'main' ? FOLDER : COPY_FOLDER, folder ?? '');
 }
 
-/** `date` is YYYY-MM-DD and `time` is HH:MM:SS, both in shop time. */
-export function runBackup(
+/**
+ * Makes a backup in a background thread and records the result. `date` is YYYY-MM-DD and `time`
+ * is HH:MM:SS, both in shop time. Gives up after `timeoutMs` (a slow or unplugged drive) with a
+ * plain-language message instead of leaving the app waiting.
+ */
+export async function runBackup(
   db: Db,
   place: BackupPlace,
+  dbPath: string,
   date: string,
   time: string,
   slot?: string,
-): { copied: boolean | null; name: string } {
-  const folder = backupFolder(db, place);
-  const file = createBackup(db, folder, date, time);
-  pruneBackups(folder);
-  const copyFolder = getSetting(db, COPY_FOLDER);
-  let copied: boolean | null = null;
-  if (copyFolder) {
-    copied = copyBackupTo(file, copyFolder);
-    if (copied) pruneBackups(copyFolder);
+  timeoutMs = 120_000,
+): Promise<{ copied: boolean | null; name: string }> {
+  const job: BackupJob = {
+    dbPath,
+    folder: backupFolder(db, place),
+    copyFolder: getSetting(db, COPY_FOLDER) || null,
+    date,
+    time,
+  };
+  const result = await new Promise<BackupJobResult>((resolve) => {
+    const worker = BackupWorker({ workerData: job });
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      resolve({
+        ok: false,
+        message:
+          'The backup is taking too long. Please check the backup drive is working and try again.',
+      });
+    }, timeoutMs);
+    const finish = (r: BackupJobResult) => {
+      clearTimeout(timer);
+      resolve(r);
+    };
+    worker.once('message', finish);
+    worker.once('error', (e) => finish({ ok: false, message: e.message }));
+    worker.once('exit', (code) => {
+      if (code !== 0) finish({ ok: false, message: `The backup stopped unexpectedly (${code}).` });
+    });
+  });
+  if (!result.ok) {
+    throw new ValidationError(`The backup could not be completed. ${result.message}`);
   }
   setSetting(db, LAST_AT, `${date} ${time.slice(0, 5)}`);
   setSetting(db, FAILED, '');
   // remembered so the home screen can say the second copy did not happen
-  setSetting(db, COPY_FAILED, copied === false ? date : '');
+  setSetting(db, COPY_FAILED, result.copied === false ? date : '');
   if (slot) setSetting(db, LAST_SLOT, slot);
-  return { copied, name: file.name };
+  return { copied: result.copied, name: result.name };
 }
 
 /** The scheduled slot that is due now and has not been done yet, e.g. "2026-10-15 14:00". */

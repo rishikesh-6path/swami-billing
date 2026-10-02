@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IMPORT_SAMPLES, importItemsCsv, importPartiesCsv, parseCsv } from '../src/import/csv.ts';
 import { seedDemoShop } from '../src/demo/seed.ts';
@@ -9,7 +12,9 @@ import { getAccount, listAccounts } from '../src/masters/accounts.ts';
 import { listItems, searchItems } from '../src/masters/items.ts';
 import { login } from '../src/users/users.ts';
 import { createFinancialYear } from '../src/books/financial-year.ts';
-import { freshDb } from './helpers/db.ts';
+import { openDatabase } from '../src/db/connection.ts';
+import { loadMigrationsFromDir, migrate } from '../src/db/migrations.ts';
+import { MIGRATIONS_DIR, freshDb } from './helpers/db.ts';
 import { ensureDefaults } from '../src/masters/setup.ts';
 
 describe('parseCsv', () => {
@@ -184,5 +189,45 @@ describe('seedDemoShop', () => {
       db.prepare('SELECT COUNT(*) AS n, SUM(total_paise) AS t FROM voucher').get();
     expect(total(a)).toEqual(total(b));
     expect(() => seedDemoShop(a, { today: TODAY })).toThrow(); // masters already exist
+  });
+});
+
+describe('large imports', () => {
+  it('bring in thousands of rows quickly, keep good rows when others fail, and report true row numbers', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'import-speed-'));
+    try {
+      const db = openDatabase(join(dir, 'shop.db')); // a real file, so every disk sync counts
+      migrate(db, loadMigrationsFromDir(MIGRATIONS_DIR));
+      const lines = ['Name,Alias,Group,Unit,HSN,GST %,Price'];
+      for (let i = 1; i <= 3000; i++) {
+        // every 500th row is wrong (a negative price); every 7th item opens a new group and unit
+        const price = i % 500 === 0 ? '-5' : String(10 + (i % 90));
+        lines.push(`Item ${i},C${i},Group ${i % 7},Unit${i % 7},7307,18,${price}`);
+      }
+      const started = Date.now();
+      const result = importItemsCsv(db, lines.join('\n'));
+      const seconds = (Date.now() - started) / 1000;
+      expect(result.created).toBe(3000 - 6);
+      expect(result.skipped.map((s) => s.row)).toEqual([501, 1001, 1501, 2001, 2501, 3001]);
+      expect(Number(db.prepare('SELECT COUNT(*) AS n FROM item').get()?.['n'])).toBe(2994);
+      expect(Number(db.prepare('SELECT COUNT(*) AS n FROM item_group').get()?.['n'])).toBeLessThan(
+        12,
+      );
+      expect(seconds).toBeLessThan(10);
+      db.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a failing row that had added a group leaves nothing behind and does not break later rows', () => {
+    const db = freshDb();
+    const result = importItemsCsv(
+      db,
+      'Name,Group,Price\nBad,Brand New Group,-1\nGood,Brand New Group,5\n',
+    );
+    expect(result.created).toBe(1);
+    expect(result.skipped).toHaveLength(1);
+    expect(listItems(db).map((i) => i.name)).toEqual(['Good']);
   });
 });

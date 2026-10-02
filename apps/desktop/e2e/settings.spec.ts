@@ -45,6 +45,10 @@ test('the owner closes a day and can open it again', async () => {
     await page.getByRole('button', { name: 'Yes, do it' }).click();
     await expect(page.getByText('Day closed.')).toBeVisible();
     await expect(page.getByText(/Days up to 15-10-2026 are closed/)).toBeVisible();
+    // only the latest days reopen: close through 15 Oct, keep 10 Oct closed
+    await page.getByLabel(/keep closed up to/).fill('10-10-2026');
+    await page.getByRole('button', { name: 'Reopen the days after this date' }).click();
+    await expect(page.getByText(/Days up to 10-10-2026 are closed/)).toBeVisible();
     await page.getByRole('button', { name: 'Reopen all days' }).click();
     await expect(page.getByText('No day has been closed yet.')).toBeVisible();
   } finally {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { call } from '../lib/api.ts';
 import { useHotkeys } from '../lib/hotkeys.tsx';
+import { useFocusTrap } from './focus.ts';
 import { Button, Notice } from './ui.tsx';
 
 /** A quick calculator on F10, from any screen. Enter works out the sum; the answer can be used in the next one. */
@@ -9,6 +10,7 @@ export function Calculator({ onClose }: { onClose: () => void }) {
   const [answer, setAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const trap = useFocusTrap<HTMLFormElement>();
   useEffect(() => input.current?.focus(), []);
   useHotkeys({ Escape: onClose, F10: onClose }, true, true);
 
@@ -28,6 +30,7 @@ export function Calculator({ onClose }: { onClose: () => void }) {
   return (
     <div className="overlay">
       <form
+        ref={trap}
         className="dialog"
         role="dialog"
         aria-modal="true"

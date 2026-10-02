@@ -48,7 +48,8 @@ function writeSafely(path: string, data: string | Uint8Array): void {
 
 let mainWindow: BrowserWindow | null = null;
 let shopDb: OpenedDatabase | null = null;
-let quitBackup: (() => void) | null = null;
+let quitBackup: (() => Promise<void>) | null = null;
+let quitting = false;
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -307,10 +308,13 @@ if (!app.requestSingleInstanceLock()) {
       }
     };
     // Backups: twice a day while the app is open (checked every minute), and when it closes.
-    const backupNow = (slot?: string) => {
+    let backingUp = false;
+    const backupNow = async (slot?: string, timeoutMs?: number) => {
+      if (backingUp) return;
+      backingUp = true;
       try {
         const { date, time } = clock();
-        runBackup(opened.db, backupPlace, date, time, slot);
+        await runBackup(opened.db, backupPlace, opened.path, date, time, slot, timeoutMs);
       } catch (error) {
         console.error('[shopledger] backup failed', error);
         try {
@@ -318,21 +322,24 @@ if (!app.requestSingleInstanceLock()) {
         } catch {
           // the database itself is the problem; nothing more can be recorded
         }
+      } finally {
+        backingUp = false;
       }
     };
     const timer = setInterval(() => {
       try {
         const { date, time } = clock();
         const slot = dueSlot(opened.db, date, time.slice(0, 5));
-        if (slot) backupNow(slot);
+        if (slot) void backupNow(slot);
       } catch (error) {
         console.error('[shopledger] backup schedule failed', error);
       }
     }, 60_000);
     const stopBackups = () => clearInterval(timer);
-    quitBackup = () => {
+    quitBackup = async () => {
       stopBackups();
-      if (shopDb) backupNow();
+      // a backup as the app closes, but never more than 20 seconds, so a bad drive cannot stop the PC shutting down
+      if (shopDb) await backupNow(undefined, 20_000);
     };
     const listPrinters = async () => {
       const contents = mainWindow?.webContents;
@@ -364,9 +371,20 @@ if (!app.requestSingleInstanceLock()) {
     console.log('[shopledger] window created');
   });
 
-  app.on('before-quit', () => {
-    quitBackup?.();
-    quitBackup = null;
+  app.on('before-quit', (event) => {
+    if (quitBackup && !quitting) {
+      // wait for the closing backup (it runs in the background), then quit for real
+      event.preventDefault();
+      quitting = true;
+      const finish = quitBackup;
+      quitBackup = null;
+      void finish().finally(() => {
+        shopDb?.db.close();
+        shopDb = null;
+        app.quit();
+      });
+      return;
+    }
     shopDb?.db.close();
     shopDb = null;
   });

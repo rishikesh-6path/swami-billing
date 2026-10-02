@@ -13,6 +13,7 @@ import {
 } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
 import { useHotkeys } from '../../lib/hotkeys.tsx';
+import { useFocusTrap } from '../../components/focus.ts';
 import { useSession } from '../../lib/session.tsx';
 
 export function UsersSection() {
@@ -184,6 +185,7 @@ function UsersBody({ users, onChange }: { users: UserRow[]; onChange: (u: UserRo
 }
 
 function PinDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const trap = useFocusTrap<HTMLFormElement>();
   const toast = useToast();
   const [pin, setPin] = useState('');
   const [again, setAgain] = useState('');
@@ -205,6 +207,7 @@ function PinDialog({ user, onClose }: { user: UserRow; onClose: () => void }) {
   return (
     <div className="overlay">
       <form
+        ref={trap}
         className="dialog"
         role="dialog"
         aria-modal="true"

@@ -49,7 +49,7 @@ P4-04 | done | USER_GUIDE.md and owner runbook, keymap | review by owner | P0-ki
 P5-01 | done | Supplier invoice number and date on purchases (required for GST suppliers, duplicate check) | unit + E2E | P0-kickoff
 P5-02 | done | Credit Note and Debit Note that reach the GST returns | unit, property, E2E, reviewer pass | P0-kickoff
 P5-03 | done | Customer and supplier summary screen | unit + E2E | P0-kickoff
-P5-04 | todo | Backup off the main thread, partial day reopen, dialog focus, faster import | unit + E2E |
+P5-04 | done | Backup off the main thread, partial day reopen, dialog focus, faster import | unit + E2E, packaged-build check | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

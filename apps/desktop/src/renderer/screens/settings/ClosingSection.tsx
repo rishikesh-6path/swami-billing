@@ -38,6 +38,7 @@ function ClosingBody({
   const [years, setYears] = useState(initialYears);
   const [closeText, setCloseText] = useState(formatDate(today));
   const [lockText, setLockText] = useState(formatDate(today));
+  const [reopenText, setReopenText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sure, setSure] = useState<{ title: string; words: string; run: () => void } | null>(null);
   const [confirmYear, setConfirmYear] = useState<ShopSettings['years'][number] | null>(null);
@@ -100,6 +101,37 @@ function ClosingBody({
             Reopen all days
           </Button>
         </p>
+        {books.dayClosedThrough && (
+          <>
+            <TextField
+              label="Or reopen only the latest days: keep closed up to"
+              value={reopenText}
+              placeholder={formatDate(books.dayClosedThrough)}
+              onChange={(e) => setReopenText(e.target.value)}
+              hint="Days after this date open again. Earlier days stay closed."
+            />
+            <p>
+              <Button
+                onClick={() =>
+                  withDate(reopenText, (date) => {
+                    if (!books.dayClosedThrough || date >= books.dayClosedThrough) {
+                      setError(
+                        `Days are closed only up to ${formatDate(books.dayClosedThrough ?? date)}. Please choose an earlier date.`,
+                      );
+                      return;
+                    }
+                    void call('books.reopenDay', { date }).then(
+                      done(`Days after ${formatDate(date)} are open again.`),
+                      fail,
+                    );
+                  })
+                }
+              >
+                Reopen the days after this date
+              </Button>
+            </p>
+          </>
+        )}
       </Card>
 
       <Card title="Lock the books after filing GST returns">

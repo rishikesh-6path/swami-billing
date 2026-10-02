@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { call, useCall } from '../lib/api.ts';
 import { useHotkeys } from '../lib/hotkeys.tsx';
+import { useFocusTrap } from './focus.ts';
 import { Button, LoadState, Notice, useToast } from './ui.tsx';
 
 /**
@@ -21,6 +22,7 @@ export function PrintDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const preview = useCall('print.preview', { id, size });
+  const trap = useFocusTrap<HTMLDivElement>();
 
   const print = () => {
     if (busy) return;
@@ -58,6 +60,7 @@ export function PrintDialog({
   return (
     <div className="overlay">
       <div
+        ref={trap}
         className="dialog print-dialog"
         role="dialog"
         aria-modal="true"

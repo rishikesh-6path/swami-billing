@@ -196,9 +196,9 @@ export const settingsHandlers: Pick<
     saved: await ctx.saveText(`sample-${req.kind}.csv`, `${IMPORT_SAMPLES[req.kind]}\n`),
   }),
   'backup.status': (_req, ctx) => backupStatus(ctx.db, ctx.backupPlace),
-  'backup.run': (_req, ctx) => {
+  'backup.run': async (_req, ctx) => {
     const clock = ctx.clock();
-    const { copied } = runBackup(ctx.db, ctx.backupPlace, clock.date, clock.time);
+    const { copied } = await runBackup(ctx.db, ctx.backupPlace, ctx.dbPath, clock.date, clock.time);
     return { ...backupStatus(ctx.db, ctx.backupPlace), copied };
   },
   'backup.chooseFolder': async (req, ctx) => {

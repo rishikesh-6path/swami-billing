@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { VoucherDetail } from '@shopledger/core';
 import { DataTable } from '../../components/DataTable.tsx';
+import { useFocusTrap } from '../../components/focus.ts';
 import { PrintDialog } from '../../components/PrintDialog.tsx';
 import { Button, Card, LoadState, Notice, PageHeader, useToast } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
@@ -32,6 +33,16 @@ export function BillView({ id }: { id: number }) {
         </main>
       )}
     </LoadState>
+  );
+}
+
+/** The cancel question: a dialog that keeps Tab inside it and gives focus back when it closes. */
+function TrapBox({ label, children }: { label: string; children: ReactNode }) {
+  const trap = useFocusTrap<HTMLDivElement>();
+  return (
+    <div ref={trap} className="dialog" role="alertdialog" aria-modal="true" aria-label={label}>
+      {children}
+    </div>
   );
 }
 
@@ -237,12 +248,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
       {printing && <PrintDialog id={bill.id} initialSize="a4" onClose={() => setPrinting(false)} />}
       {asking && (
         <div className="overlay">
-          <div
-            className="dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Cancel this bill?"
-          >
+          <TrapBox label="Cancel this bill?">
             <h2>Cancel this bill?</h2>
             <p>
               {label} {bill.displayNumber} for {rupees(bill.totalPaise)} will be cancelled. Its
@@ -264,7 +270,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
                 Yes, cancel the bill (Enter)
               </Button>
             </div>
-          </div>
+          </TrapBox>
         </div>
       )}
     </main>

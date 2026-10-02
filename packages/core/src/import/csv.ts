@@ -111,6 +111,7 @@ function mapHeader(header: string[]): Map<number, string> {
 }
 
 function eachRow(
+  db: Db,
   text: string,
   required: string[],
   handle: (f: Fields, row: number) => void,
@@ -130,23 +131,28 @@ function eachRow(
     );
   }
   const result: ImportResult = { created: 0, skipped: [] };
-  rows.slice(1).forEach(({ cells, line: row }) => {
-    const fields: Fields = {};
-    columns.forEach((field, index) => {
-      fields[field] = (cells[index] ?? '').trim();
+  // One outer transaction for the whole file (a single disk sync instead of one per row, which
+  // takes minutes for thousands of rows). Each row runs in its own savepoint, so a bad row is
+  // undone and reported without touching the rest.
+  transaction(db, () => {
+    rows.slice(1).forEach(({ cells, line: row }) => {
+      const fields: Fields = {};
+      columns.forEach((field, index) => {
+        fields[field] = (cells[index] ?? '').trim();
+      });
+      try {
+        handle(fields, row);
+        result.created += 1;
+      } catch (error) {
+        const reason =
+          error instanceof ValidationError ||
+          error instanceof SyntaxError ||
+          error instanceof RangeError
+            ? error.message
+            : 'This row could not be read.';
+        result.skipped.push({ row, reason });
+      }
     });
-    try {
-      handle(fields, row);
-      result.created += 1;
-    } catch (error) {
-      const reason =
-        error instanceof ValidationError ||
-        error instanceof SyntaxError ||
-        error instanceof RangeError
-          ? error.message
-          : 'This row could not be read.';
-      result.skipped.push({ row, reason });
-    }
   });
   return result;
 }
@@ -163,20 +169,24 @@ function rateBp(text: string): number | undefined {
 
 /** Imports items from a spreadsheet. Each row is saved on its own, so one bad row never blocks the rest. */
 export function importItemsCsv(db: Db, text: string, ctx: Ctx = {}): ImportResult {
-  return eachRow(text, ['name'], (f) => {
+  // looked up once, then kept in step as rows add groups and units; a row that fails is undone
+  // completely, so only what a successful row added is remembered
+  const groups = new Map(listItemGroups(db).map((g) => [g.name.toLowerCase(), g.id]));
+  const units = new Map(listUnits(db).map((u) => [u.name.toLowerCase(), u.id]));
+  return eachRow(db, text, ['name'], (f) => {
+    const addedGroups: [string, number][] = [];
+    const addedUnits: [string, number][] = [];
     transaction(db, () => {
       const groupName = f['group'] || 'General';
       const unitName = f['unit'] || 'Pcs';
-      let group = listItemGroups(db).find((g) => g.name.toLowerCase() === groupName.toLowerCase());
-      if (!group)
-        group = {
-          id: createItemGroup(db, { name: groupName }, ctx),
-          name: groupName,
-          parentId: null,
-        };
-      let unit = listUnits(db).find((u) => u.name.toLowerCase() === unitName.toLowerCase());
-      if (!unit) {
-        const id = createUnit(
+      let groupId = groups.get(groupName.toLowerCase());
+      if (groupId === undefined) {
+        groupId = createItemGroup(db, { name: groupName }, ctx);
+        addedGroups.push([groupName.toLowerCase(), groupId]);
+      }
+      let unitId = units.get(unitName.toLowerCase());
+      if (unitId === undefined) {
+        unitId = createUnit(
           db,
           {
             name: unitName,
@@ -184,15 +194,15 @@ export function importItemsCsv(db: Db, text: string, ctx: Ctx = {}): ImportResul
           },
           ctx,
         );
-        unit = listUnits(db).find((u) => u.id === id)!;
+        addedUnits.push([unitName.toLowerCase(), unitId]);
       }
       createItem(
         db,
         {
           name: f['name'] ?? '',
           alias: f['alias'] || null,
-          groupId: group.id,
-          unitId: unit.id,
+          groupId,
+          unitId,
           hsn: f['hsn'] || null,
           openingQty: f['openingQty'] ? parseQty(f['openingQty']) : 0,
           openingRatePaise: f['openingRate'] ? parseMoney(f['openingRate']) : 0,
@@ -204,6 +214,8 @@ export function importItemsCsv(db: Db, text: string, ctx: Ctx = {}): ImportResul
         ctx,
       );
     });
+    for (const [name, id] of addedGroups) groups.set(name, id);
+    for (const [name, id] of addedUnits) units.set(name, id);
   });
 }
 
@@ -214,7 +226,7 @@ export function importPartiesCsv(
   defaultKind: 'customer' | 'supplier' = 'customer',
   ctx: Ctx = {},
 ): ImportResult {
-  return eachRow(text, ['name'], (f) => {
+  return eachRow(db, text, ['name'], (f) => {
     transaction(db, () => {
       const supplier = f['type']
         ? /supplier|creditor|vendor/i.test(f['type'])

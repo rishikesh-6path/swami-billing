@@ -97,6 +97,27 @@ const REQUIRED_TABLES = [
   'audit_log',
 ];
 
+/**
+ * Same as `createBackup`, but opens its own connection to the database file. This is what the
+ * background worker uses, so the app stays responsive while the copy is made: SQLite lets a second
+ * connection read a consistent snapshot while the app keeps saving bills.
+ */
+export function createBackupFromPath(
+  dbPath: string,
+  dir: string,
+  date: string,
+  time: string,
+  kind: BackupKind = 'regular',
+): BackupFile {
+  const reader = new DatabaseSync(dbPath);
+  try {
+    reader.exec('PRAGMA busy_timeout = 10000');
+    return createBackup(reader, dir, date, time, kind);
+  } finally {
+    reader.close();
+  }
+}
+
 export interface BackupCheck {
   ok: boolean;
   /** Plain-language reason when not ok. */
