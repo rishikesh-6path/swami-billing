@@ -42,7 +42,7 @@ function register(
   const types = [positive, ...reducing];
   const rows = db
     .prepare(
-      `SELECT v.id, v.date, v.voucher_type, v.number, a.name AS party, a.gstin,
+      `SELECT v.id, v.date, v.voucher_type, v.number, a.name AS party, COALESCE(v.party_gstin, a.gstin) AS gstin,
               v.taxable_paise, v.round_off_paise, v.total_paise, v.status, v.party_bill_no, v.party_bill_date,
               COALESCE((SELECT SUM(cgst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS cgst,
               COALESCE((SELECT SUM(sgst_paise) FROM voucher_item WHERE voucher_id = v.id), 0) AS sgst,

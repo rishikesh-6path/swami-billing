@@ -43,7 +43,10 @@ export function appendLog(dir: string, line: string, options: LogOptions = {}): 
   }
 }
 
-/** One log line: time, level, message and, for errors, the error's name and message (never its data). */
+/**
+ * One log line: time, level, message and, for errors, the error's name and message (never its
+ * data). Folder paths are replaced, because they hold the Windows user's name.
+ */
 export function formatLogLine(
   level: 'info' | 'warn' | 'error',
   message: string,
@@ -60,7 +63,10 @@ export function formatLogLine(
               ? error
               : 'unknown error'
         }`;
-  return `${when} ${level.toUpperCase()} ${message}${detail}`.replace(/[\r\n]+/g, ' ');
+  return `${when} ${level.toUpperCase()} ${message}${detail}`
+    .replace(/[A-Za-z]:[\\/][^'"\r\n]*/g, '<folder>')
+    .replace(/\/(?:home|Users|root|tmp|var|mnt|media)\/[^'"\r\n]*/g, '<folder>')
+    .replace(/[\r\n]+/g, ' ');
 }
 
 /** The last `count` lines of the current log, oldest first (empty when there is no log yet). */

@@ -23,9 +23,9 @@ import {
 } from '../src/index.ts';
 import { buildBigShop } from './helpers/big-shop.ts';
 
-// A shop with thousands of bills, items and customers. The limits are about ten times what a
-// normal PC needs, so a slow machine does not fail them, but a missing index or a per-item query
-// loop (the kind that once made "Items to Order" take 16 seconds) does.
+// A shop with thousands of bills, items and customers. The limit is many times what a normal PC
+// needs, so a slow machine does not fail it, but a missing index or a per-item query loop (the kind
+// that once made "Items to Order" take 16 seconds) does.
 const LIMIT_MS = 3000;
 const P = { from: '2026-04-01', to: '2027-03-31' };
 const today = '2026-10-15';

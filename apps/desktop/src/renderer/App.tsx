@@ -61,8 +61,14 @@ function Screens(props: { session: SessionState; onSession: (s: SessionState) =>
           userName={props.session.user.name}
           onUnlocked={() => setLocked(false)}
           onSwitchUser={() => {
-            setLocked(false);
-            void call('auth.logout', {}).then(props.onSession);
+            // the cover stays up until the sign-out has really happened
+            call('auth.logout', {}).then(
+              (next) => {
+                setLocked(false);
+                props.onSession(next);
+              },
+              () => undefined,
+            );
           }}
         />
       )}

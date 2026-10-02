@@ -617,6 +617,7 @@ export const contract = {
       itemId: id,
       type: z.enum(['sales', 'purchase']),
       before: isoDate.optional(),
+      excludeVoucherId: id.optional(),
     }),
   ),
   'party.summary': ch<PartySummary>()('view_daily_reports', z.object({ id, asOn: isoDate })),

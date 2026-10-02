@@ -42,7 +42,11 @@ function SupportBody({
     }
     call('settings.saveLock', { minutes: n }).then(
       () => {
-        toast.show(n === 0 ? 'The screen will not lock.' : `The screen locks after ${n} minutes.`);
+        toast.show(
+          n === 0
+            ? 'The screen will not lock.'
+            : `The screen locks after ${n} ${n === 1 ? 'minute' : 'minutes'}.`,
+        );
         void call('session.state', {}).then(onSession);
       },
       (e: unknown) => setError(e instanceof Error ? e.message : 'The setting could not be saved.'),
@@ -78,7 +82,7 @@ function SupportBody({
           Save (F2)
         </Button>
       </Card>
-      <Card title="Help from support">
+      <Card title="About this computer">
         <p className="muted">
           If something is not working, save this file and send it to the person who supports you. It
           tells them about the program and the data file. It does not contain your bills, customers,

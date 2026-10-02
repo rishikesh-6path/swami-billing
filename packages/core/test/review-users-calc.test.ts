@@ -38,3 +38,16 @@ describe('review: PINs', () => {
     expect(Number(rows?.['n'])).toBeGreaterThan(0);
   });
 });
+
+describe('review: unlocking', () => {
+  it('is recorded as an unlock, not as a new sign-in', () => {
+    const db = freshDb();
+    createUser(db, { name: 'Ravi', role: 'staff', pin: '4821' });
+    const id = Number(db.prepare('SELECT id FROM user WHERE name = ?').get('Ravi')?.['id']);
+    login(db, 'Ravi', '4821', { userId: id }, 'unlock');
+    const actions = db
+      .prepare('SELECT action FROM audit_log WHERE action IN (?, ?)')
+      .all('login', 'unlock');
+    expect(actions.map((r) => r['action'])).toEqual(['unlock']);
+  });
+});

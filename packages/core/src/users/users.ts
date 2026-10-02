@@ -172,7 +172,13 @@ function failState(db: Db, id: number): FailState {
  * Signs a user in by name and PIN. After five wrong PINs in a row the account is locked for
  * five minutes. Messages never say whether the name or the PIN was wrong.
  */
-export function login(db: Db, name: string, pin: string, ctx: Ctx = {}): UserRow {
+export function login(
+  db: Db,
+  name: string,
+  pin: string,
+  ctx: Ctx = {},
+  successAction: 'login' | 'unlock' = 'login',
+): UserRow {
   const now = nowOf(ctx);
   const found = db
     .prepare('SELECT id, name, role, is_active, pin_hash FROM user WHERE lower(name) = lower(?)')
@@ -214,7 +220,7 @@ export function login(db: Db, name: string, pin: string, ctx: Ctx = {}): UserRow
   }
   transaction(db, () => {
     setSetting(db, `auth.fail.${id}`, '');
-    writeAudit(db, { ...ctx, userId: id }, { action: 'login', table: 'user', rowId: id });
+    writeAudit(db, { ...ctx, userId: id }, { action: successAction, table: 'user', rowId: id });
   });
   return user(found);
 }

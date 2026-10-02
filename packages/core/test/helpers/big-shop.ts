@@ -55,10 +55,13 @@ export function buildBigShop(dir: string, size: BigShopSize): Db {
   const purchases = defaultSeriesId(db, 'purchase');
   const receipts = defaultSeriesId(db, 'receipt');
 
+  // mulberry32: a small generator whose numbers stay well spread over many thousands of calls
   let seed = 12345;
   const rnd = (n: number) => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed % n;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * n);
   };
   const dateOf = (i: number) =>
     new Date(Date.UTC(2026, 3, 1 + Math.floor((i / size.vouchers) * 197)))

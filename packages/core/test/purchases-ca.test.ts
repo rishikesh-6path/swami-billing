@@ -100,4 +100,50 @@ describe('reorder list', () => {
     });
     expect(reorderList(s.db, { asOn: '2026-10-31' })).toEqual([]);
   });
+
+  it('picks the newest posted purchase up to the date, ignoring cancelled bills and other items', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE item SET min_stock_qty = 900000 WHERE id = 1');
+    purchase(s, {
+      date: '2026-10-05',
+      partyBillNo: 'A',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 7000 }],
+    });
+    // two lines of one bill: the later line wins
+    purchase(s, {
+      date: '2026-10-07',
+      partyBillNo: 'B',
+      lines: [
+        { itemId: 1, qty: 1000, unitId: 1, listPricePaise: 7100 },
+        { itemId: 1, qty: 1000, unitId: 1, listPricePaise: 7200 },
+      ],
+    });
+    // same day, later bill wins
+    purchase(s, {
+      date: '2026-10-07',
+      partyBillNo: 'C',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 7300 }],
+    });
+    const cancelled = purchase(s, {
+      date: '2026-10-09',
+      partyBillNo: 'D',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 9900 }],
+    });
+    cancelVoucher(s.db, cancelled.voucherId);
+    purchase(s, {
+      date: '2026-12-01',
+      partyBillNo: 'E',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 5000 }],
+    });
+    const at = (asOn: string) => reorderList(s.db, { asOn }).find((r) => r.itemId === 1);
+    expect(at('2026-10-31')).toMatchObject({ lastCostPaise: 7300, lastBoughtOn: '2026-10-07' });
+    expect(at('2026-12-31')).toMatchObject({ lastCostPaise: 5000, lastBoughtOn: '2026-12-01' });
+    // an item never bought has no supplier or cost
+    s.db.exec('UPDATE item SET min_stock_qty = 900000 WHERE id = 2');
+    expect(reorderList(s.db, { asOn: '2026-10-31' }).find((r) => r.itemId === 2)).toMatchObject({
+      lastSupplier: null,
+      lastCostPaise: null,
+      lastBoughtOn: null,
+    });
+  });
 });

@@ -20,6 +20,8 @@ export function lastPriceFor(
     itemId: number;
     type: 'sales' | 'purchase';
     before?: string | undefined;
+    /** The bill being changed, so it never offers its own price back. */
+    excludeVoucherId?: number | undefined;
   },
 ): LastPrice | null {
   const found = db
@@ -29,10 +31,18 @@ export function lastPriceFor(
        WHERE v.party_account_id = ? AND vi.item_id = ? AND v.voucher_type = ?
          AND v.status = 'posted' AND (? IS NULL OR v.date <= ?)
          AND v.party_account_id NOT IN (SELECT id FROM account WHERE name = 'Cash' AND is_system = 1)
-         AND v.party_account_id NOT IN (SELECT id FROM account WHERE name = 'Cash' AND is_system = 1)
+         AND (? IS NULL OR v.id <> ?)
        ORDER BY v.date DESC, v.id DESC, vi.line_no DESC LIMIT 1`,
     )
-    .get(args.partyId, args.itemId, args.type, args.before ?? null, args.before ?? null);
+    .get(
+      args.partyId,
+      args.itemId,
+      args.type,
+      args.before ?? null,
+      args.before ?? null,
+      args.excludeVoucherId ?? null,
+      args.excludeVoucherId ?? null,
+    );
   return found
     ? {
         listPricePaise: Number(found['list_price_paise']),

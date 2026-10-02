@@ -21,18 +21,23 @@ export function LockScreen({
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
   const trap = useFocusTrap<HTMLFormElement>();
   // nothing behind the lock may react to a key
   useHotkeys({}, true, true);
 
   const submit = () => {
-    if (busy || pin === '') return;
+    if (busy) return;
+    if (pin.length < 4) {
+      setError('Please type your PIN (at least 4 digits).');
+      return;
+    }
     setBusy(true);
     setError(null);
     call('auth.unlock', { pin }).then(onUnlocked, (e: unknown) => {
       setBusy(false);
       setPin('');
-      setError(e instanceof Error ? e.message : 'That PIN was not right. Please try again.');
+      setError(e instanceof Error ? e.message : 'That PIN is not right. Please try again.');
     });
   };
 
@@ -52,6 +57,20 @@ export function LockScreen({
         <h2>ShopLedger is locked</h2>
         <p>{userName}, please type your PIN to carry on. Nothing you were doing has been lost.</p>
         {error && <Notice>{error}</Notice>}
+        {confirmSwitch && (
+          <Notice>
+            Signing out throws away any bill that is not saved yet. Press Sign out only if you are
+            sure.{' '}
+            <Button
+              onClick={() => {
+                setConfirmSwitch(false);
+                onSwitchUser();
+              }}
+            >
+              Sign out
+            </Button>
+          </Notice>
+        )}
         <div className="field">
           <label htmlFor="unlock-pin">Your PIN</label>
           <input
@@ -65,7 +84,7 @@ export function LockScreen({
           />
         </div>
         <div className="dialog-actions">
-          <Button onClick={onSwitchUser}>Someone else (loses an unsaved bill)</Button>
+          <Button onClick={() => setConfirmSwitch(true)}>Someone else</Button>
           <Button variant="primary" type="submit" disabled={busy}>
             Unlock (Enter)
           </Button>

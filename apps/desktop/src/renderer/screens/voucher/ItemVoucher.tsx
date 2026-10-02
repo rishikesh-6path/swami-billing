@@ -120,7 +120,10 @@ export function ItemVoucher({
   }, [ready]);
   // what this party paid last time, by row (sales and purchases only)
   const [lastPrices, setLastPrices] = useState<
-    Record<number, { listPricePaise: number; discBp: number; date: string }>
+    Record<
+      number,
+      { listPricePaise: number; discBp: number; date: string; partyId: number; itemId: number }
+    >
   >({});
 
   // when changing an existing bill, load its lines
@@ -360,28 +363,53 @@ export function ItemVoucher({
     }
   };
 
-  // the price this customer (or supplier) paid last time for the item, offered under the price box
-  const showLastPrice = (rowKey: number, itemId: number) => {
-    setLastPrices((m) =>
-      Object.fromEntries(Object.entries(m).filter(([k]) => Number(k) !== rowKey)),
-    );
-    if (!party || isCashParty || (kindName !== 'sales' && kindName !== 'purchase')) return;
-    void call('item.lastPrice', {
-      partyId: party.id,
-      itemId,
-      type: kindName,
-      before: dateIso ?? today,
-    }).then(
-      (found) => {
-        if (found) setLastPrices((m) => ({ ...m, [rowKey]: found }));
-      },
-      () => undefined,
-    );
+  // The price this customer (or supplier) paid last time for each item on the bill, offered under
+  // the price box. It is looked up again whenever the person, date or item on a row changes, and a
+  // hint is only shown or used while it still belongs to the person and item on screen.
+  const lastPriceKey = rows.map((r) => `${r.key}:${r.item?.id ?? 0}`).join(',');
+  const lastPartyId = party?.id ?? 0;
+  useEffect(() => {
+    if (!lastPartyId || isCashParty || (kindName !== 'sales' && kindName !== 'purchase')) {
+      return;
+    }
+    let current = true;
+    for (const r of rows) {
+      const itemId = r.item?.id;
+      if (!itemId) continue;
+      void call('item.lastPrice', {
+        partyId: lastPartyId,
+        itemId,
+        type: kindName,
+        before: dateIso ?? today,
+        ...(edit ? { excludeVoucherId: edit.id } : {}),
+      }).then(
+        (found) => {
+          if (!current) return;
+          setLastPrices((m) => {
+            const next = { ...m };
+            if (found) next[r.key] = { ...found, partyId: lastPartyId, itemId };
+            else delete next[r.key];
+            return next;
+          });
+        },
+        () => undefined,
+      );
+    }
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastPartyId, isCashParty, kindName, dateIso, lastPriceKey]);
+  const hintFor = (row: Row | undefined) => {
+    const h = row ? lastPrices[row.key] : undefined;
+    return row && h && !isCashParty && h.partyId === lastPartyId && h.itemId === row.item?.id
+      ? h
+      : undefined;
   };
   // F3 puts the last price (and discount) on the row the cursor is in
   function takeLastPrice() {
     const row = rows[focusRow];
-    const last = row ? lastPrices[row.key] : undefined;
+    const last = hintFor(row);
     if (!row || !last) return;
     updateRow(row.key, {
       price: formatMoney(last.listPricePaise),
@@ -687,7 +715,6 @@ export function ItemVoucher({
                           setRows((rs) =>
                             rs.map((x) => (x.key === r.key ? pickItem(x, it, kind) : x)),
                           );
-                          showLastPrice(r.key, it.id);
                           cells.focus(r.key, 'qty');
                         }}
                         onEnterEmpty={toFooter}
@@ -736,10 +763,10 @@ export function ItemVoucher({
                         }
                         onFocus={(e) => e.target.select()}
                       />
-                      {lastPrices[r.key] && (
+                      {hintFor(r) && (
                         <div className="last-price">
-                          Last time {formatMoney(lastPrices[r.key]!.listPricePaise)} on{' '}
-                          {formatDate(lastPrices[r.key]!.date)} (F3 uses it)
+                          Last time {formatMoney(hintFor(r)!.listPricePaise)} on{' '}
+                          {formatDate(hintFor(r)!.date)} (F3 uses it)
                         </div>
                       )}
                     </td>

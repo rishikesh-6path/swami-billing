@@ -41,6 +41,15 @@ describe('log file', () => {
     expect(line).toMatch(
       /^\d{4}-\d{2}-\d{2}T[\d:.]+Z ERROR save failed with newline \| Error: boom$/,
     );
+    // folder paths hold the Windows user's name and are never written
+    const path = formatLogLine(
+      'error',
+      'backup failed',
+      new Error("ENOENT: no such file, open 'C:\\Users\\Ravi Kumar\\Desktop\\Backup\\x.db'"),
+    );
+    expect(path).not.toContain('Ravi');
+    expect(path).toContain('<folder>');
+    expect(formatLogLine('error', "cannot write '/home/ravi/shop/x.db'")).not.toContain('ravi');
     writeFileSync(join(dir, 'file'), 'x');
     expect(() => appendLog(join(dir, 'file', 'inside'), 'x')).not.toThrow(); // a file where a folder should be
     expect(readLogTail(join(dir, 'missing'))).toEqual([]);

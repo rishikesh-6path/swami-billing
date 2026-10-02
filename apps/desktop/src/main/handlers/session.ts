@@ -24,8 +24,13 @@ import type { SessionState } from '../../ipc/contract.ts';
 export function lockSeconds(db: Db): number {
   const forTests = testKnob('SHOPLEDGER_LOCK_SECONDS');
   if (forTests !== undefined) return Number(forTests) || 0;
-  const minutes = Number(getSetting(db, 'lock.minutes') ?? '10');
-  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : 0;
+  return lockMinutes(db) * 60;
+}
+
+/** Minutes of no use before the screen locks; 10 unless the owner changed it, 0 = never. */
+export function lockMinutes(db: Db): number {
+  const n = Number(getSetting(db, 'lock.minutes') ?? '10');
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 10;
 }
 
 export function sessionState(ctx: Omit<HandlerContext, 'user'>): SessionState {
@@ -86,9 +91,15 @@ export const sessionHandlers: Pick<
   'auth.unlock': (req, ctx) => {
     // the locked screen asks the signed-in person for their PIN again; wrong tries count like at sign-in
     const me = ctx.user();
-    const again = login(ctx.db, me.name, req.pin, { userId: me.id });
-    if (again.id !== me.id)
-      throw new ValidationError('The name or PIN is not right. Please try again.');
+    let again;
+    try {
+      again = login(ctx.db, me.name, req.pin, { userId: me.id }, 'unlock');
+    } catch (e) {
+      if (e instanceof ValidationError && e.message.startsWith('The name or PIN'))
+        throw new ValidationError('That PIN is not right. Please try again.');
+      throw e;
+    }
+    if (again.id !== me.id) throw new ValidationError('That PIN is not right. Please try again.');
     return null;
   },
   'auth.logout': (_req, ctx) => {

@@ -40,4 +40,18 @@ describe('last price', () => {
       lastPriceFor(s.db, { partyId: s.partyA, itemId: 1, type: 'sales', before: '2026-08-01' }),
     ).toBeNull();
   });
+
+  it('never offers the price of the bill being changed', () => {
+    const s = seedShop();
+    sale(s, '2026-09-01', 4000);
+    const mine = sale(s, '2026-10-01', 4500);
+    expect(
+      lastPriceFor(s.db, {
+        partyId: s.partyA,
+        itemId: 1,
+        type: 'sales',
+        excludeVoucherId: mine.voucherId,
+      })?.listPricePaise,
+    ).toBe(4000);
+  });
 });

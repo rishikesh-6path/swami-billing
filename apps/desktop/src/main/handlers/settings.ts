@@ -29,19 +29,16 @@ import {
   unlockBooks,
   updateUser,
   type Db,
+  transaction,
+  writeAudit,
 } from '@shopledger/core';
 import { writeFileSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { ShopSettings } from '../../ipc/contract.ts';
 import { logDir } from '../log.ts';
+import { lockMinutes } from './session.ts';
 import { backupStatus, runBackup, setBackupFolder } from '../backup.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
-
-/** Minutes of no use before the screen locks; 10 unless the owner changed it, 0 = never. */
-function lockMinutes(db: Db): number {
-  const n = Number(getSetting(db, 'lock.minutes') ?? '10');
-  return Number.isFinite(n) && n >= 0 ? Math.round(n) : 10;
-}
 
 const books = (db: Db): ShopSettings['books'] => ({
   dayClosedThrough: dayClosedThrough(db) ?? null,
@@ -137,7 +134,18 @@ export const settingsHandlers: Pick<
   }),
   'settings.saveCompany': (req, ctx) => saveCompany(ctx.db, req, audit(ctx)),
   'settings.saveLock': (req, ctx) => {
-    setSetting(ctx.db, 'lock.minutes', String(req.minutes));
+    // switching the lock off or on is a security change, so it is recorded
+    transaction(ctx.db, () => {
+      const before = lockMinutes(ctx.db);
+      setSetting(ctx.db, 'lock.minutes', String(req.minutes));
+      writeAudit(ctx.db, audit(ctx), {
+        action: 'lock_time_changed',
+        table: 'setting',
+        rowId: 0,
+        before: { minutes: before },
+        after: { minutes: req.minutes },
+      });
+    });
     return null;
   },
   'support.save': async (_req, ctx) => {
