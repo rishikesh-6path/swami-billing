@@ -771,7 +771,11 @@ export function ItemVoucher({
               )}
               {!isCashParty && (ready?.paymentAccounts.length ?? 0) > 1 && (
                 <div className="field">
-                  <label htmlFor="settle-in">Received in</label>
+                  <label htmlFor="settle-in">
+                    {kindName === 'purchase' || kindName === 'sales_return'
+                      ? 'Paid from'
+                      : 'Received in'}
+                  </label>
                   <select
                     id="settle-in"
                     value={settleAccount ?? ready?.paymentAccounts[0]?.id}

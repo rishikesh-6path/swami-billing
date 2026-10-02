@@ -278,9 +278,7 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
               }
             }}
           >
-            <option value="">
-              {party ? 'Please choose the bill...' : 'Choose the party first'}
-            </option>
+            <option value="">{party ? 'Choose the bill...' : 'Choose the party first'}</option>
             {bills.status === 'ready' &&
               bills.data.map((b) => (
                 <option key={b.id} value={b.id}>
