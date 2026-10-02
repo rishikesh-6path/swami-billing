@@ -8,6 +8,7 @@ test('a customer opens on a summary page with the balance, late amount and recen
     await signIn(page);
     await page.getByRole('button', { name: /^Customers/ }).click();
     await page.getByLabel('Find a customer').fill('ayap');
+    await expect(page.getByRole('row', { name: /Ayappan/ })).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: /Ayappan/ })).toBeVisible();
     await expect(page.getByText('Owes you').first()).toBeVisible();
@@ -36,6 +37,7 @@ test('a supplier summary says what you owe', async () => {
     await signIn(page);
     await page.getByRole('button', { name: /^Suppliers/ }).click();
     await page.getByLabel('Find a supplier').fill('finolex');
+    await expect(page.getByRole('row', { name: /Finolex/ })).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: /Finolex/ })).toBeVisible();
     await expect(page.getByText('You owe').first()).toBeVisible();
