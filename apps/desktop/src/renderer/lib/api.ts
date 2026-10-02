@@ -6,6 +6,16 @@ export function call<C extends Channel>(channel: C, request: Req<C>): Promise<Re
   return window.shopledger.invoke(channel, request);
 }
 
+/**
+ * The most recent loaded data, kept on screen while a newer request (for example after the bill
+ * date changed) is still loading, so the form never disappears and loses focus.
+ */
+export function useKept<T>(loaded: Loaded<T>): T | null {
+  const [kept, setKept] = useState<T | null>(null);
+  if (loaded.status === 'ready' && loaded.data !== kept) setKept(loaded.data);
+  return loaded.status === 'ready' ? loaded.data : kept;
+}
+
 export type Loaded<T> =
   { status: 'loading' } | { status: 'ready'; data: T } | { status: 'error'; message: string };
 

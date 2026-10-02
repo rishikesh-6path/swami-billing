@@ -3,7 +3,7 @@ import type { AccountHit, VoucherDetail } from '@shopledger/core';
 import { Button, ConfirmDialog, Notice, PageHeader, useToast } from '../../components/ui.tsx';
 import { DateField } from '../../components/DateField.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
-import { call, useCall } from '../../lib/api.ts';
+import { call, useCall, useKept } from '../../lib/api.ts';
 import { formatBalance, formatMoney, parseMoney, rupees } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter } from '../../lib/router.tsx';
@@ -77,7 +77,7 @@ export function JournalVoucher({
   const [dirty, setDirty] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
   const setup = useCall('voucher.setup', { type: kindName, date });
-  const ready = setup.status === 'ready' ? setup.data : null;
+  const ready = useKept(setup);
 
   const totalDr = lines.reduce((t, l) => t + amountOf(l.dr), 0);
   const totalCr = lines.reduce((t, l) => t + amountOf(l.cr), 0);

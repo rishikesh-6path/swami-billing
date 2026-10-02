@@ -234,8 +234,8 @@ export const settingsHandlers: Pick<
       takenAt: stamp ? `${stamp.date} ${stamp.time}` : null,
     };
   },
-  'backup.restore': (req, ctx) => {
-    ctx.restoreFrom(allowedBackupPath(req.path, ctx));
+  'backup.restore': async (req, ctx) => {
+    await ctx.restoreFrom(allowedBackupPath(req.path, ctx));
     return { restarting: true as const };
   },
 };

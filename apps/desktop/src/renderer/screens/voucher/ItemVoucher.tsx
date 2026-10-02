@@ -13,7 +13,7 @@ import {
 import { PrintDialog } from '../../components/PrintDialog.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { useCellFocus } from './cells.ts';
-import { call, useCall } from '../../lib/api.ts';
+import { call, useCall, useKept } from '../../lib/api.ts';
 import {
   formatBalance,
   formatDate,
@@ -101,7 +101,7 @@ export function ItemVoucher({
   const [printAfter, setPrintAfter] = useState<number | null>(null);
 
   const cells = useCellFocus();
-  const ready = setup.status === 'ready' ? setup.data : null;
+  const ready = useKept(setup);
 
   // when changing an existing bill, load its lines
   useEffect(() => {

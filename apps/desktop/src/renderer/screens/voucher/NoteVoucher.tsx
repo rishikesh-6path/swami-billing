@@ -4,7 +4,7 @@ import type { ItemSearchRow, PartyHit, VoucherPreview } from '@shopledger/core';
 import { DateField } from '../../components/DateField.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { Button, Card, ConfirmDialog, Notice, PageHeader, useToast } from '../../components/ui.tsx';
-import { call, useCall } from '../../lib/api.ts';
+import { call, useCall, useKept } from '../../lib/api.ts';
 import {
   formatBalance,
   formatDate,
@@ -72,7 +72,7 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
   const [dirty, setDirty] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
   const setup = useCall('voucher.setup', { type: kindName, date });
-  const ready = setup.status === 'ready' ? setup.data : null;
+  const ready = useKept(setup);
   const bills = useCall('voucher.list', {
     voucherType: kind.against,
     ...(party ? { partyId: party.id } : {}),
@@ -80,6 +80,7 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
 
   // the bill list is switched on by picking the party, so move there once it is enabled
   const wantBillFocus = useRef(false);
+  const latestPick = useRef(0);
   useEffect(() => {
     if (party && wantBillFocus.current) {
       wantBillFocus.current = false;
@@ -130,8 +131,10 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
     touch();
     if (!id) return;
     // the note follows the way the bill was made (within the state, between states, or no GST)
+    const mine = ++latestPick.current;
     void call('voucher.get', { id }).then((d) => {
-      if (d) setTaxMode(d.taxMode);
+      // a quicker second pick must not be overwritten by the first answer arriving late
+      if (d && mine === latestPick.current) setTaxMode(d.taxMode);
     });
   };
 

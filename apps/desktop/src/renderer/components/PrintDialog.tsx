@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { call, useCall } from '../lib/api.ts';
 import { useHotkeys } from '../lib/hotkeys.tsx';
 import { useFocusTrap } from './focus.ts';
@@ -22,7 +22,18 @@ export function PrintDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const preview = useCall('print.preview', { id, size });
-  const trap = useFocusTrap<HTMLDivElement>();
+  // opens on the Print button, so Enter prints as the dialog says
+  const trap = useFocusTrap<HTMLDivElement>('#print-go');
+  // a mouse click inside the preview puts the keyboard in that frame; bring it back to the dialog
+  useEffect(() => {
+    const back = () =>
+      setTimeout(() => {
+        if (document.activeElement?.tagName === 'IFRAME')
+          document.getElementById('print-go')?.focus();
+      }, 0);
+    window.addEventListener('blur', back);
+    return () => window.removeEventListener('blur', back);
+  }, []);
 
   const print = () => {
     if (busy) return;
@@ -95,7 +106,7 @@ export function PrintDialog({
         <div className="dialog-actions">
           <Button onClick={onClose}>Close (Esc)</Button>
           <Button onClick={savePdf}>Save as PDF</Button>
-          <Button variant="primary" disabled={busy} onClick={print}>
+          <Button id="print-go" variant="primary" disabled={busy} onClick={print}>
             {busy ? 'Printing...' : 'Print (Enter)'}
           </Button>
         </div>

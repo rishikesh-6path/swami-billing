@@ -12,8 +12,10 @@ import {
   backupFolder,
   defaultBackupFolder,
   dueSlot,
+  backupBusy,
   markBackupFailed,
   runBackup,
+  settleBackups,
 } from './backup.ts';
 import { testKnob } from './env.ts';
 import { openShopDatabase, type OpenedDatabase } from './database.ts';
@@ -87,7 +89,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
+    // the window may already be gone while the closing backup finishes
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
@@ -196,8 +199,14 @@ if (!app.requestSingleInstanceLock()) {
     const printHtml = (
       html: string,
       opts: { size: 'a4' | 'thermal'; printerName?: string | undefined },
-    ) =>
-      withHiddenPage(
+    ) => {
+      // automated tests have no printer: keep the page as a file instead of opening a print window
+      if (exportDir) {
+        mkdirSync(exportDir, { recursive: true });
+        writeSafely(join(exportDir, `printed-${Date.now()}.html`), html);
+        return Promise.resolve(true);
+      }
+      return withHiddenPage(
         html,
         (win) =>
           new Promise<boolean>((resolve) => {
@@ -212,6 +221,7 @@ if (!app.requestSingleInstanceLock()) {
             );
           }),
       );
+    };
     const savePdf = async (html: string, opts: { size: 'a4' | 'thermal'; defaultName: string }) => {
       // printToPDF takes custom sizes in inches (print() takes microns).
       const pdfPageSize =
@@ -273,11 +283,17 @@ if (!app.requestSingleInstanceLock()) {
       });
       return result.canceled ? null : (result.filePaths[0] ?? null);
     };
-    const restoreFrom = (path: string) => {
+    const restoreFrom = async (path: string) => {
       const check = checkBackupFile(path);
       if (!check.ok) {
         throw new ValidationError(
           `This backup cannot be used. ${check.message} Nothing was changed.`,
+        );
+      }
+      // a backup may still be running: wait for it, so no worker holds the data file during the swap
+      if (!(await settleBackups(30_000))) {
+        throw new ValidationError(
+          'A backup is still running. Please wait a minute and try the restore again.',
         );
       }
       const { date, time } = clock();
@@ -308,10 +324,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     };
     // Backups: twice a day while the app is open (checked every minute), and when it closes.
-    let backingUp = false;
     const backupNow = async (slot?: string, timeoutMs?: number) => {
-      if (backingUp) return;
-      backingUp = true;
       try {
         const { date, time } = clock();
         await runBackup(opened.db, backupPlace, opened.path, date, time, slot, timeoutMs);
@@ -322,15 +335,13 @@ if (!app.requestSingleInstanceLock()) {
         } catch {
           // the database itself is the problem; nothing more can be recorded
         }
-      } finally {
-        backingUp = false;
       }
     };
     const timer = setInterval(() => {
       try {
         const { date, time } = clock();
         const slot = dueSlot(opened.db, date, time.slice(0, 5));
-        if (slot) void backupNow(slot);
+        if (slot && !backupBusy()) void backupNow(slot);
       } catch (error) {
         console.error('[shopledger] backup schedule failed', error);
       }
@@ -368,6 +379,9 @@ if (!app.requestSingleInstanceLock()) {
       savePdf,
     });
     mainWindow = createWindow();
+    mainWindow.on('closed', () => {
+      mainWindow = null;
+    });
     console.log('[shopledger] window created');
   });
 
@@ -378,11 +392,21 @@ if (!app.requestSingleInstanceLock()) {
       quitting = true;
       const finish = quitBackup;
       quitBackup = null;
-      void finish().finally(() => {
-        shopDb?.db.close();
-        shopDb = null;
-        app.quit();
-      });
+      // the closing backup may take at most 25 seconds in total, even if others are queued ahead of it
+      const limit = new Promise<void>((resolve) => setTimeout(resolve, 25_000));
+      void Promise.race([finish(), limit])
+        .catch(() => undefined)
+        .finally(() => {
+          try {
+            shopDb?.db.close();
+          } catch (error) {
+            console.error('[shopledger] closing the database failed', error);
+          } finally {
+            shopDb = null;
+            // exit (not quit): it also ends a backup worker that is stuck on a slow drive
+            app.exit(0);
+          }
+        });
       return;
     }
     shopDb?.db.close();

@@ -1,6 +1,8 @@
 import type { Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
 import type { Paise } from '../money.ts';
+import { VOUCHER_TYPE_LABELS } from '../masters/setup.ts';
+import type { VoucherType } from '../domain/posting/types.ts';
 import { accountBalance } from './ledger.ts';
 import { outstanding } from './outstanding.ts';
 
@@ -36,6 +38,8 @@ export interface SummaryVoucher {
   amountPaise: Paise;
 }
 
+const REDUCING = new Set(['sales_return', 'credit_note', 'purchase_return', 'debit_note']);
+
 const BILL_TYPES = [
   'sales',
   'sales_return',
@@ -63,10 +67,11 @@ export function partySummary(db: Db, accountId: number, asOn: string): PartySumm
   }
   const kind = account['root'] === 'Sundry Debtors' ? 'customer' : 'supplier';
 
-  const open = outstanding(db, {
+  const [open] = outstanding(db, {
     asOn,
     side: kind === 'customer' ? 'receivable' : 'payable',
-  }).find((p) => p.accountId === accountId);
+    accountId,
+  });
   const overdue = (open?.bills ?? []).filter((b) => b.isOverdue);
   const oldest = overdue[0];
 
@@ -86,9 +91,13 @@ export function partySummary(db: Db, accountId: number, asOn: string): PartySumm
        FROM voucher v JOIN voucher_series s ON s.id = v.series_id
        JOIN journal_line j ON j.voucher_id = v.id AND j.account_id = ? AND j.is_reversal = 0
        WHERE v.voucher_type IN ('receipt', 'payment') AND v.status = 'posted' AND v.date <= ?
-       GROUP BY v.id ORDER BY v.date DESC, v.id DESC LIMIT 5`,
+       GROUP BY v.id
+       -- money in for a customer (credit to them), money out for a supplier (debit); a refund the
+       -- other way is not a "payment received"
+       HAVING (SUM(j.dr_paise) - SUM(j.cr_paise)) * ? > 0
+       ORDER BY v.date DESC, v.id DESC LIMIT 5`,
     )
-    .all(accountId, asOn);
+    .all(accountId, asOn, kind === 'customer' ? -1 : 1);
 
   const row = (r: Record<string, unknown>, amount: unknown): SummaryVoucher => ({
     id: Number(r['id']),
@@ -113,13 +122,22 @@ export function partySummary(db: Db, accountId: number, asOn: string): PartySumm
     overduePaise: overdue.reduce((t, b) => t + b.amountPaise, 0),
     oldestOverdue: oldest
       ? {
-          label: oldest.voucherId === null ? 'Opening balance' : `Bill ${String(oldest.number)}`,
+          label:
+            oldest.voucherId === null
+              ? 'Opening balance'
+              : `${VOUCHER_TYPE_LABELS[oldest.voucherType as VoucherType] ?? 'Entry'} ${oldest.displayNumber ?? ''}`.trim(),
           date: oldest.date,
           ageDays: oldest.ageDays,
           amountPaise: oldest.amountPaise,
         }
       : null,
-    recentBills: bills.map((r) => row(r, r['total_paise'])),
+    // returns and notes take value off what they owe, so they show as negative amounts
+    recentBills: bills.map((r) =>
+      row(
+        r,
+        REDUCING.has(String(r['voucher_type'])) ? -Number(r['total_paise']) : r['total_paise'],
+      ),
+    ),
     recentPayments: payments.map((r) => row(r, r['moved'])),
   };
 }

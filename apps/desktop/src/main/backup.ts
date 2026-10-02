@@ -37,12 +37,35 @@ export function setBackupFolder(db: Db, which: 'main' | 'copy', folder: string |
   setSetting(db, which === 'main' ? FOLDER : COPY_FOLDER, folder ?? '');
 }
 
+/** Backups are made one at a time; this is the last one queued or running. */
+let queue: Promise<unknown> = Promise.resolve();
+let waiting = 0;
+
+/** True while a backup is running or queued (so a timer need not add another). */
+export const backupBusy = (): boolean => waiting > 0;
+
+/** Resolves when every backup started so far has finished, or false after `ms` if one is still going. */
+export async function settleBackups(ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  const done = queue.then(
+    () => true,
+    () => true,
+  );
+  const outcome = await Promise.race([done, limit]);
+  clearTimeout(timer);
+  return outcome;
+}
+
 /**
  * Makes a backup in a background thread and records the result. `date` is YYYY-MM-DD and `time`
- * is HH:MM:SS, both in shop time. Gives up after `timeoutMs` (a slow or unplugged drive) with a
- * plain-language message instead of leaving the app waiting.
+ * is HH:MM:SS, both in shop time. Every caller (the timer, the Back up now button, the app
+ * closing) joins one line, so two backups never run at once. Gives up on its own worker after
+ * `timeoutMs` (a slow or unplugged drive) with a plain-language message.
  */
-export async function runBackup(
+export function runBackup(
   db: Db,
   place: BackupPlace,
   dbPath: string,
@@ -50,6 +73,24 @@ export async function runBackup(
   time: string,
   slot?: string,
   timeoutMs = 120_000,
+): Promise<{ copied: boolean | null; name: string }> {
+  waiting += 1;
+  const mine = queue.then(
+    () => backupOnce(db, place, dbPath, date, time, slot, timeoutMs),
+    () => backupOnce(db, place, dbPath, date, time, slot, timeoutMs),
+  );
+  queue = mine.catch(() => undefined).finally(() => (waiting -= 1));
+  return mine;
+}
+
+async function backupOnce(
+  db: Db,
+  place: BackupPlace,
+  dbPath: string,
+  date: string,
+  time: string,
+  slot: string | undefined,
+  timeoutMs: number,
 ): Promise<{ copied: boolean | null; name: string }> {
   const job: BackupJob = {
     dbPath,
@@ -73,14 +114,23 @@ export async function runBackup(
       resolve(r);
     };
     worker.once('message', finish);
-    worker.once('error', (e) => finish({ ok: false, message: e.message }));
+    worker.once('error', (e) => {
+      console.error('[shopledger] backup worker error', e);
+      finish({
+        ok: false,
+        message: 'The backup could not be completed. An unexpected problem stopped it.',
+      });
+    });
     worker.once('exit', (code) => {
-      if (code !== 0) finish({ ok: false, message: `The backup stopped unexpectedly (${code}).` });
+      if (code !== 0) {
+        finish({
+          ok: false,
+          message: 'The backup could not be completed. It stopped unexpectedly.',
+        });
+      }
     });
   });
-  if (!result.ok) {
-    throw new ValidationError(`The backup could not be completed. ${result.message}`);
-  }
+  if (!result.ok) throw new ValidationError(result.message);
   setSetting(db, LAST_AT, `${date} ${time.slice(0, 5)}`);
   setSetting(db, FAILED, '');
   // remembered so the home screen can say the second copy did not happen

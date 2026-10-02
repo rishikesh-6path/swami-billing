@@ -21,12 +21,22 @@ export function formatMoney(paise: number): string {
 }
 
 /** Like formatMoney but with the rupee sign. */
-export const rupees = (paise: number): string => `₹${formatMoney(paise)}`;
+export const rupees = (paise: number): string =>
+  paise < 0 ? `-₹${formatMoney(-paise)}` : `₹${formatMoney(paise)}`;
 
 /** Ledger balance: positive is Dr (owed to us), negative is Cr. */
 export function formatBalance(signedPaise: number): string {
   if (signedPaise === 0) return '0.00';
   return `${formatMoney(Math.abs(signedPaise))} ${signedPaise > 0 ? 'Dr' : 'Cr'}`;
+}
+
+/** A customer's or supplier's balance in plain words, never Dr or Cr. */
+export function partyBalanceText(kind: 'customer' | 'supplier', signedPaise: number): string {
+  if (signedPaise === 0) return 'Nothing due';
+  const amount = formatMoney(Math.abs(signedPaise));
+  const owedToUs = signedPaise > 0;
+  if (kind === 'customer') return owedToUs ? `Owes you ${amount}` : `Paid ${amount} in advance`;
+  return owedToUs ? `You paid ${amount} in advance` : `You owe ${amount}`;
 }
 
 /** 127050 -> "127.05"; whole numbers drop the decimals (3000 -> "3"). */

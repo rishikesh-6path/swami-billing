@@ -2,6 +2,7 @@ import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
 import { parseMoney, parseQty } from '../money.ts';
 import type { Ctx } from '../audit.ts';
+import { assertOpeningsEditable } from '../books/control.ts';
 import { createAccount } from '../masters/accounts.ts';
 import {
   createItem,
@@ -114,6 +115,7 @@ function eachRow(
   db: Db,
   text: string,
   required: string[],
+  openingFields: string[],
   handle: (f: Fields, row: number) => void,
 ): ImportResult {
   const rows = parseCsvLines(text);
@@ -130,6 +132,16 @@ function eachRow(
       `The file needs a "${missing[0] === 'name' ? 'Name' : missing[0]}" column in its first row.`,
     );
   }
+  // Opening balances and stock cannot be set once the books are locked or a year is closed. Say so
+  // once, up front, instead of failing every row of a large sheet with the same long sentence.
+  const wantsOpening = rows
+    .slice(1)
+    .some(({ cells }) =>
+      [...columns].some(
+        ([index, field]) => openingFields.includes(field) && /[1-9]/.test(cells[index] ?? ''),
+      ),
+    );
+  if (wantsOpening) assertOpeningsEditable(db);
   const result: ImportResult = { created: 0, skipped: [] };
   // One outer transaction for the whole file (a single disk sync instead of one per row, which
   // takes minutes for thousands of rows). Each row runs in its own savepoint, so a bad row is
@@ -151,6 +163,13 @@ function eachRow(
             ? error.message
             : 'This row could not be read.';
         result.skipped.push({ row, reason });
+        // the database can undo the whole import by itself (disk full, disk error); carrying on
+        // would save later rows on their own and report earlier ones as saved
+        if (!db.isTransaction) {
+          throw new ValidationError(
+            'The disk had a problem while the file was being added. Nothing from this file was saved. Please check there is free space and try again.',
+          );
+        }
       }
     });
   });
@@ -173,7 +192,7 @@ export function importItemsCsv(db: Db, text: string, ctx: Ctx = {}): ImportResul
   // completely, so only what a successful row added is remembered
   const groups = new Map(listItemGroups(db).map((g) => [g.name.toLowerCase(), g.id]));
   const units = new Map(listUnits(db).map((u) => [u.name.toLowerCase(), u.id]));
-  return eachRow(db, text, ['name'], (f) => {
+  return eachRow(db, text, ['name'], ['openingQty', 'openingRate'], (f) => {
     const addedGroups: [string, number][] = [];
     const addedUnits: [string, number][] = [];
     transaction(db, () => {
@@ -226,7 +245,7 @@ export function importPartiesCsv(
   defaultKind: 'customer' | 'supplier' = 'customer',
   ctx: Ctx = {},
 ): ImportResult {
-  return eachRow(db, text, ['name'], (f) => {
+  return eachRow(db, text, ['name'], ['openingBalance'], (f) => {
     transaction(db, () => {
       const supplier = f['type']
         ? /supplier|creditor|vendor/i.test(f['type'])

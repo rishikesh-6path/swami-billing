@@ -1,5 +1,10 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { copyBackupTo, createBackupFromPath, pruneBackups } from '@shopledger/core';
+import {
+  copyBackupTo,
+  createBackupFromPath,
+  describeBackupError,
+  pruneBackups,
+} from '@shopledger/core';
 
 export interface BackupJob {
   dbPath: string;
@@ -27,7 +32,9 @@ function run(job: BackupJob): BackupJobResult {
     }
     return { ok: true, name: file.name, copied };
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    // the raw system text is never shown to shop staff
+    console.error('[shopledger] backup worker failed', error);
+    return { ok: false, message: describeBackupError(error) };
   }
 }
 

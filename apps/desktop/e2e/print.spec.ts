@@ -75,3 +75,21 @@ test('Enter on a focused button presses that button, not the screen shortcut', a
     await shop.close();
   }
 });
+
+test('Ctrl+P then Enter prints', async () => {
+  const shop = await launch({ demo: true, exportDir: true });
+  try {
+    const { page } = shop;
+    await signIn(page);
+    await page.keyboard.press('D');
+    await page.getByLabel('Kind').selectOption('sales');
+    await page.getByLabel('Words to look for').press('Enter');
+    await expect(page.getByRole('heading', { name: /^Sales \d+/ })).toBeVisible();
+    await page.keyboard.press('Control+P');
+    await expect(page.getByRole('button', { name: /^Print \(Enter\)/ })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Sent to the printer.')).toBeVisible();
+  } finally {
+    await shop.close();
+  }
+});

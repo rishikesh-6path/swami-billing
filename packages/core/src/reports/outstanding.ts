@@ -4,8 +4,12 @@ import { formatMoneyOrEmpty, toCsv } from './csv.ts';
 
 export interface OpenBill {
   voucherId: number | null; // null for the opening balance
+  /** What kind of voucher this is (a bill, or for example a refund payment); null for the opening balance. */
+  voucherType: string | null;
   date: string | null;
   number: number | null;
+  /** Prefix and number as printed, e.g. "S83"; null for the opening balance. */
+  displayNumber: string | null;
   amountPaise: Paise;
   ageDays: number;
   isOverdue: boolean;
@@ -38,7 +42,7 @@ function daysBetween(from: string, to: string): number {
  */
 export function outstanding(
   db: Db,
-  args: { asOn: string; side: OutstandingSide },
+  args: { asOn: string; side: OutstandingSide; accountId?: number | undefined },
 ): PartyOutstanding[] {
   const groupName = args.side === 'receivable' ? 'Sundry Debtors' : 'Sundry Creditors';
   const sign = args.side === 'receivable' ? 1 : -1;
@@ -50,13 +54,16 @@ export function outstanding(
          UNION ALL SELECT g.id FROM account_group g JOIN tree t ON g.parent_id = t.id)
        SELECT a.id, a.name, a.phone, a.credit_days,
               a.opening_balance_paise * CASE a.opening_is_dr WHEN 1 THEN 1 ELSE -1 END AS opening
-       FROM account a WHERE a.group_id IN (SELECT id FROM tree) ORDER BY a.name`,
+       FROM account a WHERE a.group_id IN (SELECT id FROM tree)
+         AND (? IS NULL OR a.id = ?) ORDER BY a.name`,
     )
-    .all(groupName);
+    .all(groupName, args.accountId ?? null, args.accountId ?? null);
 
   const movements = db.prepare(
-    `SELECT v.id, v.date, v.number, SUM(j.dr_paise) - SUM(j.cr_paise) AS net
+    `SELECT v.id, v.date, v.number, v.voucher_type, v.ref_voucher_id, s.prefix,
+            SUM(j.dr_paise) - SUM(j.cr_paise) AS net
      FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
+     JOIN voucher_series s ON s.id = v.series_id
      WHERE j.account_id = ? AND v.status = 'posted' AND v.date <= ?
      GROUP BY v.id ORDER BY v.date, v.id`,
   );
@@ -69,8 +76,10 @@ export function outstanding(
     const creditDays = Number(a['credit_days']);
     const open: {
       voucherId: number | null;
+      voucherType: string | null;
       date: string | null;
       number: number | null;
+      displayNumber: string | null;
       amount: number;
     }[] = [];
     let advance = 0;
@@ -90,7 +99,14 @@ export function outstanding(
 
     const opening = sign * Number(a['opening']);
     if (opening > 0)
-      open.push({ voucherId: null, date: openingDate, number: null, amount: opening });
+      open.push({
+        voucherId: null,
+        voucherType: null,
+        date: openingDate,
+        number: null,
+        displayNumber: null,
+        amount: opening,
+      });
     else apply(opening);
 
     for (const m of movements.all(Number(a['id']), args.asOn)) {
@@ -102,13 +118,28 @@ export function outstanding(
         if (net - offset > 0) {
           open.push({
             voucherId: Number(m['id']),
+            voucherType: String(m['voucher_type']),
             date: String(m['date']),
             number: Number(m['number']),
+            displayNumber: `${String(m['prefix'])}${Number(m['number'])}`,
             amount: net - offset,
           });
         }
       } else {
-        apply(net);
+        // a return or note first reduces the bill it was made against, if that bill is still open;
+        // anything left over (and every payment) is matched against the oldest bills
+        let rest = -net;
+        const target =
+          m['ref_voucher_id'] === null
+            ? undefined
+            : open.find((b) => b.voucherId === Number(m['ref_voucher_id']));
+        if (target && rest > 0) {
+          const used = Math.min(target.amount, rest);
+          target.amount -= used;
+          rest -= used;
+          if (target.amount === 0) open.splice(open.indexOf(target), 1);
+        }
+        apply(-rest);
       }
     }
 
@@ -121,8 +152,10 @@ export function outstanding(
       else buckets.over90 += b.amount;
       return {
         voucherId: b.voucherId,
+        voucherType: b.voucherType,
         date: b.date,
         number: b.number,
+        displayNumber: b.displayNumber,
         amountPaise: b.amount,
         ageDays,
         isOverdue: ageDays > creditDays,

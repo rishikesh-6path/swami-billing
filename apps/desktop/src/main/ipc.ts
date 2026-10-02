@@ -54,7 +54,7 @@ export interface HandlerContext {
   /** Lets the user pick a backup file; null if they cancelled. */
   chooseBackupFile: () => Promise<string | null>;
   /** Swaps the shop data for a backup and restarts the app. The caller must have checked the file. */
-  restoreFrom: (path: string) => void;
+  restoreFrom: (path: string) => Promise<void>;
   /** The signed-in user; throws if nobody is signed in (handlers on non-public channels). */
   user: () => SessionUser & { role: Role };
 }

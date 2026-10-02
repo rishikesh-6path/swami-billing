@@ -230,4 +230,37 @@ describe('large imports', () => {
     expect(result.skipped).toHaveLength(1);
     expect(listItems(db).map((i) => i.name)).toEqual(['Good']);
   });
+
+  it('says once, up front, that openings cannot be set when the books are locked', () => {
+    const db = freshDb();
+    db.exec("INSERT INTO setting (key, value) VALUES ('books.locked_through', '2026-03-31')");
+    const rows = ['Name,Opening balance'];
+    for (let i = 1; i <= 200; i++) rows.push(`Party ${i},${i}00`);
+    expect(() => importPartiesCsv(db, rows.join('\n'))).toThrow(
+      /cannot be changed after the books are locked/,
+    );
+    expect(
+      Number(
+        db.prepare('SELECT COUNT(*) AS n FROM account WHERE name LIKE ?').get('Party %')?.['n'],
+      ),
+    ).toBe(0);
+    // a sheet with no opening amounts is still welcome
+    expect(importPartiesCsv(db, 'Name\nNo Opening Party').created).toBe(1);
+  });
+
+  it('stays quick with 8,000 items (name checks use an index)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'import-speed-'));
+    try {
+      const db = openDatabase(join(dir, 'shop.db'));
+      migrate(db, loadMigrationsFromDir(MIGRATIONS_DIR));
+      const lines = ['Name,Alias,HSN,GST %,Price'];
+      for (let i = 1; i <= 8000; i++) lines.push(`Big Item ${i},B${i},7307,18,10`);
+      const started = Date.now();
+      expect(importItemsCsv(db, lines.join('\n')).created).toBe(8000);
+      expect((Date.now() - started) / 1000).toBeLessThan(8);
+      db.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

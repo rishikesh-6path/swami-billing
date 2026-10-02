@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, LoadState, PageHeader } from '../../components/ui.tsx';
 import { useCall } from '../../lib/api.ts';
-import { formatBalance } from '../../lib/format.ts';
+import { partyBalanceText } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter, type PartyKind } from '../../lib/router.tsx';
 import { useSession } from '../../lib/session.tsx';
@@ -56,7 +56,7 @@ export function PartyList({ kind }: { kind: PartyKind }) {
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') {
               e.preventDefault();
-              setSelected((s) => Math.min(s + 1, rows.length - 1));
+              setSelected((s) => Math.max(0, Math.min(s + 1, rows.length - 1)));
             } else if (e.key === 'ArrowUp') {
               e.preventDefault();
               setSelected((s) => Math.max(s - 1, 0));
@@ -90,13 +90,17 @@ export function PartyList({ kind }: { kind: PartyKind }) {
                 <tr
                   key={r.id}
                   className={`${i === selected ? 'row-selected' : ''} clickable`}
+                  ref={(el) => {
+                    // keep the chosen row on screen when arrowing down a long list
+                    if (i === selected) el?.scrollIntoView({ block: 'nearest' });
+                  }}
                   onClick={() => open(r.id)}
                 >
                   <td>{r.name}</td>
                   <td>{r.phone}</td>
                   <td>{r.gstin}</td>
                   <td className="num">{r.creditDays}</td>
-                  <td className="num">{formatBalance(r.balancePaise)}</td>
+                  <td className="num">{partyBalanceText(kind, r.balancePaise)}</td>
                 </tr>
               ))}
             </tbody>

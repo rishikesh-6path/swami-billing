@@ -1,7 +1,7 @@
 import { DataTable } from '../../components/DataTable.tsx';
 import { Button, Card, LoadState, PageHeader } from '../../components/ui.tsx';
 import { useCall } from '../../lib/api.ts';
-import { formatBalance, formatDate, rupees, VOUCHER_LABELS } from '../../lib/format.ts';
+import { formatDate, rupees, VOUCHER_LABELS } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter, type PartyKind } from '../../lib/router.tsx';
 import { useSession } from '../../lib/session.tsx';
@@ -15,7 +15,14 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
   const customer = (data?.kind ?? kind) === 'customer';
   // positive: money still to come in (customer) or to go out (supplier); negative: paid in advance
   const owed = data ? (customer ? data.balancePaise : -data.balancePaise) : 0;
-  const label = owed < 0 ? 'Paid in advance' : customer ? 'Owes you' : 'You owe';
+  const label =
+    owed < 0
+      ? customer
+        ? 'They paid in advance'
+        : 'You paid in advance'
+      : customer
+        ? 'Owes you'
+        : 'You owe';
 
   const edit = () => router.go({ name: 'party', kind, id });
   const ledger = () =>
@@ -23,12 +30,22 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
   useHotkeys({
     F2: edit,
     L: ledger,
-    F8: () => router.go({ name: 'voucher', kind: 'sales' }),
-    F9: () => router.go({ name: 'voucher', kind: 'purchase' }),
-    F6: () => router.go({ name: 'entry', kind: 'receipt' }),
-    F5: () => router.go({ name: 'entry', kind: 'payment' }),
+    // a customer is sold to and pays in; a supplier is bought from and paid
+    ...(customer
+      ? {
+          F8: () => router.go({ name: 'voucher', kind: 'sales' }),
+          F6: () => router.go({ name: 'entry', kind: 'receipt' }),
+        }
+      : {
+          F9: () => router.go({ name: 'voucher', kind: 'purchase' }),
+          F5: () => router.go({ name: 'entry', kind: 'payment' }),
+        }),
   });
-  useHints(['L Full ledger', 'F2 Change details', 'F8 Sale', 'F6 Receipt', 'Esc Back']);
+  useHints(
+    customer
+      ? ['L Full ledger', 'F2 Change details', 'F8 Sale', 'F6 Receipt', 'Esc Back']
+      : ['L Full ledger', 'F2 Change details', 'F9 Purchase', 'F5 Payment', 'Esc Back'],
+  );
 
   return (
     <main className="page">
@@ -56,10 +73,13 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
                 <span className="stat-value" data-testid="party-balance">
                   {rupees(Math.abs(owed))}
                 </span>
-                <span className="muted">{formatBalance(data.balancePaise)}</span>
               </Card>
               <Card className="stat">
-                <span className="stat-label">Late (past {data.creditDays} credit days)</span>
+                <span className="stat-label">
+                  {data.creditDays === 0
+                    ? 'Late (no credit days given)'
+                    : `Late (past ${data.creditDays} credit days)`}
+                </span>
                 <span className="stat-value" data-testid="party-overdue">
                   {rupees(data.overduePaise)}
                 </span>

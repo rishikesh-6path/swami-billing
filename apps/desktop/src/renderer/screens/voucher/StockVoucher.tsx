@@ -3,7 +3,7 @@ import type { ItemSearchRow } from '@shopledger/core';
 import { Button, ConfirmDialog, Notice, PageHeader, useToast } from '../../components/ui.tsx';
 import { DateField } from '../../components/DateField.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
-import { call, useCall } from '../../lib/api.ts';
+import { call, useCall, useKept } from '../../lib/api.ts';
 import { formatMoney, formatQty, parseMoney, parseQty } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter } from '../../lib/router.tsx';
@@ -48,7 +48,7 @@ export function StockVoucher({ kind }: { kind: 'stock_journal' | 'physical_stock
   const [dirty, setDirty] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
   const setup = useCall('voucher.setup', { type: kind, date });
-  const ready = setup.status === 'ready' ? setup.data : null;
+  const ready = useKept(setup);
 
   const patch = (key: number, change: Partial<Line>) => {
     setDirty(true);

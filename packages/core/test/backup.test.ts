@@ -1,4 +1,13 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  utimesSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -6,6 +15,9 @@ import {
   backupFileName,
   backupReminder,
   backupStamp,
+  createBackupFromPath,
+  describeBackupError,
+  ValidationError,
   checkBackupFile,
   copyBackupTo,
   createBackup,
@@ -176,5 +188,64 @@ describe('safety copies made before a restore', () => {
     const left = listBackups(folder);
     expect(left).toHaveLength(10);
     expect(left.at(-1)?.date).toBe('2026-10-03');
+  });
+});
+
+describe('interrupted and failed backups', () => {
+  it('stale half-written copies are removed by the clean-up, fresh ones are left alone', () => {
+    const folder = join(dir, 'b');
+    createBackup(db, folder, '2026-10-15', '10:00:00');
+    const old = join(folder, 'shopledger-2026-10-15-200000.db.partial');
+    const fresh = join(folder, 'shopledger-2026-10-15-210000.db.partial');
+    writeFileSync(old, 'half');
+    writeFileSync(fresh, 'half');
+    const longAgo = new Date(Date.now() - 3_600_000);
+    utimesSync(old, longAgo, longAgo);
+    pruneBackups(folder);
+    expect(existsSync(old)).toBe(false);
+    expect(existsSync(fresh)).toBe(true);
+  });
+
+  it('a failed copy to the second drive leaves no half file behind', () => {
+    const file = createBackup(db, join(dir, 'b'), '2026-10-15', '14:00:00');
+    const usb = join(dir, 'usb');
+    mkdirSync(usb);
+    // a folder where the file should go makes the copy fail part-way
+    mkdirSync(join(usb, `${file.name}.partial`, 'blocker'), { recursive: true });
+    expect(copyBackupTo(file, usb)).toBe(false);
+  });
+
+  it('describes failures in plain words, never as raw system text', () => {
+    const disk = Object.assign(new Error('ENOSPC: no space left on device, copyfile'), {
+      code: 'ENOSPC',
+    });
+    expect(describeBackupError(disk)).toBe(
+      'The backup could not be completed. There is no space left on the drive. Please free some space or use another drive.',
+    );
+    const locked = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+    expect(describeBackupError(locked)).toMatch(/cannot be written to/);
+    expect(describeBackupError(new Error('database or disk is full'))).toMatch(/no space left/);
+    expect(describeBackupError(new Error('weird'))).toBe(
+      'The backup could not be completed. An unexpected problem stopped the backup.',
+    );
+    expect(describeBackupError(new ValidationError('Already plain.'))).toBe('Already plain.');
+    for (const e of [disk, locked])
+      expect(describeBackupError(e)).not.toMatch(/E[A-Z]{4,}|copyfile/);
+  });
+
+  it('a backup made through its own connection holds the same bills as the live database', () => {
+    const live = join(dir, 'live.db');
+    const first = openDatabase(live);
+    migrate(first, loadMigrationsFromDir(MIGRATIONS_DIR));
+    seedDemoShop(first, { today: '2026-10-15' });
+    first.exec('BEGIN IMMEDIATE'); // the app is in the middle of saving something
+    const file = createBackupFromPath(live, join(dir, 'b'), '2026-10-15', '14:00:00');
+    first.exec('ROLLBACK');
+    const check = checkBackupFile(file.path);
+    expect(check.ok).toBe(true);
+    expect(check.vouchers).toBe(
+      Number(first.prepare('SELECT COUNT(*) AS n FROM voucher').get()?.['n']),
+    );
+    first.close();
   });
 });

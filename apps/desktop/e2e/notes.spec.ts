@@ -73,3 +73,21 @@ test('staff do not see the credit note and debit note tiles', async () => {
     await shop.close();
   }
 });
+
+test('changing the date on a note does not throw the cursor back to the customer', async () => {
+  const shop = await launch({ demo: true });
+  try {
+    const { page } = shop;
+    await signIn(page);
+    await page.getByRole('button', { name: /Credit Note/ }).click();
+    await page.keyboard.type('ayap');
+    await page.keyboard.press('Enter');
+    await expect(page.getByLabel('Bill being corrected')).toBeFocused();
+    await page.getByLabel('Date').fill('14-10-2026');
+    await page.keyboard.press('Tab'); // leaves the date; the screen reloads its numbers
+    await expect(page.getByLabel('Bill being corrected')).toBeFocused();
+    await expect(page.getByLabel('Customer')).not.toBeFocused();
+  } finally {
+    await shop.close();
+  }
+});

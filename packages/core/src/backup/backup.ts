@@ -181,13 +181,20 @@ export function listBackups(dir: string): BackupFile[] {
     const m = NAME.exec(name);
     if (!m) continue;
     const path = join(dir, name);
+    // another clean-up may delete a file between listing and reading it
+    let bytes: number;
+    try {
+      bytes = statSync(path).size;
+    } catch {
+      continue;
+    }
     files.push({
       name,
       path,
       date: `${m[2]}-${m[3]}-${m[4]}`,
       time: `${m[5]}:${m[6]}`,
       kind: m[1] ? 'before-restore' : 'regular',
-      bytes: statSync(path).size,
+      bytes,
     });
   }
   const stamp = (f: BackupFile) => `${f.date} ${f.time}${f.name}`;
@@ -200,6 +207,7 @@ export function listBackups(dir: string): BackupFile[] {
  * backup always stays. Returns the names removed.
  */
 export function pruneBackups(dir: string): string[] {
+  removeStalePartials(dir);
   const all = listBackups(dir);
   const files = all.filter((f) => f.kind === 'regular');
   const keep = new Set<string>(
@@ -230,14 +238,63 @@ export function pruneBackups(dir: string): string[] {
   return removed;
 }
 
+/**
+ * Half-written copies (`*.db.partial`) are left behind when a backup is interrupted: the app
+ * killed, a drive pulled, a time-out. They can be as big as the database, so any older than ten
+ * minutes (nothing still being written) is deleted.
+ */
+export function removeStalePartials(dir: string, olderThanMs = 10 * 60_000): void {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!name.endsWith('.db.partial')) continue;
+    const path = join(dir, name);
+    try {
+      if (Date.now() - statSync(path).mtimeMs > olderThanMs) rmSync(path, { force: true });
+    } catch {
+      // gone already, or in use: leave it
+    }
+  }
+}
+
+/**
+ * A sentence for shop staff about why a backup failed. Our own messages pass through; system
+ * errors (disk full, drive read-only, folder missing) become plain advice, never raw codes.
+ */
+export function describeBackupError(error: unknown): string {
+  if (error instanceof ValidationError) return error.message;
+  const code = (error as { code?: string } | null)?.code ?? '';
+  const text = error instanceof Error ? error.message : String(error);
+  let why = 'An unexpected problem stopped the backup.';
+  if (code === 'ENOSPC' || /disk is full|SQLITE_FULL|no space/i.test(text)) {
+    why = 'There is no space left on the drive. Please free some space or use another drive.';
+  } else if (['EACCES', 'EPERM', 'EBUSY', 'EROFS'].includes(code)) {
+    why =
+      'The backup folder cannot be written to. Please check the drive is plugged in and not locked.';
+  } else if (['ENOENT', 'ENOTDIR'].includes(code)) {
+    why = 'The backup folder could not be found. Please choose the folder again in Settings.';
+  }
+  return `The backup could not be completed. ${why}`;
+}
+
 /** Copies a backup to a second place (a removable drive). Returns false when that place is not there. */
 export function copyBackupTo(file: BackupFile, dir: string): boolean {
   try {
     if (!existsSync(dirname(dir)) && !existsSync(dir)) return false;
     mkdirSync(dir, { recursive: true });
+    removeStalePartials(dir);
     const target = join(dir, file.name);
-    copyFileSync(file.path, `${target}.partial`);
-    renameSync(`${target}.partial`, target);
+    try {
+      copyFileSync(file.path, `${target}.partial`);
+      renameSync(`${target}.partial`, target);
+    } catch (error) {
+      rmSync(`${target}.partial`, { force: true }); // never leave a half copy on a small drive
+      throw error;
+    }
     return true;
   } catch {
     return false;

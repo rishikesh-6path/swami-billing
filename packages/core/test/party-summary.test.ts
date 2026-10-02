@@ -66,4 +66,49 @@ describe('party summary', () => {
     expect(() => partySummary(s.db, s.cash, '2026-10-15')).toThrow(/customers and suppliers only/);
     expect(() => partySummary(s.db, 9999, '2026-10-15')).toThrow(/no longer exists/);
   });
+
+  it('applies a credit note to the bill it corrects, so an old unpaid bill still shows as late', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE account SET credit_days = 30 WHERE id = 11');
+    sale(s, '2026-06-01'); // 118.00
+    const newer = sale(s, '2026-10-10'); // 118.00
+    postVoucher(s.db, {
+      type: 'credit_note',
+      seriesId: s.seriesId.credit_note,
+      date: '2026-10-12',
+      partyAccountId: s.partyA,
+      refVoucherId: newer.voucherId,
+      taxMode: 'local',
+      roundOff: false,
+      narration: 'Whole bill taken back',
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000 }],
+    });
+    const sum = partySummary(s.db, s.partyA, '2026-10-15');
+    expect(sum.balancePaise).toBe(11800);
+    expect(sum.overduePaise).toBe(11800); // the June bill, untouched
+    expect(sum.oldestOverdue).toMatchObject({
+      label: expect.stringContaining('Sales') as string,
+      ageDays: 136,
+    });
+    expect(sum.recentBills[0]).toMatchObject({ voucherType: 'credit_note', amountPaise: -11800 });
+  });
+
+  it('does not call a refund a payment received, and names it for what it is', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE account SET credit_days = 0 WHERE id = 11');
+    postVoucher(s.db, {
+      type: 'payment',
+      seriesId: s.seriesId.payment,
+      date: '2026-10-05',
+      partyAccountId: s.partyA,
+      entries: [
+        { accountId: s.partyA, side: 'dr', amountPaise: 5000 },
+        { accountId: s.cash, side: 'cr', amountPaise: 5000 },
+      ],
+    });
+    receipt(s, '2026-10-12', 3000);
+    const sum = partySummary(s.db, s.partyA, '2026-10-15');
+    expect(sum.recentPayments.map((p) => p.voucherType)).toEqual(['receipt']);
+    expect(sum.oldestOverdue?.label).toMatch(/^Payment/);
+  });
 });
