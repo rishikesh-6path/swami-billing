@@ -28,6 +28,7 @@ import type {
   ItemSearchRow,
   PartyHit,
   PartySummary,
+  LastPrice,
   PostedVoucher,
   Role,
   SaleTypeRow,
@@ -598,6 +599,15 @@ export const contract = {
     }),
   ),
   'print.printers': ch<string[]>()('manage_settings', none),
+  'item.lastPrice': ch<LastPrice | null>()(
+    'bill',
+    z.object({
+      partyId: id,
+      itemId: id,
+      type: z.enum(['sales', 'purchase']),
+      before: isoDate.optional(),
+    }),
+  ),
   'party.summary': ch<PartySummary>()('view_daily_reports', z.object({ id, asOn: isoDate })),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(

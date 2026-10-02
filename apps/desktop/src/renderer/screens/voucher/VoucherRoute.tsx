@@ -1,17 +1,19 @@
 import { LoadState } from '../../components/ui.tsx';
 import { useCall } from '../../lib/api.ts';
-import { useRouter, type ItemVoucherKind } from '../../lib/router.tsx';
+import { useRouter, type ItemVoucherKind, type StartParty } from '../../lib/router.tsx';
 import { ItemVoucher } from './ItemVoucher.tsx';
 
 /** Opens the bill screen empty, or filled with an existing bill when `editId` is given. */
 export function VoucherRoute({
   kind,
   editId,
+  party,
 }: {
   kind: ItemVoucherKind;
   editId: number | undefined;
+  party?: StartParty | undefined;
 }) {
-  if (editId === undefined) return <ItemVoucher kind={kind} />;
+  if (editId === undefined) return <ItemVoucher kind={kind} startParty={party} />;
   return <EditLoader kind={kind} editId={editId} />;
 }
 

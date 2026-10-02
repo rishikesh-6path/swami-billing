@@ -1,18 +1,36 @@
 import type { VoucherDetail } from '@shopledger/core';
 import { LoadState } from '../../components/ui.tsx';
 import { useCall } from '../../lib/api.ts';
-import { useRouter, type EntryKind } from '../../lib/router.tsx';
+import { useRouter, type EntryKind, type StartParty } from '../../lib/router.tsx';
 import { CashVoucher } from './CashVoucher.tsx';
 import { JournalVoucher } from './JournalVoucher.tsx';
 
 /** Opens a receipt, payment, journal or contra screen, empty or filled with an existing entry. */
-export function EntryRoute({ kind, editId }: { kind: EntryKind; editId: number | undefined }) {
-  if (editId === undefined) return <Screen kind={kind} />;
+export function EntryRoute({
+  kind,
+  editId,
+  party,
+}: {
+  kind: EntryKind;
+  editId: number | undefined;
+  party?: StartParty | undefined;
+}) {
+  if (editId === undefined) return <Screen kind={kind} startParty={party} />;
   return <EditLoader kind={kind} editId={editId} />;
 }
 
-function Screen({ kind, edit }: { kind: EntryKind; edit?: VoucherDetail | undefined }) {
-  if (kind === 'receipt' || kind === 'payment') return <CashVoucher kind={kind} edit={edit} />;
+function Screen({
+  kind,
+  edit,
+  startParty,
+}: {
+  kind: EntryKind;
+  edit?: VoucherDetail | undefined;
+  startParty?: StartParty | undefined;
+}) {
+  if (kind === 'receipt' || kind === 'payment') {
+    return <CashVoucher kind={kind} edit={edit} startParty={startParty} />;
+  }
   return <JournalVoucher kind={kind} edit={edit} />;
 }
 

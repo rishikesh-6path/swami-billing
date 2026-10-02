@@ -25,6 +25,12 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
         : 'You owe';
 
   const edit = () => router.go({ name: 'party', kind, id });
+  // a new bill or entry that already knows who it is for
+  const start = data ? { id, name: data.name, stateCode: data.stateCode } : undefined;
+  const newBill = (billKind: 'sales' | 'purchase') => () =>
+    router.go({ name: 'voucher', kind: billKind, ...(start ? { party: start } : {}) });
+  const newEntry = (entryKind: 'receipt' | 'payment') => () =>
+    router.go({ name: 'entry', kind: entryKind, ...(start ? { party: start } : {}) });
   const ledger = () =>
     data && router.go({ name: 'report', kind: 'ledger', accountId: id, accountName: data.name });
   useHotkeys({
@@ -32,14 +38,8 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
     L: ledger,
     // a customer is sold to and pays in; a supplier is bought from and paid
     ...(customer
-      ? {
-          F8: () => router.go({ name: 'voucher', kind: 'sales' }),
-          F6: () => router.go({ name: 'entry', kind: 'receipt' }),
-        }
-      : {
-          F9: () => router.go({ name: 'voucher', kind: 'purchase' }),
-          F5: () => router.go({ name: 'entry', kind: 'payment' }),
-        }),
+      ? { F8: newBill('sales'), F6: newEntry('receipt') }
+      : { F9: newBill('purchase'), F5: newEntry('payment') }),
   });
   useHints(
     customer
@@ -58,6 +58,25 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
             <Button onClick={ledger} disabled={!data}>
               Full ledger (L)
             </Button>
+            {customer ? (
+              <>
+                <Button onClick={newBill('sales')} disabled={!data}>
+                  New sale (F8)
+                </Button>
+                <Button onClick={newEntry('receipt')} disabled={!data}>
+                  Receipt (F6)
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button onClick={newBill('purchase')} disabled={!data}>
+                  New purchase (F9)
+                </Button>
+                <Button onClick={newEntry('payment')} disabled={!data}>
+                  Payment (F5)
+                </Button>
+              </>
+            )}
             <Button variant="primary" onClick={edit}>
               Change details (F2)
             </Button>

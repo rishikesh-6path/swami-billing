@@ -37,6 +37,7 @@ Bill, receipt, payment, journal, contra, stock screens | F5 | Show the list for 
 Item grid | F7 | Repeat the line above
 Item grid | F9 | Delete the current line
 Item grid | F4 | Standard note
+Item grid (sale, purchase) | F3 | Use the price this party paid last time for the item on the current row
 Sale, purchase, returns | F12 | Copy the last bill of the same kind
 Item grid | Esc | Close the open list first, then leave the bill
 Find a bill | Type | Search by customer name, bill number or note
@@ -52,7 +53,7 @@ Items and customer lists | Type, Up/Down, Enter | Search, choose, open
 Items list | F2 | Add an item
 Customer and supplier lists | F3 | Add one
 Customer and supplier lists | Enter | Open the summary page (balance, late amount, latest bills and payments)
-Party summary | L, F2, F8, F9, F6, F5, Esc | Full ledger, change details, new sale, purchase, receipt, payment, back
+Party summary | L, F2, F8, F9, F6, F5, Esc | Full ledger, change details, new sale or receipt (customer), new purchase or payment (supplier) already filled in for that party, back
 Item and party forms | F2 | Save
 Item and party forms | Enter | Next box
 Settings | Alt+1 to Alt+6 | Shop details, Printing, People, Standard notes, Closing, Backup

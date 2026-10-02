@@ -12,6 +12,7 @@ import {
   getItem,
   listItemGroups,
   listItems,
+  lastPriceFor,
   listParties,
   partySummary,
   listUnits,
@@ -44,6 +45,7 @@ export const masterHandlers: Pick<
   | 'party.list'
   | 'party.get'
   | 'party.summary'
+  | 'item.lastPrice'
   | 'party.save'
   | 'party.delete'
 > = {
@@ -102,6 +104,7 @@ export const masterHandlers: Pick<
       asOn: req.asOn,
       ...(req.text ? { text: req.text } : {}),
     }),
+  'item.lastPrice': (req, ctx) => lastPriceFor(ctx.db, req),
   'party.summary': (req, ctx) => partySummary(ctx.db, req.id, req.asOn),
   'party.get': (req, ctx) => getAccount(ctx.db, req.id) ?? null,
   'party.save': (req, ctx) => {

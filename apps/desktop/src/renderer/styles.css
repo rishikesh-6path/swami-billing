@@ -858,3 +858,10 @@ tr.clickable:hover td {
   font-weight: 700;
   margin: 0.5rem 0;
 }
+
+.last-price {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: normal;
+  text-align: right;
+}

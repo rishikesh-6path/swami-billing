@@ -81,8 +81,15 @@ function Routes({
     return <PartyForm key={`${kind}-${id ?? 'new'}`} kind={kind} id={id} />;
   }
   if (router.route.name === 'entry') {
-    const { kind, editId } = router.route;
-    return <EntryRoute key={`${kind}-${editId ?? 'new'}`} kind={kind} editId={editId} />;
+    const { kind, editId, party } = router.route;
+    return (
+      <EntryRoute
+        key={`${kind}-${editId ?? 'new'}-${party?.id ?? ''}`}
+        kind={kind}
+        editId={editId}
+        party={party}
+      />
+    );
   }
   if (router.route.name === 'stock') {
     return <StockVoucher key={router.route.kind} kind={router.route.kind} />;
@@ -91,8 +98,15 @@ function Routes({
     return <NoteVoucher key={router.route.kind} kind={router.route.kind} />;
   }
   if (router.route.name === 'voucher') {
-    const { kind, editId } = router.route;
-    return <VoucherRoute key={`${kind}-${editId ?? 'new'}`} kind={kind} editId={editId} />;
+    const { kind, editId, party } = router.route;
+    return (
+      <VoucherRoute
+        key={`${kind}-${editId ?? 'new'}-${party?.id ?? ''}`}
+        kind={kind}
+        editId={editId}
+        party={party}
+      />
+    );
   }
   if (router.route.name === 'placeholder') {
     return (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PartyHit, VoucherDetail } from '@shopledger/core';
 import { Button, ConfirmDialog, Notice, PageHeader, useToast } from '../../components/ui.tsx';
 import { DateField } from '../../components/DateField.tsx';
@@ -6,7 +6,7 @@ import { Typeahead } from '../../components/Typeahead.tsx';
 import { call, useCall, useKept } from '../../lib/api.ts';
 import { formatBalance, formatMoney, parseMoney, rupees } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
-import { useRouter } from '../../lib/router.tsx';
+import { useRouter, type StartParty } from '../../lib/router.tsx';
 import { useSession } from '../../lib/session.tsx';
 import { useCellFocus } from './cells.ts';
 
@@ -31,9 +31,12 @@ const KINDS = {
 export function CashVoucher({
   kind: kindName,
   edit,
+  startParty,
 }: {
   kind: 'receipt' | 'payment';
   edit?: VoucherDetail | undefined;
+  /** Who the entry starts with, when opened from a customer or supplier page. */
+  startParty?: StartParty | undefined;
 }) {
   const kind = KINDS[kindName];
   const router = useRouter();
@@ -46,7 +49,13 @@ export function CashVoucher({
   const [date, setDate] = useState(edit?.date ?? today);
   const [party, setParty] = useState<
     (Pick<PartyHit, 'id' | 'name'> & { balancePaise?: number }) | null
-  >(partyEntry ? { id: partyEntry.accountId, name: partyEntry.accountName } : null);
+  >(
+    partyEntry
+      ? { id: partyEntry.accountId, name: partyEntry.accountName }
+      : startParty
+        ? { id: startParty.id, name: startParty.name }
+        : null,
+  );
   const [partyText, setPartyText] = useState<string | null>(null);
   const [accountId, setAccountId] = useState<number | null>(moneyEntry?.accountId ?? null);
   const [amount, setAmount] = useState(edit ? formatMoney(edit.totalPaise) : '');
@@ -57,6 +66,15 @@ export function CashVoucher({
   const [confirmExit, setConfirmExit] = useState(false);
   const setup = useCall('voucher.setup', { type: kindName, date });
   const ready = useKept(setup);
+  // opened from a customer page: the party is known, so go straight to the amount
+  const startedOnAmount = useRef(false);
+  useEffect(() => {
+    if (startParty && ready && !startedOnAmount.current) {
+      startedOnAmount.current = true;
+      cells.focusId('amount');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   const save = async () => {
     if (saving || !ready) return;
@@ -154,7 +172,7 @@ export function CashVoucher({
           <label>{kind.partyLabel}</label>
           <Typeahead<PartyHit>
             ariaLabel={kind.partyLabel}
-            autoFocus
+            autoFocus={!startParty}
             inputRef={(el: HTMLInputElement | null) => cells.set('party', el)}
             text={partyText ?? party?.name ?? ''}
             onText={(t) => {

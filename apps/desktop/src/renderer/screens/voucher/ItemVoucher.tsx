@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { ItemSearchRow, PartyHit, VoucherDetail, VoucherPreview } from '@shopledger/core';
 import {
@@ -25,7 +25,7 @@ import {
   rupees,
 } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
-import { useRouter } from '../../lib/router.tsx';
+import { useRouter, type StartParty } from '../../lib/router.tsx';
 import { useSession } from '../../lib/session.tsx';
 import {
   blankRow,
@@ -48,9 +48,12 @@ type Col = 'item' | 'qty' | 'price' | 'disc';
 export function ItemVoucher({
   kind: kindName,
   edit,
+  startParty,
 }: {
   kind: ItemVoucherKind;
   edit?: VoucherDetail | undefined;
+  /** Who the bill starts with, when opened from a customer or supplier page. */
+  startParty?: StartParty | undefined;
 }) {
   const kind = KINDS[kindName];
   const router = useRouter();
@@ -65,7 +68,11 @@ export function ItemVoucher({
 
   // party: undefined = the default (Cash for sales), null = cleared, otherwise a chosen party
   const [chosen, setChosen] = useState<Party | null | undefined>(
-    edit?.party ? { id: edit.party.id, name: edit.party.name } : undefined,
+    edit?.party
+      ? { id: edit.party.id, name: edit.party.name }
+      : startParty
+        ? { id: startParty.id, name: startParty.name, stateCode: startParty.stateCode }
+        : undefined,
   );
   const [partyText, setPartyText] = useState<string | null>(null);
   const [partyLookup, setPartyLookup] = useState(0);
@@ -102,6 +109,19 @@ export function ItemVoucher({
 
   const cells = useCellFocus();
   const ready = useKept(setup);
+  // opened from a customer page: the party is known, so go straight to the first item
+  const startedOnItem = useRef(false);
+  useEffect(() => {
+    if (startParty && ready && !startedOnItem.current) {
+      startedOnItem.current = true;
+      cells.focus(rows[0]!.key, 'item');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+  // what this party paid last time, by row (sales and purchases only)
+  const [lastPrices, setLastPrices] = useState<
+    Record<number, { listPricePaise: number; discBp: number; date: string }>
+  >({});
 
   // when changing an existing bill, load its lines
   useEffect(() => {
@@ -340,6 +360,35 @@ export function ItemVoucher({
     }
   };
 
+  // the price this customer (or supplier) paid last time for the item, offered under the price box
+  const showLastPrice = (rowKey: number, itemId: number) => {
+    setLastPrices((m) =>
+      Object.fromEntries(Object.entries(m).filter(([k]) => Number(k) !== rowKey)),
+    );
+    if (!party || isCashParty || (kindName !== 'sales' && kindName !== 'purchase')) return;
+    void call('item.lastPrice', {
+      partyId: party.id,
+      itemId,
+      type: kindName,
+      before: dateIso ?? today,
+    }).then(
+      (found) => {
+        if (found) setLastPrices((m) => ({ ...m, [rowKey]: found }));
+      },
+      () => undefined,
+    );
+  };
+  // F3 puts the last price (and discount) on the row the cursor is in
+  function takeLastPrice() {
+    const row = rows[focusRow];
+    const last = row ? lastPrices[row.key] : undefined;
+    if (!row || !last) return;
+    updateRow(row.key, {
+      price: formatMoney(last.listPricePaise),
+      disc: last.discBp === 0 ? '' : String(last.discBp / 100),
+    });
+  }
+
   const leave = () => (dirty ? setConfirmExit(true) : router.back());
   useHotkeys({
     F2: () => void save(),
@@ -349,6 +398,7 @@ export function ItemVoucher({
       focusRow < 0
         ? setPartyLookup((n) => n + 1)
         : setLookup((l) => ({ row: focusRow, n: l.n + 1 })),
+    F3: takeLastPrice,
     F7: repeatLine,
     F9: deleteLine,
     F12: () => void pasteLast(),
@@ -358,6 +408,7 @@ export function ItemVoucher({
     'Esc Cancel',
     'Enter Next box',
     'F5 Show list',
+    'F3 Last price',
     'F7 Repeat line',
     'F9 Delete line',
     'F12 Copy last bill',
@@ -415,7 +466,7 @@ export function ItemVoucher({
           <Typeahead<PartyHit>
             ariaLabel={kind.partyLabel}
             inputRef={(el: HTMLInputElement | null) => cells.set('party', el)}
-            autoFocus
+            autoFocus={!startParty}
             text={partyText ?? party?.name ?? ''}
             onText={(t) => {
               setPartyText(t);
@@ -636,6 +687,7 @@ export function ItemVoucher({
                           setRows((rs) =>
                             rs.map((x) => (x.key === r.key ? pickItem(x, it, kind) : x)),
                           );
+                          showLastPrice(r.key, it.id);
                           cells.focus(r.key, 'qty');
                         }}
                         onEnterEmpty={toFooter}
@@ -684,6 +736,12 @@ export function ItemVoucher({
                         }
                         onFocus={(e) => e.target.select()}
                       />
+                      {lastPrices[r.key] && (
+                        <div className="last-price">
+                          Last time {formatMoney(lastPrices[r.key]!.listPricePaise)} on{' '}
+                          {formatDate(lastPrices[r.key]!.date)} (F3 uses it)
+                        </div>
+                      )}
                     </td>
                     <td className="num">
                       <input

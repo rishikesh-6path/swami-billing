@@ -5,6 +5,13 @@ export type ItemVoucherKind = 'sales' | 'purchase' | 'sales_return' | 'purchase_
 export type EntryKind = 'receipt' | 'payment' | 'journal' | 'contra';
 export type StockKind = 'stock_journal' | 'physical_stock';
 
+/** A customer or supplier a new bill or entry starts with (from their summary page). */
+export interface StartParty {
+  id: number;
+  name: string;
+  stateCode: string | null;
+}
+
 export type PartyKind = 'customer' | 'supplier';
 
 export type ReportKind =
@@ -42,10 +49,10 @@ export type Route =
   | { name: 'parties'; kind: PartyKind }
   | { name: 'party'; kind: PartyKind; id?: number }
   | { name: 'partySummary'; id: number; kind: PartyKind }
-  | { name: 'entry'; kind: EntryKind; editId?: number }
+  | { name: 'entry'; kind: EntryKind; editId?: number; party?: StartParty }
   | { name: 'stock'; kind: StockKind }
   | { name: 'home' }
-  | { name: 'voucher'; kind: ItemVoucherKind; editId?: number }
+  | { name: 'voucher'; kind: ItemVoucherKind; editId?: number; party?: StartParty }
   | { name: 'note'; kind: 'credit_note' | 'debit_note' }
   | { name: 'placeholder'; title: string };
 
