@@ -82,6 +82,7 @@ test('changing the date on a note does not throw the cursor back to the customer
     const { page } = shop;
     await signIn(page);
     await page.getByRole('button', { name: /Credit Note/ }).click();
+    await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.type('ayap');
     await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
