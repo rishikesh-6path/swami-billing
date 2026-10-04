@@ -14,6 +14,7 @@ import {
   checkBackupFile,
   closeDay,
   closeFinancialYear,
+  reopenFinancialYear,
   createUser,
   dayClosedThrough,
   booksLockedThrough,
@@ -107,6 +108,7 @@ export const settingsHandlers: Pick<
   | 'books.lock'
   | 'books.unlock'
   | 'books.closeYear'
+  | 'books.reopenYear'
   | 'narrations.get'
   | 'narrations.save'
   | 'print.printers'
@@ -219,6 +221,10 @@ export const settingsHandlers: Pick<
   },
   'books.closeYear': (req, ctx) => {
     closeFinancialYear(ctx.db, req.fyId, audit(ctx));
+    return years(ctx);
+  },
+  'books.reopenYear': (req, ctx) => {
+    reopenFinancialYear(ctx.db, req.fyId, audit(ctx));
     return years(ctx);
   },
   'narrations.get': (req, ctx) => getNarrations(ctx.db, req.kind),

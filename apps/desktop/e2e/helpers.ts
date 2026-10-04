@@ -17,9 +17,18 @@ export interface Launched {
  * (Owner PIN 1234, Staff PIN 1111). The date is pinned so results do not depend on the day.
  */
 export async function launch(
-  options: { demo?: boolean; today?: string; exportDir?: boolean; lockSeconds?: number } = {},
-): Promise<Launched> {
-  const dir = mkdtempSync(join(tmpdir(), 'shopledger-e2e-'));
+  options: {
+    demo?: boolean;
+    today?: string;
+    exportDir?: boolean;
+    lockSeconds?: number;
+    /** Open the data of an earlier launch (made with keepData) instead of a fresh one. */
+    dataDir?: string;
+    /** Leave the data in place on close, so a later launch can open it on another day. */
+    keepData?: boolean;
+  } = {},
+): Promise<Launched & { dataDir: string }> {
+  const dir = options.dataDir ?? mkdtempSync(join(tmpdir(), 'shopledger-e2e-'));
   const dbPath = join(dir, 'shopledger.db');
   const runningAsRoot = process.platform === 'linux' && process.getuid?.() === 0;
   const app = await electron.launch({
@@ -46,10 +55,11 @@ export async function launch(
     app,
     page,
     dbPath,
+    dataDir: dir,
     exportPath: join(dir, 'exports'),
     close: async () => {
       await app.close();
-      rmSync(dir, { recursive: true, force: true });
+      if (!options.keepData) rmSync(dir, { recursive: true, force: true });
     },
   };
 }

@@ -62,9 +62,9 @@ Practise this once on a spare computer before you need it.
 
 ## Financial year end (31 March)
 
-1. Make sure every return and report for the year is done and take a backup.
-2. **Settings > Closing days and years > Close this year**. The next year is created, balances and stock carry forward and bill numbers start again from 1. The closed year is locked.
-3. If a closed year must be corrected, call support.
+1. Nothing needs doing on 1 April: the new year starts by itself, balances and stock carry forward and bill numbers start again from 1. Late bills and returns for March can still be entered in the old year.
+2. When your accountant has finished the year, take a backup, then **Settings > Closing days and years > Close this year**. Nobody can then make or change bills in that year.
+3. If a closed year must be corrected, press **Open this year again** next to it. This is recorded in Who Did What; tell your accountant about the change.
 
 ## Checking what happened
 

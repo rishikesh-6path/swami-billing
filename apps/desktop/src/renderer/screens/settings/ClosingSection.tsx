@@ -42,6 +42,7 @@ function ClosingBody({
   const [error, setError] = useState<string | null>(null);
   const [sure, setSure] = useState<{ title: string; words: string; run: () => void } | null>(null);
   const [confirmYear, setConfirmYear] = useState<ShopSettings['years'][number] | null>(null);
+  const [reopenYear, setReopenYear] = useState<ShopSettings['years'][number] | null>(null);
 
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : 'That could not be done. Please try again.');
@@ -172,8 +173,10 @@ function ClosingBody({
 
       <Card title="Financial years">
         <p className="muted">
-          A year runs from 1 April to 31 March. Closing a year starts the next one: balances and
-          stock carry forward and bill numbers begin again from 1.
+          A year runs from 1 April to 31 March. The new year starts by itself on 1 April, with
+          balances and stock carried forward and bill numbers starting again from 1. The old year
+          stays open for late bills and returns; close it once your accountant has finished with it.
+          A closed year can be opened again here if something must be corrected.
         </p>
         <DataTable
           rows={years}
@@ -186,7 +189,9 @@ function ClosingBody({
             {
               header: 'Action',
               cell: (y) =>
-                y.isLocked ? null : (
+                y.isLocked ? (
+                  <Button onClick={() => setReopenYear(y)}>Open this year again</Button>
+                ) : (
                   <Button onClick={() => setConfirmYear(y)}>Close this year</Button>
                 ),
             },
@@ -209,6 +214,29 @@ function ClosingBody({
           }}
         >
           <p>{sure.words}</p>
+        </ConfirmDialog>
+      )}
+      {reopenYear && (
+        <ConfirmDialog
+          title={`Open the year ${reopenYear.label} again?`}
+          confirmLabel="Yes, open it again"
+          cancelLabel="No, keep it closed"
+          danger
+          onCancel={() => setReopenYear(null)}
+          onConfirm={() => {
+            const fyId = reopenYear.id;
+            setReopenYear(null);
+            setError(null);
+            void call('books.reopenYear', { fyId }).then((list) => {
+              setYears(list);
+              toast.show('The year is open again. This is recorded in Who Did What.');
+            }, fail);
+          }}
+        >
+          <p>
+            Bills can then be made and changed in {reopenYear.label} again. Your accountant may have
+            already used its figures, so please tell them about any change.
+          </p>
         </ConfirmDialog>
       )}
       {confirmYear && (

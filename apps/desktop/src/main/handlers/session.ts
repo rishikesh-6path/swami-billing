@@ -8,6 +8,7 @@ import {
   stockStatus,
   currentSchemaVersion,
   financialYearOn,
+  ensureFinancialYearFor,
   backupReminder,
   heldCount,
   getCompany,
@@ -34,7 +35,18 @@ export function lockMinutes(db: Db): number {
   return Number.isFinite(n) && n >= 0 ? Math.round(n) : 10;
 }
 
+/**
+ * On 1 April the new financial year starts by itself: bills can be made straight away, and the
+ * old year stays open (for late supplier bills and returns) until the owner closes it.
+ */
+export function ensureCurrentYear(ctx: Pick<HandlerContext, 'db' | 'today'>): void {
+  if (!isSetupComplete(ctx.db)) return;
+  if (financialYearOn(ctx.db, ctx.today())) return;
+  ensureFinancialYearFor(ctx.db, ctx.today());
+}
+
 export function sessionState(ctx: Omit<HandlerContext, 'user'>): SessionState {
+  ensureCurrentYear(ctx);
   const fy = financialYearOn(ctx.db, ctx.today());
   return {
     setupComplete: isSetupComplete(ctx.db),

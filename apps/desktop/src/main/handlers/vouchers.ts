@@ -42,6 +42,7 @@ import {
 import type { z } from 'zod';
 import { heldPayload, type voucherInput } from '../../ipc/contract.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
+import { ensureCurrentYear } from './session.ts';
 
 const STAFF_GROUPS = ['Sundry Debtors', 'Sundry Creditors'];
 
@@ -182,6 +183,7 @@ export const voucherHandlers: Pick<
   | 'bill.discard'
 > = {
   'voucher.setup': (req, ctx) => {
+    ensureCurrentYear(ctx);
     const type = asVoucherType(req.type);
     const series = listVoucherSeries(ctx.db, type);
     const seriesId = defaultSeriesId(ctx.db, type);
@@ -238,6 +240,7 @@ export const voucherHandlers: Pick<
       partyAccountId: req.partyAccountId ?? 0,
     }),
   'voucher.post': (req, ctx) => {
+    ensureCurrentYear(ctx);
     assertMayPost(ctx, req.type);
     // the checks, the bill and the override record are saved together or not at all
     return transaction(ctx.db, () => {
