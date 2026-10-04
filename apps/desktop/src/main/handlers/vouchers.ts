@@ -5,7 +5,14 @@ import {
   getNarrations,
   ValidationError,
   cancelVoucher,
+  creditCheck,
   discardHeld,
+  formatMoney,
+  getStaffMaxDiscountBp,
+  staffDiscountProblem,
+  writeAudit,
+  type CreditCheck,
+  type ItemVoucherInput,
   holdBill,
   listHeld,
   takeHeld,
@@ -47,6 +54,65 @@ const whoIs = (ctx: HandlerContext) => {
   return { userId: user.id, isOwner: user.role === 'owner' };
 };
 
+/**
+ * The shop's controls on a sale: staff cannot give more discount than the owner allows, and a
+ * customer may not go above their credit limit (staff are stopped; the owner must confirm, and
+ * that is recorded). Returns what to record after the bill is saved, if anything.
+ */
+function guardSale(
+  ctx: HandlerContext,
+  req: z.infer<typeof voucherInput>,
+  excludeVoucherId?: number,
+): { check: CreditCheck } | null {
+  if (req.type !== 'sales' || !('lines' in req) || !('partyAccountId' in req)) return null;
+  const input = withSeries(ctx, req) as ItemVoucherInput;
+  const user = ctx.user();
+  const isOwner = user.role === 'owner';
+  if (!isOwner) {
+    const problem = staffDiscountProblem(ctx.db, input, getStaffMaxDiscountBp(ctx.db));
+    if (problem) throw new ValidationError(problem);
+  }
+  const total = previewItemVoucher(ctx.db, input).totalPaise;
+  const received = (input.settlements ?? []).reduce((t, s) => t + s.amountPaise, 0);
+  const check = creditCheck(ctx.db, {
+    partyId: input.partyAccountId,
+    billPaise: total - received,
+    excludeVoucherId,
+  });
+  if (!check?.over) return null;
+  const name = String(
+    ctx.db.prepare('SELECT name FROM account WHERE id = ?').get(input.partyAccountId)?.['name'],
+  );
+  const text = `${name} would owe ₹${formatMoney(check.afterPaise)} after this bill. Their limit is ₹${formatMoney(check.limitPaise)}.`;
+  if (!isOwner) {
+    throw new ValidationError(
+      `${text} Please ask the owner, or take some money now so the amount owed stays within the limit.`,
+    );
+  }
+  if (!(req as { overrideCredit?: boolean }).overrideCredit) {
+    throw new ValidationError(`${text} Please confirm that you want to go on.`);
+  }
+  return { check };
+}
+
+function recordOverride(
+  ctx: HandlerContext,
+  over: { check: CreditCheck } | null,
+  voucherId: number,
+): void {
+  if (!over) return;
+  writeAudit(
+    ctx.db,
+    { userId: ctx.user().id },
+    {
+      action: 'credit_limit_override',
+      table: 'voucher',
+      rowId: voucherId,
+      after: { limitPaise: over.check.limitPaise, owingAfterPaise: over.check.afterPaise },
+    },
+  );
+}
+
 function asVoucherType(type: string): VoucherType {
   if (!(type in VOUCHER_TYPE_LABELS))
     throw new ValidationError('That kind of voucher is not known.');
@@ -55,8 +121,12 @@ function asVoucherType(type: string): VoucherType {
 
 /** Fills in the number series when the screen did not choose one (it uses the first series of the type). */
 function withSeries(ctx: HandlerContext, input: z.infer<typeof voucherInput>): VoucherInput {
+  // `overrideCredit` is a confirmation for this request, not part of the bill
+  const bill = Object.fromEntries(
+    Object.entries(input).filter(([key]) => key !== 'overrideCredit'),
+  ) as unknown as VoucherInput;
   return {
-    ...input,
+    ...bill,
     seriesId: input.seriesId ?? defaultSeriesId(ctx.db, input.type),
     createdBy: ctx.user().id,
   };
@@ -74,6 +144,7 @@ export const voucherHandlers: Pick<
   | 'voucher.list'
   | 'voucher.cancel'
   | 'voucher.modify'
+  | 'credit.check'
   | 'bill.hold'
   | 'bill.held'
   | 'bill.take'
@@ -137,7 +208,10 @@ export const voucherHandlers: Pick<
     }),
   'voucher.post': (req, ctx) => {
     assertMayPost(ctx, req.type);
-    return postVoucher(ctx.db, withSeries(ctx, req), { role: ctx.user().role });
+    const over = guardSale(ctx, req);
+    const posted = postVoucher(ctx.db, withSeries(ctx, req), { role: ctx.user().role });
+    recordOverride(ctx, over, posted.voucherId);
+    return posted;
   },
   'voucher.get': (req, ctx) => getVoucherDetail(ctx.db, req.id) ?? null,
   'voucher.list': (req, ctx) => listVouchers(ctx.db, req),
@@ -151,11 +225,15 @@ export const voucherHandlers: Pick<
   'voucher.modify': (req, ctx) => {
     const user = ctx.user();
     assertMayPost(ctx, req.input.type);
-    return modifyVoucher(ctx.db, req.id, withSeries(ctx, req.input), {
+    const over = guardSale(ctx, req.input, req.id);
+    const posted = modifyVoucher(ctx.db, req.id, withSeries(ctx, req.input), {
       role: user.role,
       userId: user.id,
     });
+    recordOverride(ctx, over, posted.voucherId);
+    return posted;
   },
+  'credit.check': (req, ctx) => creditCheck(ctx.db, req),
   'bill.hold': (req, ctx) => {
     const user = ctx.user();
     return holdBill(ctx.db, {

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SessionState } from '../../../ipc/contract.ts';
 import { Button, Card, LoadState, Notice, TextField, useToast } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
+import { parsePercent } from '../../lib/format.ts';
 import { useHotkeys } from '../../lib/hotkeys.tsx';
 
 /** Screen locking and the information a support person asks for. */
@@ -12,6 +13,7 @@ export function SupportSection({ onSession }: { onSession: (s: SessionState) => 
       {settings.status === 'ready' && (
         <SupportBody
           minutes={settings.data.lockMinutes}
+          maxDiscountBp={settings.data.staffMaxDiscountBp}
           about={settings.data.about}
           onSession={onSession}
         />
@@ -22,15 +24,20 @@ export function SupportSection({ onSession }: { onSession: (s: SessionState) => 
 
 function SupportBody({
   minutes,
+  maxDiscountBp,
   about,
   onSession,
 }: {
   minutes: number;
+  maxDiscountBp: number;
   about: { appVersion: string; dbPath: string; schemaVersion: number };
   onSession: (s: SessionState) => void;
 }) {
   const toast = useToast();
   const [text, setText] = useState(String(minutes));
+  const [discountText, setDiscountText] = useState(
+    maxDiscountBp === 0 ? '' : String(maxDiscountBp / 100),
+  );
   const [error, setError] = useState<string | null>(null);
 
   const saveLock = () => {
@@ -53,6 +60,22 @@ function SupportBody({
     );
   };
   useHotkeys({ F2: saveLock });
+
+  const saveLimits = () => {
+    setError(null);
+    const bp = discountText.trim() === '' ? 0 : parsePercent(discountText);
+    if (bp === null || bp < 0 || bp > 10000) {
+      setError('Please type a discount between 0 and 100. Leave it empty for no limit.');
+      return;
+    }
+    call('settings.saveLimits', { staffMaxDiscountBp: bp }).then(
+      () =>
+        toast.show(
+          bp === 0 ? 'Staff can give any discount.' : `Staff can give up to ${bp / 100}% discount.`,
+        ),
+      (e: unknown) => setError(e instanceof Error ? e.message : 'The limit could not be saved.'),
+    );
+  };
 
   const saveSupport = () => {
     setError(null);
@@ -80,6 +103,21 @@ function SupportBody({
         />
         <Button variant="primary" onClick={saveLock}>
           Save (F2)
+        </Button>
+      </Card>
+      <Card title="Discount staff may give">
+        <p className="muted">
+          Staff cannot save a bill with a bigger discount than this on any item, or taken off at the
+          bottom of the bill. The owner has no limit. Leave empty for no limit.
+        </p>
+        <TextField
+          label="Most discount staff may give (%)"
+          inputMode="decimal"
+          value={discountText}
+          onChange={(e) => setDiscountText(e.target.value)}
+        />
+        <Button variant="primary" onClick={saveLimits}>
+          Save the limit
         </Button>
       </Card>
       <Card title="About this computer">

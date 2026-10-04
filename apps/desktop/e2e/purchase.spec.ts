@@ -6,6 +6,7 @@ async function purchase(page: Page, invoiceNo: string) {
   await page.keyboard.press('F9');
   await expect(page.getByLabel('Supplier', { exact: true })).toBeFocused();
   await page.keyboard.type('finolex');
+  await expect(page.getByRole('option', { name: /Finolex/ })).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(page.getByLabel("Supplier's invoice no.")).toBeFocused();
   await page.keyboard.type(invoiceNo);
@@ -51,7 +52,9 @@ test('a purchase from a registered supplier cannot be saved without the supplier
     const { page } = shop;
     await signIn(page);
     await page.keyboard.press('F9');
+    await expect(page.getByLabel('Supplier', { exact: true })).toBeFocused();
     await page.keyboard.type('finolex');
+    await expect(page.getByRole('option', { name: /Finolex/ })).toBeVisible();
     await page.keyboard.press('Enter');
     await page.getByLabel("Supplier's invoice no.").press('Enter');
     await page.getByLabel("Supplier's invoice date").press('Enter');

@@ -18,10 +18,16 @@ For the owner only. Sign in with an owner PIN. The home screen has two extra til
 - **Settings > Closing days and years > Close the day**. Staff can then no longer change that day's bills. You still can. If one of the latest days must be changed, use "keep closed up to" to reopen only the days after a date.
 - Switch off the computer from the Windows Start menu, not the power button. ShopLedger makes a backup when it closes.
 
+## Controlling credit and discounts
+
+- **Credit limit:** open a customer (Customers, then F2) and type the most they may owe in **Credit limit**. Leave it empty for no limit. The customer page shows it.
+- **Staff discount limit:** **Settings > Locking, limits and support > Discount staff may give**. Staff cannot save a bill with a bigger discount on any item, or taken off at the bottom. Leave empty for no limit.
+- Every time you let a customer go above the limit it is recorded in **Who Did What**.
+
 ## Locking the screen and getting help
 
-- ShopLedger hides the screen after 10 minutes without a key or the mouse and asks for the person's PIN. A bill being made is kept. Change the time, or switch it off with 0, in **Settings > Locking and support**.
-- If something is not working, open **Settings > Locking and support > Save information for support** and send the file to whoever supports you. It describes the program, the data file's health, free disk space, the last backup and recent problems. It does not contain bills, customers, amounts or PINs.
+- ShopLedger hides the screen after 10 minutes without a key or the mouse and asks for the person's PIN. A bill being made is kept. Change the time, or switch it off with 0, in **Settings > Locking, limits and support**.
+- If something is not working, open **Settings > Locking, limits and support > Save information for support** and send the file to whoever supports you. It describes the program, the data file's health, free disk space, the last backup and recent problems. It does not contain bills, customers, amounts or PINs.
 - ShopLedger also keeps a short log of problems in its data folder (`logs`), at most six files of 1 MB.
 
 ## Backups

@@ -31,6 +31,8 @@ import {
   type Db,
   transaction,
   writeAudit,
+  getStaffMaxDiscountBp,
+  setStaffMaxDiscountBp,
 } from '@shopledger/core';
 import { writeFileSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -94,6 +96,7 @@ export const settingsHandlers: Pick<
   | 'settings.saveCompany'
   | 'settings.savePrint'
   | 'settings.saveLock'
+  | 'settings.saveLimits'
   | 'support.save'
   | 'users.list'
   | 'users.create'
@@ -126,6 +129,7 @@ export const settingsHandlers: Pick<
     books: books(ctx.db),
     years: years(ctx),
     lockMinutes: lockMinutes(ctx.db),
+    staffMaxDiscountBp: getStaffMaxDiscountBp(ctx.db),
     about: {
       appVersion: ctx.appVersion,
       dbPath: ctx.dbPath,
@@ -146,6 +150,10 @@ export const settingsHandlers: Pick<
         after: { minutes: req.minutes },
       });
     });
+    return null;
+  },
+  'settings.saveLimits': (req, ctx) => {
+    setStaffMaxDiscountBp(ctx.db, req.staffMaxDiscountBp, audit(ctx));
     return null;
   },
   'support.save': async (_req, ctx) => {

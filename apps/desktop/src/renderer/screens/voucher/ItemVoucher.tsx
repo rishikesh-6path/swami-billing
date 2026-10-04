@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type {
+  CreditCheck,
   HeldBill,
   ItemSearchRow,
   PartyHit,
@@ -46,6 +47,9 @@ import {
 } from './model.ts';
 
 type Col = 'item' | 'qty' | 'price' | 'disc';
+
+/** The ending of the message that asks the owner to confirm a bill over the credit limit. */
+const CONFIRM_CREDIT = 'Please confirm that you want to go on.';
 
 /**
  * The bill screen for sales, purchases and their returns. Everything can be done from the
@@ -312,6 +316,7 @@ export function ItemVoucher({
   };
 
   // ---- setting a bill aside while someone else is served ----
+  const [confirmCredit, setConfirmCredit] = useState<string | null>(null);
   const [heldList, setHeldList] = useState<HeldBill[] | null>(null);
   const holdThis = async () => {
     if (edit) return setError('A bill that is being changed cannot be set aside.');
@@ -420,7 +425,7 @@ export function ItemVoucher({
   };
 
   // ---- saving ----
-  const save = async () => {
+  const save = async (confirmedCredit = false) => {
     if (saving || !ready) return;
     setError(null);
     if (!party) return setError(`Please choose the ${kind.partyLabel.toLowerCase()}.`);
@@ -479,6 +484,7 @@ export function ItemVoucher({
       ...(kindName === 'purchase' && billNo.trim() ? { partyBillNo: billNo.trim() } : {}),
       ...(kindName === 'purchase' && billDateIso ? { partyBillDate: billDateIso } : {}),
       ...(refId ? { refVoucherId: refId } : {}),
+      ...(confirmedCredit ? { overrideCredit: true } : {}),
       lines,
       sundries,
       settlements,
@@ -495,7 +501,12 @@ export function ItemVoucher({
       if (ready.autoPrint && kindName === 'sales') setPrintAfter(posted.voucherId);
       else cells.focusId('party');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong and nothing was saved.');
+      const message =
+        e instanceof Error ? e.message : 'Something went wrong and nothing was saved.';
+      // the owner is asked to confirm a bill that takes a customer over their credit limit
+      if (message.endsWith(CONFIRM_CREDIT)) {
+        setConfirmCredit(message.slice(0, -CONFIRM_CREDIT.length).trim());
+      } else setError(message);
     } finally {
       setSaving(false);
     }
@@ -555,6 +566,31 @@ export function ItemVoucher({
     });
   }
 
+  // the customer's credit limit, checked against what they would owe after this bill
+  const [credit, setCredit] = useState<CreditCheck | null>(null);
+  const unpaid = (preview?.totalPaise ?? 0) - (parseMoney(settleText) ?? 0);
+  useEffect(() => {
+    if (kindName !== 'sales' || !party || isCashParty || !preview) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      call('credit.check', {
+        partyId: party.id,
+        billPaise: unpaid,
+        ...(edit ? { excludeVoucherId: edit.id } : {}),
+      }).then(
+        (found) => {
+          if (current) setCredit(found);
+        },
+        () => undefined,
+      );
+    }, 200);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kindName, party?.id, isCashParty, unpaid, edit?.id]);
+
   const leave = () => (dirty ? setConfirmExit(true) : router.back());
   useHotkeys({
     F2: () => void save(),
@@ -599,6 +635,7 @@ export function ItemVoucher({
 
   const prefix = ready?.series.find((s) => s.id === ready.defaultSeriesId)?.prefix ?? '';
   const warnings = preview?.problems ?? [];
+  const overLimit = credit?.over ? credit : null;
 
   return (
     <main className="page voucher-page">
@@ -1080,6 +1117,12 @@ export function ItemVoucher({
                 <dd data-testid="bill-total">{formatMoney(preview?.totalPaise ?? 0)}</dd>
               </div>
             </dl>
+            {overLimit && (
+              <Notice kind="info">
+                {party?.name} would owe {rupees(overLimit.afterPaise)} after this bill. Their limit
+                is {rupees(overLimit.limitPaise)}.
+              </Notice>
+            )}
             {warnings.map((p) => (
               <Notice key={p.message} kind={p.kind === 'error' ? 'error' : 'info'}>
                 {p.message}
@@ -1124,6 +1167,20 @@ export function ItemVoucher({
             ))}
           </ul>
         </InfoDialog>
+      )}
+      {confirmCredit !== null && (
+        <ConfirmDialog
+          title="Above the credit limit"
+          confirmLabel="Yes, save the bill"
+          cancelLabel="No, go back"
+          onConfirm={() => {
+            setConfirmCredit(null);
+            void save(true);
+          }}
+          onCancel={() => setConfirmCredit(null)}
+        >
+          {confirmCredit} Do you still want to save this bill?
+        </ConfirmDialog>
       )}
       {narrationPicker && (
         <InfoDialog title="Standard notes" onClose={() => setNarrationPicker(false)}>

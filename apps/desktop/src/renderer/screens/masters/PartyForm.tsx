@@ -81,6 +81,7 @@ function Form({
     stateCode: existing?.stateCode ?? '',
     gstin: existing?.gstin ?? '',
     creditDays: String(existing?.creditDays ?? 0),
+    creditLimit: existing?.creditLimitPaise ? formatMoney(existing.creditLimitPaise) : '',
     opening: existing ? formatMoney(existing.openingBalancePaise) : '',
     openingIsDr: existing?.openingIsDr ?? initialKind === 'customer',
   });
@@ -99,6 +100,8 @@ function Form({
     setError(null);
     const opening = f.opening.trim() === '' ? 0 : parseMoney(f.opening);
     const days = Number(f.creditDays || '0');
+    const limit = f.creditLimit.trim() === '' ? 0 : parseMoney(f.creditLimit);
+    if (limit === null || limit < 0) return setError('The credit limit is not a valid amount.');
     if (opening === null || opening < 0)
       return setError('The opening balance is not a valid amount.');
     if (!Number.isInteger(days) || days < 0) return setError('Credit days must be a whole number.');
@@ -112,6 +115,7 @@ function Form({
         phone: f.phone.trim() || null,
         address: f.address.trim() || null,
         creditDays: days,
+        creditLimitPaise: limit,
         openingBalancePaise: opening,
         openingIsDr: f.openingIsDr,
       });
@@ -190,6 +194,15 @@ function Form({
             inputMode="numeric"
             hint="How many days they are allowed to pay."
           />
+          {kind === 'customer' && (
+            <TextField
+              label="Credit limit (most they may owe)"
+              value={f.creditLimit}
+              onChange={set('creditLimit')}
+              inputMode="decimal"
+              hint="Leave empty for no limit. Staff cannot make a bill that takes them above it."
+            />
+          )}
           <TextField
             label="Balance when you started"
             value={f.opening}

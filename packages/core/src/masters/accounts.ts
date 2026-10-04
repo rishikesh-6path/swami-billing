@@ -28,6 +28,8 @@ export interface AccountRow {
   phone: string | null;
   address: string | null;
   creditDays: number;
+  /** The most the party may owe, in paise; 0 means no limit. */
+  creditLimitPaise: number;
   isSystem: boolean;
 }
 
@@ -51,6 +53,7 @@ const account = (r: Row): AccountRow => ({
   phone: r['phone'] === null ? null : String(r['phone']),
   address: r['address'] === null ? null : String(r['address']),
   creditDays: Number(r['credit_days']),
+  creditLimitPaise: Number(r['credit_limit_paise']),
   isSystem: Boolean(r['is_system']),
 });
 
@@ -102,6 +105,7 @@ export interface AccountInput {
   phone?: string | null | undefined;
   address?: string | null | undefined;
   creditDays?: number | undefined;
+  creditLimitPaise?: number | undefined;
 }
 
 export function getAccount(db: Db, id: number): AccountRow | undefined {
@@ -128,6 +132,7 @@ export function createAccount(db: Db, input: AccountInput, ctx: Ctx = {}): numbe
   const opening = requireNonNegative(input.openingBalancePaise, 'opening balance');
   if (opening !== 0) assertOpeningsEditable(db);
   const creditDays = requireNonNegative(input.creditDays, 'credit days');
+  const creditLimit = requireNonNegative(input.creditLimitPaise, 'credit limit');
   return transaction(db, () => {
     if (!db.prepare('SELECT 1 FROM account_group WHERE id = ?').get(input.groupId)) {
       throw new ValidationError('Please choose a group for this account.');
@@ -138,8 +143,8 @@ export function createAccount(db: Db, input: AccountInput, ctx: Ctx = {}): numbe
     const id = Number(
       db
         .prepare(
-          `INSERT INTO account (name, group_id, opening_balance_paise, opening_is_dr, gstin, state_code, phone, address, credit_days)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO account (name, group_id, opening_balance_paise, opening_is_dr, gstin, state_code, phone, address, credit_days, credit_limit_paise)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           name,
@@ -151,6 +156,7 @@ export function createAccount(db: Db, input: AccountInput, ctx: Ctx = {}): numbe
           party.phone,
           (input.address ?? '').trim() || null,
           creditDays,
+          creditLimit,
         ).lastInsertRowid,
     );
     writeAudit(db, ctx, {
@@ -200,7 +206,7 @@ export function updateAccount(
     }
     db.prepare(
       `UPDATE account SET name = ?, group_id = ?, opening_balance_paise = ?, opening_is_dr = ?, gstin = ?,
-         state_code = ?, phone = ?, address = ?, credit_days = ? WHERE id = ?`,
+         state_code = ?, phone = ?, address = ?, credit_days = ?, credit_limit_paise = ? WHERE id = ?`,
     ).run(
       name,
       groupId,
@@ -214,6 +220,7 @@ export function updateAccount(
       party.phone,
       patch.address === undefined ? before.address : (patch.address ?? '').trim() || null,
       requireNonNegative(patch.creditDays ?? before.creditDays, 'credit days'),
+      requireNonNegative(patch.creditLimitPaise ?? before.creditLimitPaise, 'credit limit'),
       id,
     );
     writeAudit(db, ctx, {

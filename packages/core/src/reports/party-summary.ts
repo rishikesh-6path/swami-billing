@@ -15,6 +15,8 @@ export interface PartySummary {
   address: string | null;
   stateCode: string | null;
   creditDays: number;
+  /** The most they may owe, in paise; 0 means no limit. */
+  creditLimitPaise: Paise;
   /** Positive = they owe us (Dr), negative = we owe them (Cr). */
   balancePaise: Paise;
   /** Still to be collected (customers) or paid (suppliers), from bills not yet settled. */
@@ -56,7 +58,7 @@ export function partySummary(db: Db, accountId: number, asOn: string): PartySumm
       `WITH RECURSIVE tree(id, root) AS (
          SELECT id, name FROM account_group WHERE name IN ('Sundry Debtors', 'Sundry Creditors')
          UNION ALL SELECT g.id, t.root FROM account_group g JOIN tree t ON g.parent_id = t.id)
-       SELECT a.id, a.name, a.gstin, a.phone, a.address, a.state_code, a.credit_days,
+       SELECT a.id, a.name, a.gstin, a.phone, a.address, a.state_code, a.credit_days, a.credit_limit_paise,
               (SELECT root FROM tree WHERE tree.id = a.group_id) AS root
        FROM account a WHERE a.id = ?`,
     )
@@ -116,6 +118,7 @@ export function partySummary(db: Db, accountId: number, asOn: string): PartySumm
     address: account['address'] === null ? null : String(account['address']),
     stateCode: account['state_code'] === null ? null : String(account['state_code']),
     creditDays: Number(account['credit_days']),
+    creditLimitPaise: Number(account['credit_limit_paise']),
     balancePaise: accountBalance(db, accountId, asOn),
     outstandingPaise: open?.outstandingPaise ?? 0,
     advancePaise: open?.advancePaise ?? 0,

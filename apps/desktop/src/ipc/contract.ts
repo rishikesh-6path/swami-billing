@@ -32,6 +32,7 @@ import type {
   ReorderRow,
   LastPrice,
   HeldBill,
+  CreditCheck,
   PostedVoucher,
   Role,
   SaleTypeRow,
@@ -101,6 +102,8 @@ export interface ShopSettings {
   years: (FinancialYearRow & { current: boolean })[];
   /** Minutes without use before the screen locks; 0 = never. */
   lockMinutes: number;
+  /** The biggest discount staff may give, in basis points; 0 = no limit. */
+  staffMaxDiscountBp: number;
   about: { appVersion: string; dbPath: string; schemaVersion: number };
 }
 
@@ -186,6 +189,8 @@ const itemVoucherFields = {
 export const itemVoucherInput = z.object({
   ...itemVoucherFields,
   lines: z.array(itemLine).min(1).max(200),
+  /** The owner has seen the credit limit warning and wants to go on. */
+  overrideCredit: z.boolean().optional(),
 });
 export const itemVoucherDraft = z.object({
   ...itemVoucherFields,
@@ -263,6 +268,7 @@ const partyFields = {
   phone: z.string().max(30).nullable(),
   address: z.string().max(300).nullable(),
   creditDays: z.number().int().min(0).max(3650),
+  creditLimitPaise: paise.optional(),
   openingBalancePaise: paise,
   openingIsDr: z.boolean(),
 };
@@ -638,6 +644,14 @@ export const contract = {
   'settings.saveLock': ch<null>()(
     'manage_settings',
     z.object({ minutes: z.number().int().min(0).max(480) }),
+  ),
+  'settings.saveLimits': ch<null>()(
+    'manage_settings',
+    z.object({ staffMaxDiscountBp: z.number().int().min(0).max(10000) }),
+  ),
+  'credit.check': ch<CreditCheck | null>()(
+    'bill',
+    z.object({ partyId: id, billPaise: z.number().int(), excludeVoucherId: id.optional() }),
   ),
   'auth.unlock': ch<null>()('user', z.object({ pin: z.string().max(6) })),
   'support.save': ch<{ saved: string | null }>()('manage_settings', none),

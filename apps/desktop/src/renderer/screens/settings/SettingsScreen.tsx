@@ -17,7 +17,7 @@ const SECTIONS = [
   { id: 'notes', label: 'Standard notes' },
   { id: 'closing', label: 'Closing days and years' },
   { id: 'backup', label: 'Backup and restore' },
-  { id: 'support', label: 'Locking and support' },
+  { id: 'support', label: 'Locking, limits and support' },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]['id'];
 

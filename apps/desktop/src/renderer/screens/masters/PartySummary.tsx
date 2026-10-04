@@ -113,6 +113,9 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
                 <span>{data.phone ?? 'No phone number'}</span>
                 <span className="muted">{data.gstin ? `GST ${data.gstin}` : 'No GST number'}</span>
                 <span className="muted">{data.address ?? ''}</span>
+                {data.creditLimitPaise > 0 && (
+                  <span className="muted">Credit limit {rupees(data.creditLimitPaise)}</span>
+                )}
               </Card>
             </div>
             <Card title="Latest bills">

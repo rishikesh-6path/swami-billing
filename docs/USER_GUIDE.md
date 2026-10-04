@@ -61,6 +61,7 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 ## Finding, changing and cancelling a bill
 
 - Press **D** on the home screen. Type part of the customer name, the bill number or a note, choose the bill and press Enter.
+- If a customer has a credit limit and this bill would take them above it, the totals panel says so. Staff cannot save such a bill and are told to ask the owner; the owner is asked to confirm. Taking some money now (the Received box) keeps the amount owed within the limit.
 - **Alt+N** copies a sale or purchase as a new bill with today's date, so a regular order can be made again with one change. Nothing is saved until you press F2.
 - **Alt+B** changes a bill. The old bill is kept and marked as replaced, and a corrected bill is saved in its place. Nothing is ever erased.
 - **Alt+C** cancels a bill. You must write a short reason. A cancelled bill stays on record but no longer counts in sales or stock.
