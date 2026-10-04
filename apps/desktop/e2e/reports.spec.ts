@@ -12,6 +12,7 @@ test('a receipt shows up in the customer ledger with the right running balance',
     await page.keyboard.press('F6');
     await expect(page.getByLabel('Received from')).toBeFocused();
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Amount received')).toBeFocused();
     await page.keyboard.type('500');
@@ -23,6 +24,7 @@ test('a receipt shows up in the customer ledger with the right running balance',
     await page.keyboard.press('L'); // account ledger
     await expect(page.getByRole('heading', { name: 'Account Ledger' })).toBeVisible();
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await page.getByLabel('Period').selectOption('thisYear');
     await expect(page.getByText(/Opening balance:\s*2,365\.00 Dr/)).toBeVisible();

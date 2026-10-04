@@ -64,5 +64,13 @@ P7-03 | done | Bulk price change and stock-taking sheet | unit + E2E | P0-kickof
 P7-04 | done | Accountant exports, PDF for reports and statements | unit + E2E | P0-kickoff
 P7-05 | done | Review of P7-01..04, fixes, docs, packaged smoke test | unit + E2E, packaged check | P0-kickoff
 
+## Phase 8 — Fixes from the full code review
+P8-01 | done | GST kept on changed bills and returns (rate, HSN, GST type, party of the original) | unit + E2E | P0-kickoff
+P8-02 | todo | Owner-only controls staff could get round | unit + E2E |
+P8-03 | todo | Year end: next year without closing, reopen a year | unit + E2E |
+P8-04 | todo | Bill screen: series, all payments, held-bill limit, stock warning, structured confirmation | unit + E2E |
+P8-05 | todo | Exports and plain wording | unit |
+P8-06 | todo | Lock enforced in main, tidy-ups, review, docs | unit + E2E |
+
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

@@ -83,7 +83,13 @@ export function ItemVoucher({
   // party: undefined = the default (Cash for sales), null = cleared, otherwise a chosen party
   const [chosen, setChosen] = useState<Party | null | undefined>(
     (edit ?? copyFrom)?.party
-      ? { id: (edit ?? copyFrom)!.party!.id, name: (edit ?? copyFrom)!.party!.name }
+      ? {
+          id: (edit ?? copyFrom)!.party!.id,
+          name: (edit ?? copyFrom)!.party!.name,
+          ...((edit ?? copyFrom)!.party!.stateCode
+            ? { stateCode: (edit ?? copyFrom)!.party!.stateCode! }
+            : {}),
+        }
       : startParty
         ? { id: startParty.id, name: startParty.name, stateCode: startParty.stateCode }
         : undefined,
@@ -113,6 +119,23 @@ export function ItemVoucher({
   const [billDateText, setBillDateText] = useState<string | null>(null);
   const [billDateError, setBillDateError] = useState<string | null>(null);
   const [refId, setRefId] = useState<number | null>(edit?.refVoucher?.id ?? null);
+  // the GST type of the bill a return is made against
+  const [refInfo, setRefInfo] = useState<{ id: number; mode: VoucherDetail['taxMode'] } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!refId) return;
+    let live = true;
+    call('voucher.get', { id: refId }).then(
+      (d) => {
+        if (live && d) setRefInfo({ id: d.id, mode: d.taxMode });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [refId]);
   const [preview, setPreview] = useState<VoucherPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -186,10 +209,23 @@ export function ItemVoucher({
   const saleTypes = ready?.saleTypes ?? [];
   const autoMode =
     party?.stateCode && ready && party.stateCode !== ready.shopStateCode ? 'interstate' : 'local';
-  const saleType =
-    saleTypes.find((t) => t.id === saleTypeId) ??
-    saleTypes.find((t) => t.taxMode === autoMode) ??
-    saleTypes[0];
+  // A bill being changed keeps its GST type, and a return takes the GST type of the bill it
+  // reverses (the books refuse anything else). A copied bill starts with the old bill's type.
+  const source = edit ?? copyFrom;
+  const sourceSaleType = source
+    ? (saleTypes.find((t) => t.name === source.saleTypeName && t.taxMode === source.taxMode) ??
+      saleTypes.find((t) => t.taxMode === source.taxMode))
+    : undefined;
+  const refMode = refInfo && refInfo.id === refId ? refInfo.mode : null;
+  const fixedMode = edit ? edit.taxMode : kind.returnsAgainst ? refMode : null;
+  const picked = saleTypes.find((t) => t.id === saleTypeId);
+  const saleType = fixedMode
+    ? picked?.taxMode === fixedMode
+      ? picked
+      : sourceSaleType?.taxMode === fixedMode
+        ? sourceSaleType
+        : saleTypes.find((t) => t.taxMode === fixedMode)
+    : (picked ?? sourceSaleType ?? saleTypes.find((t) => t.taxMode === autoMode) ?? saleTypes[0]);
   const taxMode = saleType?.taxMode ?? 'local';
 
   const sundryList = ready?.sundries ?? [];
@@ -847,13 +883,16 @@ export function ItemVoucher({
             value={saleType?.id ?? ''}
             onChange={(e) => setSaleTypeId(Number(e.target.value))}
           >
-            {saleTypes.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
+            {saleTypes
+              .filter((t) => !fixedMode || t.taxMode === fixedMode)
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
           </select>
           <div className="field-note">
+            {fixedMode ? 'Same GST as the original bill. ' : ''}
             {taxMode === 'interstate'
               ? 'IGST applies (other state).'
               : taxMode === 'exempt'

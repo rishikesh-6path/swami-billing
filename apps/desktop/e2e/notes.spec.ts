@@ -13,6 +13,7 @@ test('the owner makes a credit note against a sale and it can be found and print
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('Control+A');
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Item, row 1')).toBeFocused();
     await page.keyboard.type('1500');
@@ -28,6 +29,7 @@ test('the owner makes a credit note against a sale and it can be found and print
     await expect(page.getByRole('heading', { name: 'New Credit Note' })).toBeVisible();
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     const bill = page.getByLabel('Bill being corrected');
     await expect(bill).toBeFocused();
@@ -81,6 +83,7 @@ test('changing the date on a note does not throw the cursor back to the customer
     await signIn(page);
     await page.getByRole('button', { name: /Credit Note/ }).click();
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Bill being corrected')).toBeFocused();
     await page.getByLabel('Date').fill('14-10-2026');

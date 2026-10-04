@@ -12,6 +12,7 @@ test('a receipt raises cash in hand and lowers what the customer owes', async ()
     await expect(page.getByRole('heading', { name: 'New Receipt' })).toBeVisible();
     await expect(page.getByLabel('Received from')).toBeFocused();
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByText(/Owes you ₹11,794\.00/)).toBeVisible();
     await expect(page.getByLabel('Amount received')).toBeFocused();
@@ -72,6 +73,7 @@ test('a journal entry offers the balancing amount and refuses unequal totals', a
     await page.keyboard.press('Enter'); // next line
     await expect(page.getByLabel('Account, line 2')).toBeFocused();
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Credit, line 2')).toHaveValue('100.00'); // offered automatically
     await expect(page.getByTestId('total-dr')).toHaveText('100.00');

@@ -90,6 +90,7 @@ test('the last price a customer paid is offered and F3 uses it', async () => {
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('Control+A');
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await page.keyboard.type('1500');
     await page.keyboard.press('Enter');
@@ -102,6 +103,7 @@ test('the last price a customer paid is offered and F3 uses it', async () => {
     // next time: the same customer and item show the 41.00 and F3 puts it in
     await page.keyboard.press('Control+A');
     await page.keyboard.type('ayap');
+    await expect(page.getByRole('option', { name: /Ayappan/ }).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await page.keyboard.type('1500');
     await page.keyboard.press('Enter');

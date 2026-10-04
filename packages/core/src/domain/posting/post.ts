@@ -389,9 +389,10 @@ export function lineTaxRate(
   input: { type: string; date: string; refVoucherId?: number | undefined },
   line: { itemId: number; taxRateBp?: number | undefined },
 ): number | undefined {
-  if (isNoteType(input.type) && input.refVoucherId !== undefined) {
-    // always the rate the original bill charged; a rate typed on the line cannot override it,
-    // and an item that is not on the bill has no rate here
+  if (ADJUSTS.has(input.type) && input.refVoucherId !== undefined) {
+    // a return or note always uses the rate the original bill charged, even if the item's rate has
+    // changed since; a rate typed on the line cannot override it, and an item that is not on the
+    // bill has no rate here
     return billLine(db, input.refVoucherId, line.itemId)?.rate;
   }
   return line.taxRateBp ?? resolveTaxRate(db, line.itemId, input.date);
@@ -417,11 +418,27 @@ function billLine(
     : undefined;
 }
 
-/** Rules that only credit and debit notes have: a reason, the same party and tax mode, and a ceiling. */
+const MODE_WORDS: Record<string, string> = {
+  local: 'local (CGST and SGST)',
+  interstate: 'interstate (IGST)',
+  exempt: 'no',
+};
+
+const ADJUST_LABELS: Record<string, string> = {
+  credit_note: 'credit note',
+  debit_note: 'debit note',
+  sales_return: 'return',
+  purchase_return: 'return',
+};
+
+/**
+ * Rules for returns and notes: the same party and GST type as the bill they correct; notes also
+ * need a reason, and none may go past what is left of the bill.
+ */
 function assertNoteAgainstInvoice(db: Db, input: ItemVoucherInput, legacyImport: boolean): void {
-  if (!isNoteType(input.type) || legacyImport || input.refVoucherId === undefined) return;
-  const label = input.type === 'credit_note' ? 'credit note' : 'debit note';
-  if (!(input.narration ?? '').trim()) {
+  if (!ADJUSTS.has(input.type) || legacyImport || input.refVoucherId === undefined) return;
+  const label = ADJUST_LABELS[input.type] ?? 'note';
+  if (isNoteType(input.type) && !(input.narration ?? '').trim()) {
     throw new PostingError(`Please write the reason for this ${label}.`);
   }
   const original = row(
@@ -438,9 +455,10 @@ function assertNoteAgainstInvoice(db: Db, input: ItemVoucherInput, legacyImport:
   }
   if (original['tax_mode'] !== null && original['tax_mode'] !== input.taxMode) {
     throw new PostingError(
-      `The bill being corrected was made with "${String(original['tax_mode'])}" GST, so this ${label} must be too.`,
+      `The bill being corrected was made with ${MODE_WORDS[String(original['tax_mode'])] ?? 'different'} GST, so this ${label} must be too. Please choose the same bill type.`,
     );
   }
+  if (!isNoteType(input.type)) return; // returns are limited by quantity instead
   const earlier = row(
     db,
     `SELECT COALESCE(SUM(total_paise), 0) AS n FROM voucher
@@ -520,8 +538,9 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   });
 
   const lines = input.lines.map((l) => {
+    // a return or note keeps the HSN and rate of the bill line it corrects
     const onBill =
-      isNoteType(input.type) && input.refVoucherId !== undefined && !legacyImport
+      ADJUSTS.has(input.type) && input.refVoucherId !== undefined && !legacyImport
         ? billLine(db, input.refVoucherId, l.itemId)
         : undefined;
     if (isNoteType(input.type) && input.refVoucherId !== undefined && !legacyImport && !onBill) {
