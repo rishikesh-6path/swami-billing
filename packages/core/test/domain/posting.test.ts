@@ -220,7 +220,7 @@ describe('guards', () => {
   it('rejects a series that belongs to another voucher type', () => {
     const s = seedShop();
     expect(() => postVoucher(s.db, { ...base(s), seriesId: s.seriesId.purchase })).toThrow(
-      /not sales/,
+      /does not match this kind of bill/,
     );
   });
 
@@ -360,7 +360,7 @@ describe('review guards', () => {
 
   it('requires returns and notes to reference the original invoice', () => {
     const s = seedShop();
-    expect(() => postVoucher(s.db, ret(s))).toThrow(/must reference the original invoice/);
+    expect(() => postVoucher(s.db, ret(s))).toThrow(/Please choose the bill this return is for/);
     expect(() =>
       postVoucher(s.db, {
         type: 'credit_note',
@@ -371,7 +371,7 @@ describe('review guards', () => {
         narration: 'Rate difference',
         lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 100 }],
       }),
-    ).toThrow(/original invoice/);
+    ).toThrow(/Please choose the bill this/);
   });
 
   it('rejects a reference to the wrong type, a cancelled invoice, or a later date', () => {
@@ -382,7 +382,7 @@ describe('review guards', () => {
       seriesId: s.seriesId.purchase,
     });
     expect(() => postVoucher(s.db, ret(s, { refVoucherId: purchase.voucherId }))).toThrow(
-      /posted sales/,
+      /saved sale bill/,
     );
     const later = postVoucher(s.db, sale(s, { date: '2026-11-01' }));
     expect(() => postVoucher(s.db, ret(s, { refVoucherId: later.voucherId }))).toThrow(
@@ -391,9 +391,9 @@ describe('review guards', () => {
     const gone = postVoucher(s.db, sale(s));
     cancelVoucher(s.db, gone.voucherId);
     expect(() => postVoucher(s.db, ret(s, { refVoucherId: gone.voucherId }))).toThrow(
-      /posted sales/,
+      /saved sale bill/,
     );
-    expect(() => postVoucher(s.db, ret(s, { refVoucherId: 999 }))).toThrow(/does not exist/);
+    expect(() => postVoucher(s.db, ret(s, { refVoucherId: 999 }))).toThrow(/could not be found/);
   });
 
   it('lets the importer skip reference and HSN checks only with legacyImport', () => {
@@ -413,7 +413,7 @@ describe('review guards', () => {
   it('keeps the tax mode consistent with the sale type', () => {
     const s = seedShop();
     s.db.exec("INSERT INTO sale_type (id, name, tax_mode) VALUES (1, 'Outstation', 'interstate')");
-    expect(() => postVoucher(s.db, sale(s, { saleTypeId: 1 }))).toThrow(/interstate/);
+    expect(() => postVoucher(s.db, sale(s, { saleTypeId: 1 }))).toThrow(/bill type does not match/);
     expect(() =>
       postVoucher(s.db, sale(s, { saleTypeId: 1, taxMode: 'interstate' })),
     ).not.toThrow();

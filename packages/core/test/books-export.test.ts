@@ -12,6 +12,7 @@ import {
   vouchersCsv,
 } from '../src/index.ts';
 import { parseCsv } from '../src/import/csv.ts';
+import { toCsv } from '../src/reports/csv.ts';
 import { freshDb } from './helpers/db.ts';
 import { seedShop, type Shop } from './helpers/shop.ts';
 
@@ -128,7 +129,7 @@ describe('data for the accountant', () => {
       phone: '9876543210',
       address: '12 Main Road, Salem',
     });
-    const items = itemsCsv(s.db);
+    const items = itemsCsv(s.db, '2026-10-31');
     const customers = partiesCsv(s.db, 'customer');
     const suppliers = partiesCsv(s.db, 'supplier');
 
@@ -136,10 +137,39 @@ describe('data for the accountant', () => {
     expect(importItemsCsv(fresh, items)).toMatchObject({ created: 3, skipped: [] });
     expect(importPartiesCsv(fresh, customers, 'customer')).toMatchObject({ skipped: [] });
     expect(importPartiesCsv(fresh, suppliers, 'supplier')).toMatchObject({ skipped: [] });
-    expect(itemsCsv(fresh)).toBe(items);
+    expect(itemsCsv(fresh, '2026-10-31')).toBe(items);
     expect(partiesCsv(fresh, 'customer')).toBe(customers);
     expect(partiesCsv(fresh, 'supplier')).toBe(suppliers);
     expect(customers).toContain('2500.00');
+  });
+
+  it('leaves the bill-only columns empty for receipts, and exports the rate in force on the date', () => {
+    const s = shopWithActivity();
+    postVoucher(s.db, {
+      type: 'receipt',
+      seriesId: s.seriesId.receipt,
+      date: '2026-10-09',
+      partyAccountId: s.partyA,
+      entries: [
+        { accountId: s.cash, side: 'dr', amountPaise: 500000 },
+        { accountId: s.partyA, side: 'cr', amountPaise: 500000 },
+      ],
+    });
+    const [header, ...rows] = parseCsv(vouchersCsv(s.db, P)).filter((r) => r.length > 1);
+    const receipt = rows.find((r) => r[header!.indexOf('Type')] === 'Receipt')!;
+    expect(receipt[header!.indexOf('Other charges')]).toBe('');
+    expect(receipt[header!.indexOf('Total for adding up')]).toBe('');
+    s.db.exec(
+      "INSERT INTO item_tax_rate (item_id, effective_from, rate_bp) VALUES (1, '2026-12-01', 500)",
+    );
+    expect(itemsCsv(s.db, '2026-10-31')).toContain(',18,');
+    expect(itemsCsv(s.db, '2026-12-31')).toContain(',5,');
+  });
+
+  it('writes phone numbers as they are, but still guards against formulas', () => {
+    expect(toCsv(['Phone'], [['+91 98765 43210'], ['(0427) 245-1234'], ['=HYPERLINK("x")']])).toBe(
+      'Phone\n+91 98765 43210\n(0427) 245-1234\n"\'=HYPERLINK(""x"")"\n',
+    );
   });
 
   it('bundles the files with a plain note', () => {

@@ -33,10 +33,10 @@ describe('cash and bank rules for entry vouchers', () => {
     expect(() => postVoucher(s.db, entry(s, 'receipt', s.cash, s.partyA))).not.toThrow();
     expect(() => postVoucher(s.db, entry(s, 'receipt', s.gpay, s.partyA))).not.toThrow(); // bank / UPI
     expect(() => postVoucher(s.db, entry(s, 'receipt', s.partyB, s.partyA))).toThrow(
-      /must debit a Cash or Bank/,
+      /must go into Cash or a bank account/,
     );
     expect(() => postVoucher(s.db, entry(s, 'receipt', s.cash, s.gpay))).toThrow(
-      /must debit a Cash or Bank/,
+      /must go into Cash or a bank account/,
     );
   });
 
@@ -44,7 +44,7 @@ describe('cash and bank rules for entry vouchers', () => {
     const s = seedShop();
     expect(() => postVoucher(s.db, entry(s, 'payment', s.partyB, s.cash))).not.toThrow();
     expect(() => postVoucher(s.db, entry(s, 'payment', s.cash, s.partyB))).toThrow(
-      /must credit a Cash or Bank/,
+      /must come out of Cash or a bank/,
     );
   });
 

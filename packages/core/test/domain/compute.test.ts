@@ -118,7 +118,7 @@ describe('computeItemVoucher', () => {
             v = computeItemVoucher(lines, sundries, mode, round);
           } catch (e) {
             // only legitimate failure: spreading a sundry over all-zero lines
-            expect(String(e)).toMatch(/zero-value|larger than the value/);
+            expect(String(e)).toMatch(/need at least one item with a price|larger than the value/);
             return;
           }
           expect(v.totalPaise).toBe(

@@ -69,7 +69,7 @@ P8-01 | done | GST kept on changed bills and returns (rate, HSN, GST type, party
 P8-02 | done | Owner-only controls staff could get round | unit + E2E | P0-kickoff
 P8-03 | done | Year end: next year without closing, reopen a year | E2E | P0-kickoff
 P8-04 | done | Bill screen: series, all payments, held-bill limit, stock warning, structured confirmation; review fixes | unit + E2E | P0-kickoff
-P8-05 | todo | Exports and plain wording | unit |
+P8-05 | done | Exports and plain wording | unit | P0-kickoff
 P8-06 | todo | Lock enforced in main, tidy-ups, review, docs | unit + E2E |
 
 ## Waiting on Tony (not blocking)

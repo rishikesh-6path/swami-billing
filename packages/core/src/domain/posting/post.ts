@@ -114,17 +114,22 @@ function assertReference(db: Db, input: VoucherInput, legacyImport: boolean): vo
   if (!expected) return;
   if (input.refVoucherId === undefined) {
     if (legacyImport) return;
-    throw new PostingError(`A ${input.type.replace('_', ' ')} must reference the original invoice`);
+    throw new PostingError(
+      `Please choose the bill this ${ADJUST_LABELS[input.type] ?? 'entry'} is for.`,
+    );
   }
   const ref = row(
     db,
     'SELECT voucher_type, status, date FROM voucher WHERE id = ?',
     input.refVoucherId,
   );
-  if (!ref) throw new PostingError(`Referenced voucher ${input.refVoucherId} does not exist`);
+  if (!ref)
+    throw new PostingError(
+      'The bill this refers to could not be found. Please choose the bill again.',
+    );
   if (ref['voucher_type'] !== expected || ref['status'] !== 'posted') {
     throw new PostingError(
-      `A ${input.type.replace('_', ' ')} must reference a posted ${expected} voucher`,
+      `Please choose a saved ${expected === 'sales' ? 'sale' : 'purchase'} bill that has not been cancelled.`,
     );
   }
   if (String(ref['date']) > input.date) {
@@ -135,10 +140,13 @@ function assertReference(db: Db, input: VoucherInput, legacyImport: boolean): vo
 /** Next gap-free number for (type, series, fy). Must be called inside the insert transaction. */
 function nextNumber(db: Db, type: string, seriesId: number, fyId: number): number {
   const series = row(db, 'SELECT voucher_type FROM voucher_series WHERE id = ?', seriesId);
-  if (!series) throw new PostingError(`Voucher series ${seriesId} does not exist`);
+  if (!series)
+    throw new PostingError(
+      'The bill number series could not be found. Please close this screen and open it again.',
+    );
   if (series['voucher_type'] !== type) {
     throw new PostingError(
-      `Series ${seriesId} is for ${String(series['voucher_type'])}, not ${type}`,
+      'The bill number series does not match this kind of bill. Please close this screen and open it again.',
     );
   }
   db.prepare(
@@ -279,7 +287,7 @@ function writeJournal(db: Db, voucherId: number, drafts: JournalDraft[]): void {
   let lineNo = 0;
   for (const d of drafts) {
     if (d.amountPaise === 0) continue;
-    if (d.amountPaise < 0) throw new PostingError('Journal amounts must be positive');
+    if (d.amountPaise < 0) throw new PostingError('Amounts must be more than zero.');
     lineNo += 1;
     insert.run(
       voucherId,
@@ -493,7 +501,10 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   // Place of supply and the party's GSTIN are frozen on the voucher (see migration 0004).
   const home = getCompanyStateCode(db);
   const party = row(db, 'SELECT gstin, state_code FROM account WHERE id = ?', input.partyAccountId);
-  if (!party) throw new PostingError(`Party account ${input.partyAccountId} does not exist`);
+  if (!party)
+    throw new PostingError(
+      'That customer or supplier could not be found. Please choose them again.',
+    );
   const partyState = party['state_code'] === null ? null : String(party['state_code']);
   // a return or note keeps the place of supply and GSTIN of the bill it corrects, so it is reported
   // together with that bill even if the customer's details have changed since
@@ -527,10 +538,13 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
       : String(party['gstin']);
   if (input.saleTypeId !== undefined) {
     const saleType = row(db, 'SELECT tax_mode FROM sale_type WHERE id = ?', input.saleTypeId);
-    if (!saleType) throw new PostingError(`Sale type ${input.saleTypeId} does not exist`);
+    if (!saleType)
+      throw new PostingError(
+        'That bill type could not be found. Please choose the bill type again.',
+      );
     if (saleType['tax_mode'] !== input.taxMode) {
       throw new PostingError(
-        `Sale type is ${String(saleType['tax_mode'])} but tax mode ${input.taxMode} was given`,
+        'The bill type does not match the GST on this bill. Please choose the bill type again.',
       );
     }
   }
@@ -541,8 +555,12 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
       'SELECT sign, affects_taxable, account_id FROM bill_sundry WHERE id = ?',
       s.billSundryId,
     );
-    if (!m) throw new PostingError(`Bill sundry ${s.billSundryId} does not exist`);
-    if (s.amountPaise < 0) throw new PostingError('Bill sundry amounts must be positive');
+    if (!m)
+      throw new PostingError(
+        'One of the extra charges could not be found. Please close this screen and open it again.',
+      );
+    if (s.amountPaise < 0)
+      throw new PostingError('Extra charges and discounts cannot be below zero.');
     return {
       sign: Number(m['sign']) as 1 | -1,
       affectsTaxable: Boolean(m['affects_taxable']),
@@ -571,7 +589,10 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
       );
     }
     const item = row(db, 'SELECT hsn, unit_id FROM item WHERE id = ?', l.itemId);
-    if (!item) throw new PostingError(`Item ${l.itemId} does not exist`);
+    if (!item)
+      throw new PostingError(
+        'One of the items could not be found (it may have been removed). Please pick the item again.',
+      );
     if (Number(item['unit_id']) !== l.unitId) {
       throw new PostingError(
         `${itemName(db, l.itemId)} is kept in a different unit than the one on this line. Please pick the item again.`,
@@ -629,7 +650,7 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   const settlements = input.settlements ?? [];
   const settled = settlements.reduce((a, s) => a + s.amountPaise, 0);
   if (settlements.some((s) => s.amountPaise <= 0))
-    throw new PostingError('Settlement amounts must be positive');
+    throw new PostingError('The amount received or paid must be more than zero.');
   if (settled > computed.totalPaise)
     throw new PostingError('The amount received or paid is more than the bill total.');
   for (const s of settlements) {
@@ -849,13 +870,15 @@ function assertCashBankRules(db: Db, input: EntryVoucherInput): void {
   switch (input.type) {
     case 'receipt':
       if (!dr.some(cash) || cr.some(cash)) {
-        throw new PostingError('A receipt must debit a Cash or Bank account and credit the party.');
+        throw new PostingError(
+          'Money received must go into Cash or a bank account, from the customer. Please check the accounts.',
+        );
       }
       break;
     case 'payment':
       if (!cr.some(cash) || dr.some(cash)) {
         throw new PostingError(
-          'A payment must credit a Cash or Bank account and debit the party or expense.',
+          'Money paid must come out of Cash or a bank account, to a supplier or an expense. Please check the accounts.',
         );
       }
       break;
@@ -877,7 +900,10 @@ function assertCashBankRules(db: Db, input: EntryVoucherInput): void {
 
 function assertItemUnit(db: Db, itemId: number, unitId: number, qty: number): void {
   const item = row(db, 'SELECT name, unit_id FROM item WHERE id = ?', itemId);
-  if (!item) throw new PostingError(`Item ${itemId} does not exist`);
+  if (!item)
+    throw new PostingError(
+      'One of the items could not be found (it may have been removed). Please pick the item again.',
+    );
   if (Number(item['unit_id']) !== unitId) {
     throw new PostingError(
       `"${String(item['name'])}" is counted in a different unit than the line uses.`,
@@ -1040,7 +1066,7 @@ export function cancelVoucher(
       `SELECT v.status, v.date, f.is_locked FROM voucher v JOIN financial_year f ON f.id = v.fy_id WHERE v.id = ?`,
       voucherId,
     );
-    if (!v) throw new PostingError(`Voucher ${voucherId} does not exist`);
+    if (!v) throw new PostingError('That bill could not be found.');
     if (v['is_locked'])
       throw new PostingError(
         'The financial year of this bill has been closed, so it cannot be changed.',

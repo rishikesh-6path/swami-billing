@@ -55,7 +55,10 @@ export interface ComputedVoucher {
 export function allocate(total: Paise, weights: Paise[]): Paise[] {
   if (total === 0) return weights.map(() => 0);
   const weightSum = weights.reduce((a, b) => a + b, 0);
-  if (weightSum <= 0) throw new PostingError('Cannot spread a bill sundry over zero-value lines');
+  if (weightSum <= 0)
+    throw new PostingError(
+      'Extra charges or discounts need at least one item with a price. Please enter the item prices first.',
+    );
   const sign = total < 0 ? -1 : 1;
   const t = BigInt(Math.abs(total));
   const sum = BigInt(weightSum);
@@ -89,7 +92,7 @@ export function computeItemVoucher(
   taxMode: TaxMode,
   roundOff: boolean,
 ): ComputedVoucher {
-  if (lines.length === 0) throw new PostingError('A voucher needs at least one item line');
+  if (lines.length === 0) throw new PostingError('Please add at least one item.');
 
   const priced = lines.map((line) => {
     if (line.qty <= 0) throw new PostingError('Item quantity must be greater than zero');

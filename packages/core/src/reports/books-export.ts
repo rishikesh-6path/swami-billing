@@ -9,8 +9,12 @@ const statusText = (status: string) => (status === 'cancelled' ? 'Cancelled' : '
 const fyLabel = (start: string, end: string) => `${start.slice(0, 4)}-${end.slice(2, 4)}`;
 const REDUCES = ['sales_return', 'credit_note', 'purchase_return', 'debit_note'];
 /** What the row adds to a total: nothing for a cancelled bill, minus for a return or note. */
-const addingUp = (type: string, status: string, total: number) =>
-  status === 'cancelled' ? 0 : REDUCES.includes(type) ? -total : total;
+const BILLS = ['sales', 'purchase', ...REDUCES];
+/** What a bill adds to a total: nothing when cancelled, minus for a return or note. Entries such as receipts are not bills and are left empty. */
+const addingUp = (type: string, status: string, total: number): string =>
+  !BILLS.includes(type)
+    ? ''
+    : formatMoney(status === 'cancelled' ? 0 : REDUCES.includes(type) ? -total : total);
 const percent = (bp: number) => (bp % 100 === 0 ? String(bp / 100) : (bp / 100).toFixed(2));
 
 /**
@@ -69,17 +73,17 @@ export function vouchersCsv(db: Db, args: Period): string {
       formatMoney(Number(r['cgst'])),
       formatMoney(Number(r['sgst'])),
       formatMoney(Number(r['igst'])),
-      formatMoney(
-        Number(r['total_paise']) -
-          Number(r['taxable_paise']) -
-          Number(r['tax_paise']) -
-          Number(r['round_off_paise']),
-      ),
+      BILLS.includes(String(r['voucher_type']))
+        ? formatMoney(
+            Number(r['total_paise']) -
+              Number(r['taxable_paise']) -
+              Number(r['tax_paise']) -
+              Number(r['round_off_paise']),
+          )
+        : '',
       formatMoney(Number(r['round_off_paise'])),
       formatMoney(Number(r['total_paise'])),
-      formatMoney(
-        addingUp(String(r['voucher_type']), String(r['status']), Number(r['total_paise'])),
-      ),
+      addingUp(String(r['voucher_type']), String(r['status']), Number(r['total_paise'])),
       statusText(String(r['status'])),
       r['party_bill_no'] === null ? '' : String(r['party_bill_no']),
       r['party_bill_date'] === null ? '' : String(r['party_bill_date']),
@@ -131,13 +135,13 @@ export function journalCsv(db: Db, args: Period): string {
   );
 }
 
-/** The item list in the same columns the spreadsheet import reads, so it can be loaded again. */
-export function itemsCsv(db: Db): string {
+/** The item list (with the GST rate in force on `asOn`) in the same columns the spreadsheet import reads, so it can be loaded again. */
+export function itemsCsv(db: Db, asOn: string): string {
   const rows = db
     .prepare(
       `SELECT i.name, i.alias, g.name AS group_name, u.name AS unit_name, i.hsn, i.opening_qty,
               i.opening_rate_paise, i.sale_price_paise, i.mrp_paise, i.min_stock_qty,
-              (SELECT rate_bp FROM item_tax_rate WHERE item_id = i.id
+              (SELECT rate_bp FROM item_tax_rate WHERE item_id = i.id AND effective_from <= ?
                ORDER BY effective_from DESC LIMIT 1) AS rate_bp
        FROM item i
        JOIN item_group g ON g.id = i.group_id
@@ -145,7 +149,7 @@ export function itemsCsv(db: Db): string {
        WHERE i.is_active = 1
        ORDER BY g.name, i.name`,
     )
-    .all();
+    .all(asOn);
   return toCsv(
     [
       'Name',
@@ -221,7 +225,7 @@ export function accountantFiles(db: Db, args: Period): Record<string, string> {
   return {
     'Bills and entries.csv': vouchersCsv(db, args),
     'Ledger lines.csv': journalCsv(db, args),
-    'Items.csv': itemsCsv(db),
+    'Items.csv': itemsCsv(db, args.to),
     'Customers.csv': partiesCsv(db, 'customer'),
     'Suppliers.csv': partiesCsv(db, 'supplier'),
     'Read me.txt': [
@@ -229,6 +233,8 @@ export function accountantFiles(db: Db, args: Period): Record<string, string> {
       '',
       'Bills and entries.csv: every bill and entry of the period, one row each. Cancelled bills are',
       'listed and marked Cancelled. Returns and notes show their own value, with the Type saying what they are.',
+      'Total for adding up is filled for bills only (negative for returns and notes, 0 when cancelled);',
+      'receipts, payments, journal and contra entries leave it and Other charges empty.',
       'Ledger lines.csv: the debit and credit lines behind them. The Debit and Credit columns add up to the same total.',
       'Items.csv, Customers.csv, Suppliers.csv: the lists as they are today (opening balances are the ones',
       'entered when the shop started). They can be loaded into ShopLedger again with Import.',

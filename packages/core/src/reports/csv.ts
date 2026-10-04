@@ -3,12 +3,19 @@ import { formatMoney } from '../money.ts';
 export type CsvCell = string | number | null;
 
 const NUMBER_LIKE = /^[+-]?\d[\d,]*(\.\d+)?( (Dr|Cr))?$/;
+/** A phone number such as "+91 98765 43210": only digits, spaces, brackets and dashes, so it cannot be a formula. */
+const PHONE_LIKE = /^\+?[\d\s()-]+$/;
 
 function escape(cell: CsvCell): string {
   let text = cell === null ? '' : String(cell);
   // A name typed or imported as "=HYPERLINK(...)" must not run as a formula when the file is opened
   // in Excel. Numbers (including negative ones) are left alone.
-  if (typeof cell === 'string' && /^[=+\-@\t\r]/.test(text) && !NUMBER_LIKE.test(text)) {
+  if (
+    typeof cell === 'string' &&
+    /^[=+\-@\t\r]/.test(text) &&
+    !NUMBER_LIKE.test(text) &&
+    !PHONE_LIKE.test(text)
+  ) {
     text = `'${text}`;
   }
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
