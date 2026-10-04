@@ -52,6 +52,26 @@ export function ReportBody({ result }: { result: ReportResult }) {
       );
     }
     case 'stock':
+      if (result.countSheet) {
+        return (
+          <DataTable
+            rowKey={(r) => r.itemId}
+            rows={result.data.rows}
+            empty="No items to show."
+            columns={[
+              { header: 'Group', cell: (r) => r.groupName },
+              { header: 'Item', cell: (r) => r.name },
+              { header: 'Code', cell: (r) => r.alias },
+              {
+                header: 'In the books',
+                num: true,
+                cell: (r) => `${formatQty(r.qty)} ${r.unitName}`,
+              },
+              { header: 'Counted', cell: () => <span className="count-box" /> },
+            ]}
+          />
+        );
+      }
       return (
         <>
           <p className="muted">

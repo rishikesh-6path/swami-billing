@@ -72,6 +72,7 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 - Home tiles **Items**, **Customers** and **Suppliers** list them. Type to search, press Enter to open.
 - Press Enter on a customer or supplier to see their page: what they owe, how much of it is late, and their latest bills and payments. **L** shows the full ledger and **F2** changes their details. On a customer's page **F8** starts a sale and **F6** a receipt; on a supplier's page **F9** starts a purchase and **F5** a payment. The person is already filled in.
 - On a bill, after you choose the customer and an item, the price that customer paid last time is shown under the price box. Press **F3** to use it; otherwise the list price stays.
+- The owner can raise or lower many prices at once: on the Items list press **Alt+P**, choose the group, type the per cent, press **F2** to see every new price, then **F2** again to save. Bills already made are not touched.
 - **F2** adds an item, **F3** adds a customer. Fill the boxes with Enter and save with **F2**.
 - The item "code" (alias) is the short number you type when billing. Keep each code different.
 
@@ -80,7 +81,7 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 Press **R** for the list. Every report can be saved as a spreadsheet (**Ctrl+E**) or printed (**Ctrl+P**).
 
 - **Day Summary** and **Day Book**: what happened today.
-- **Stock Report**: what is on the shelf and what is running low.
+- **Stock Report**: what is on the shelf and what is running low. Tick **Counting sheet** to print a list with an empty box to write what you count; then make a Stock Count entry from it.
 - **Outstanding**: who owes you and whom you owe, with how many days overdue.
 - **Account Ledger**: every entry for one customer or account. Press **L**.
 - **Item History**: every movement of one item. Press **G**.

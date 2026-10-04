@@ -875,3 +875,11 @@ tr.clickable:hover td {
   align-items: center;
   justify-content: center;
 }
+
+/* the empty box on a counting sheet, big enough to write a number in */
+.count-box {
+  display: inline-block;
+  min-width: 6rem;
+  min-height: 1.8rem;
+  border-bottom: 1px solid currentColor;
+}

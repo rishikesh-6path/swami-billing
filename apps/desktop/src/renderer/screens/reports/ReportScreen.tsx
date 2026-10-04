@@ -128,6 +128,7 @@ export function ReportScreen({
   const [asOn, setAsOn] = useState(today);
   const [outSide, setOutSide] = useState<'receivable' | 'payable'>(side ?? 'receivable');
   const [onlyProblems, setOnlyProblems] = useState(false);
+  const [countSheet, setCountSheet] = useState(false);
   const [subject, setSubject] = useState<{ id: number; name: string } | null>(
     accountId ? { id: accountId, name: accountName ?? '' } : null,
   );
@@ -145,7 +146,12 @@ export function ReportScreen({
       request = subject ? { kind, itemId: subject.id, ...range } : null;
       break;
     case 'stock':
-      request = { kind, asOn, ...(onlyProblems ? { onlyProblems: true } : {}) };
+      request = {
+        kind,
+        asOn,
+        ...(onlyProblems ? { onlyProblems: true } : {}),
+        ...(countSheet ? { countSheet: true } : {}),
+      };
       break;
     case 'outstanding':
       request = { kind, asOn, side: outSide };
@@ -320,6 +326,16 @@ export function ReportScreen({
               onChange={(e) => setOnlyProblems(e.target.checked)}
             />{' '}
             Only items running low or below zero
+          </label>
+        )}
+        {kind === 'stock' && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={countSheet}
+              onChange={(e) => setCountSheet(e.target.checked)}
+            />{' '}
+            Counting sheet (an empty box to write the counted quantity in)
           </label>
         )}
       </div>

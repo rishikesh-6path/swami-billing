@@ -4,6 +4,7 @@ import { useCall } from '../../lib/api.ts';
 import { formatPercent, rupees } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter } from '../../lib/router.tsx';
+import { useSession } from '../../lib/session.tsx';
 
 export function ItemList() {
   const router = useRouter();
@@ -15,8 +16,20 @@ export function ItemList() {
   const add = () => router.go({ name: 'item' });
   const open = (id: number) => router.go({ name: 'item', id });
 
-  useHotkeys({ F2: add });
-  useHints(['Type to search', 'Up/Down Choose', 'Enter Open', 'F2 Add item', 'Esc Back']);
+  const { user } = useSession();
+  const isOwner = user?.role === 'owner';
+  useHotkeys({
+    F2: add,
+    ...(isOwner ? { 'Alt+P': () => router.go({ name: 'priceChange' }) } : {}),
+  });
+  useHints([
+    'Type to search',
+    'Up/Down Choose',
+    'Enter Open',
+    'F2 Add item',
+    ...(isOwner ? ['Alt+P Change prices'] : []),
+    'Esc Back',
+  ]);
 
   return (
     <main className="page">
@@ -26,6 +39,11 @@ export function ItemList() {
         actions={
           <>
             <Button onClick={router.back}>Back (Esc)</Button>
+            {isOwner && (
+              <Button onClick={() => router.go({ name: 'priceChange' })}>
+                Change prices (Alt+P)
+              </Button>
+            )}
             <Button variant="primary" onClick={add}>
               Add item (F2)
             </Button>

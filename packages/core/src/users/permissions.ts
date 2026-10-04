@@ -16,6 +16,7 @@ export type Action =
   | 'view_audit_log'
   | 'post_adjustments' // journal, stock journal, stock count, debit/credit notes
   | 'edit_openings' // opening balances and opening stock
+  | 'change_prices' // change the selling prices of many items at once
   | 'close_year';
 
 const STAFF: Action[] = ['bill', 'cancel_voucher', 'edit_masters', 'view_daily_reports'];

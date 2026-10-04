@@ -33,6 +33,7 @@ import type {
   LastPrice,
   HeldBill,
   CreditCheck,
+  PriceChangeRow,
   PostedVoucher,
   Role,
   SaleTypeRow,
@@ -261,6 +262,13 @@ const itemFields = {
   minStockQty: paise,
 };
 
+const priceChange = z.object({
+  groupId: id.optional(),
+  percentBp: z.number().int().min(-9000).max(100000),
+  alsoMrp: z.boolean().optional(),
+  rounding: z.enum(['exact', 'rupee', 'fifty']).optional(),
+});
+
 const partyFields = {
   name: z.string().max(120),
   gstin: z.string().max(20).nullable(),
@@ -278,7 +286,13 @@ const period = { from: isoDate, to: isoDate };
 /** Every report the app can show. Which ones a user may open is checked in main, per kind. */
 export const reportRequest = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('ledger'), accountId: id, ...period }),
-  z.object({ kind: z.literal('stock'), asOn: isoDate, onlyProblems: z.boolean().optional() }),
+  z.object({
+    kind: z.literal('stock'),
+    asOn: isoDate,
+    onlyProblems: z.boolean().optional(),
+    /** A sheet to count the shelves with: no values, an empty Counted column. */
+    countSheet: z.boolean().optional(),
+  }),
   z.object({ kind: z.literal('itemLedger'), itemId: id, ...period }),
   z.object({ kind: z.literal('trialBalance'), ...period }),
   z.object({ kind: z.literal('dayBook'), ...period }),
@@ -302,7 +316,7 @@ export type ReportRequest = z.infer<typeof reportRequest>;
 
 export type ReportResult =
   | { kind: 'ledger'; data: AccountLedger }
-  | { kind: 'stock'; data: StockStatus }
+  | { kind: 'stock'; data: StockStatus; countSheet?: boolean }
   | { kind: 'itemLedger'; data: ItemLedger }
   | { kind: 'trialBalance'; data: TrialBalance }
   | { kind: 'dayBook'; data: DayBookRow[] }
@@ -432,6 +446,8 @@ export const contract = {
       taxEffectiveFrom: isoDate.optional(),
     }),
   ),
+  'price.preview': channel<typeof priceChange, PriceChangeRow[]>('change_prices', priceChange),
+  'price.apply': channel<typeof priceChange, { changed: number }>('change_prices', priceChange),
   'item.delete': channel<z.ZodObject<{ id: typeof id }>, null>('edit_masters', z.object({ id })),
   'itemgroup.list': channel<typeof none, ItemGroupRow[]>('edit_masters', none),
   'itemgroup.create': channel<z.ZodObject<{ name: z.ZodString }>, number>(

@@ -18,6 +18,7 @@ import {
   gstPurchasesToCsv,
   reorderList,
   reorderToCsv,
+  stockSheetToCsv,
   itemLedger,
   listAudit,
   itemLedgerToCsv,
@@ -91,6 +92,7 @@ function run(req: ReportRequest, ctx: HandlerContext): ReportResult {
           asOn: req.asOn,
           ...(req.onlyProblems ? { onlyProblems: true } : {}),
         }),
+        ...(req.countSheet ? { countSheet: true } : {}),
       };
     case 'itemLedger':
       return { kind: 'itemLedger', data: itemLedger(db, req) };
@@ -147,7 +149,12 @@ export const reportHandlers: Pick<Handlers, 'report.run' | 'report.export' | 'au
       case 'ledger':
         return { saved: await ctx.saveText(`${name}.csv`, ledgerToCsv(result.data)) };
       case 'stock':
-        return { saved: await ctx.saveText(`${name}.csv`, stockStatusToCsv(result.data)) };
+        return {
+          saved: await ctx.saveText(
+            `${name}.csv`,
+            result.countSheet ? stockSheetToCsv(result.data) : stockStatusToCsv(result.data),
+          ),
+        };
       case 'itemLedger':
         return { saved: await ctx.saveText(`${name}.csv`, itemLedgerToCsv(result.data)) };
       case 'trialBalance':

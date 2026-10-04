@@ -125,6 +125,14 @@ export function stockStatusToCsv(status: StockStatus): string {
   );
 }
 
+/** The counting sheet: what the books say, and an empty column for what is counted on the shelf. */
+export function stockSheetToCsv(status: StockStatus): string {
+  return toCsv(
+    ['Group', 'Item', 'Alias', 'Unit', 'In the books', 'Counted'],
+    status.rows.map((r) => [r.groupName, r.name, r.alias, r.unitName, formatQty(r.qty), '']),
+  );
+}
+
 export interface ItemLedgerRow {
   voucherId: number;
   date: string;

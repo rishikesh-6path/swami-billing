@@ -46,6 +46,7 @@ export * from './domain/held.ts';
 export * from './domain/limits.ts';
 export * from './reports/party-summary.ts';
 export * from './masters/last-price.ts';
+export * from './masters/price-change.ts';
 export * from './reports/gst/purchases.ts';
 export * from './reports/reorder.ts';
 export * from './support/log.ts';

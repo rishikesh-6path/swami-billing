@@ -37,6 +37,7 @@ export type Route =
   | { name: 'bill'; id: number }
   | { name: 'audit' }
   | { name: 'import' }
+  | { name: 'priceChange' }
   | {
       name: 'settings';
       section?: 'shop' | 'print' | 'users' | 'notes' | 'closing' | 'backup' | 'support';

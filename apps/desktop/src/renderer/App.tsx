@@ -24,6 +24,7 @@ import { NoteVoucher } from './screens/voucher/NoteVoucher.tsx';
 import { StockVoucher } from './screens/voucher/StockVoucher.tsx';
 import { VoucherRoute } from './screens/voucher/VoucherRoute.tsx';
 import { ImportScreen } from './screens/import/ImportScreen.tsx';
+import { PriceChangeScreen } from './screens/masters/PriceChangeScreen.tsx';
 import { SettingsScreen } from './screens/settings/SettingsScreen.tsx';
 import { Login } from './screens/Login.tsx';
 import { Setup } from './screens/Setup.tsx';
@@ -88,6 +89,7 @@ function Routes({
   if (router.route.name === 'bill') return <BillView key={router.route.id} id={router.route.id} />;
   if (router.route.name === 'audit') return <AuditScreen />;
   if (router.route.name === 'import') return <ImportScreen />;
+  if (router.route.name === 'priceChange') return <PriceChangeScreen />;
   if (router.route.name === 'settings')
     return <SettingsScreen initial={router.route.section} onSession={onSession} />;
   if (router.route.name === 'reports') return <ReportsHub />;

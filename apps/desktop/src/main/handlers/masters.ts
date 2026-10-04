@@ -13,6 +13,8 @@ import {
   listItemGroups,
   listItems,
   lastPriceFor,
+  previewPriceChange,
+  applyPriceChange,
   listParties,
   partySummary,
   listUnits,
@@ -46,6 +48,8 @@ export const masterHandlers: Pick<
   | 'party.get'
   | 'party.summary'
   | 'item.lastPrice'
+  | 'price.preview'
+  | 'price.apply'
   | 'party.save'
   | 'party.delete'
 > = {
@@ -105,6 +109,8 @@ export const masterHandlers: Pick<
       ...(req.text ? { text: req.text } : {}),
     }),
   'item.lastPrice': (req, ctx) => lastPriceFor(ctx.db, req),
+  'price.preview': (req, ctx) => previewPriceChange(ctx.db, req),
+  'price.apply': (req, ctx) => applyPriceChange(ctx.db, req, { userId: ctx.user().id }),
   'party.summary': (req, ctx) => partySummary(ctx.db, req.id, req.asOn),
   'party.get': (req, ctx) => getAccount(ctx.db, req.id) ?? null,
   'party.save': (req, ctx) => {
