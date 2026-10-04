@@ -22,6 +22,22 @@ test('the screen locks when idle, a wrong PIN is refused, and the bill is still 
     // keys do not reach the bill behind the lock
     await page.keyboard.press('F2');
     await expect(lock).toBeVisible();
+    // and the program itself refuses work while locked, not only the screen
+    const ask = () =>
+      page.evaluate(async () => {
+        const api = (
+          globalThis as unknown as {
+            shopledger: { invoke: (c: string, r: unknown) => Promise<unknown> };
+          }
+        ).shopledger;
+        try {
+          await api.invoke('voucher.list', {});
+          return 'ok';
+        } catch (e) {
+          return e instanceof Error ? e.message : String(e);
+        }
+      });
+    await expect.poll(ask).toMatch(/locked/);
 
     await page.keyboard.type('9999');
     await page.keyboard.press('Enter');
@@ -30,6 +46,7 @@ test('the screen locks when idle, a wrong PIN is refused, and the bill is still 
     await page.keyboard.press('Enter');
     await expect(lock).toHaveCount(0);
     await expect(page.getByLabel('Quantity, row 1')).toHaveValue('7');
+    expect(await ask()).toBe('ok');
   } finally {
     await shop.close();
   }

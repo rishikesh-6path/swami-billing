@@ -39,7 +39,11 @@ function Screens(props: { session: SessionState; onSession: (s: SessionState) =>
   // lock the screen after a while without a key or a mouse movement
   useEffect(() => {
     if (seconds <= 0 || locked) return;
-    const lock = () => setLocked(true);
+    const lock = () => {
+      // the main side refuses everything but the PIN while locked, not only the screen
+      void call('auth.lock', {}).catch(() => undefined);
+      setLocked(true);
+    };
     let timer = setTimeout(lock, seconds * 1000);
     const bump = () => {
       clearTimeout(timer);

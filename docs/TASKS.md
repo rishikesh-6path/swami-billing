@@ -70,7 +70,7 @@ P8-02 | done | Owner-only controls staff could get round | unit + E2E | P0-kicko
 P8-03 | done | Year end: next year without closing, reopen a year | E2E | P0-kickoff
 P8-04 | done | Bill screen: series, all payments, held-bill limit, stock warning, structured confirmation; review fixes | unit + E2E | P0-kickoff
 P8-05 | done | Exports and plain wording | unit | P0-kickoff
-P8-06 | todo | Lock enforced in main, tidy-ups, review, docs | unit + E2E |
+P8-06 | done | Lock enforced in main, review of P8-01..03, docs, packaged smoke test | E2E, packaged check | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

@@ -20,7 +20,18 @@ import {
 
 export interface Session {
   user: SessionUser | null;
+  /** The screen is covered after a while without use: nothing but unlocking or signing out works. */
+  locked?: boolean;
 }
+
+/** What still answers while the screen is locked. */
+const OPEN_WHILE_LOCKED = new Set<string>([
+  'auth.unlock',
+  'auth.logout',
+  'auth.lock',
+  'session.state',
+  'app.info',
+]);
 
 export interface HandlerContext {
   db: Db;
@@ -70,6 +81,7 @@ export type Handlers = {
 
 const NOT_SIGNED_IN = 'Please sign in first.';
 const NOT_ALLOWED = 'You do not have permission to do this. Please ask the owner.';
+const LOCKED = 'ShopLedger is locked. Please type your PIN to carry on.';
 const GENERIC =
   'Something went wrong. Please check what you were doing and try again. If it keeps happening, call support.';
 /** Channels that save a bill or a master in one all-or-nothing step, so "nothing was saved" is true. */
@@ -117,6 +129,9 @@ export function registerHandlers(
     const handler = handlers[channel] as (request: unknown, ctx: HandlerContext) => unknown;
     ipcMain.handle(channel, async (_event, raw: unknown): Promise<IpcResult<unknown>> => {
       try {
+        if (ctx.session.locked && !OPEN_WHILE_LOCKED.has(channel)) {
+          return { ok: false, message: LOCKED };
+        }
         if (spec.access !== 'public') {
           const user = ctx.session.user;
           if (!user) return { ok: false, message: NOT_SIGNED_IN };

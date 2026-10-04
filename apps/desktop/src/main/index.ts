@@ -123,7 +123,7 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     const opened = shopDb;
-    const session: Session = { user: null };
+    const session: Session = { user: null, locked: false };
     // Business dates are Indian dates; tests can pin the date with SHOPLEDGER_TODAY.
     const today = () =>
       testKnob('SHOPLEDGER_TODAY') ??

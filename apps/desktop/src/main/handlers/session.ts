@@ -78,6 +78,7 @@ export const sessionHandlers: Pick<
   | 'auth.login'
   | 'auth.logout'
   | 'auth.unlock'
+  | 'auth.lock'
   | 'lookup.states'
   | 'home.summary'
 > = {
@@ -110,6 +111,7 @@ export const sessionHandlers: Pick<
   'auth.login': (req, ctx) => {
     const user = login(ctx.db, req.name, req.pin);
     ctx.session.user = { id: user.id, name: user.name, role: user.role };
+    ctx.session.locked = false;
     return sessionState(ctx);
   },
   'auth.unlock': (req, ctx) => {
@@ -124,10 +126,16 @@ export const sessionHandlers: Pick<
       throw e;
     }
     if (again.id !== me.id) throw new ValidationError('That PIN is not right. Please try again.');
+    ctx.session.locked = false;
+    return null;
+  },
+  'auth.lock': (_req, ctx) => {
+    ctx.session.locked = true;
     return null;
   },
   'auth.logout': (_req, ctx) => {
     ctx.session.user = null;
+    ctx.session.locked = false;
     return sessionState(ctx);
   },
   'lookup.states': () =>
