@@ -144,6 +144,74 @@ test('staff are stopped by the credit limit and by the discount limit', async ()
       openingIsDr: true,
     });
     expect(raise).toMatch(/credit limit is for the owner|owner/);
+
+    // a payment that gives Selvam money takes them over the limit: refused for staff
+    const cashId = await page.evaluate(async () => {
+      const api = (globalThis as unknown as { shopledger: { invoke: Invoke } }).shopledger;
+      const setup = (await api.invoke('voucher.setup', {
+        type: 'sales',
+        date: '2026-10-15',
+      })) as { cashAccountId: number };
+      return setup.cashAccountId;
+    });
+    const payment = await callMain(page, 'voucher.post', {
+      type: 'payment',
+      date: '2026-10-15',
+      partyAccountId: selvamId,
+      entries: [
+        { accountId: selvamId, side: 'dr', amountPaise: 50000 },
+        { accountId: cashId, side: 'cr', amountPaise: 50000 },
+      ],
+    });
+    expect(payment).toMatch(/above their credit limit/);
+
+    // an existing item's price is the owner's
+    const item = await page.evaluate(async () => {
+      const api = (globalThis as unknown as { shopledger: { invoke: Invoke } }).shopledger;
+      return (await api.invoke('item.get', { id: 1 })) as { item: Record<string, unknown> };
+    });
+    const cheaper = await callMain(page, 'item.save', {
+      id: 1,
+      name: item.item['name'],
+      alias: item.item['alias'],
+      groupId: item.item['groupId'],
+      unitId: item.item['unitId'],
+      hsn: item.item['hsn'],
+      openingQty: item.item['openingQty'],
+      openingRatePaise: item.item['openingRatePaise'],
+      salePricePaise: 100,
+      mrpPaise: item.item['mrpPaise'],
+      minStockQty: item.item['minStockQty'],
+    });
+    expect(cheaper).toMatch(/changed by the owner/);
+
+    // turning a customer's opening balance from Dr to Cr is an opening change: owner only
+    const flipped = await page.evaluate(async () => {
+      const api = (globalThis as unknown as { shopledger: { invoke: Invoke } }).shopledger;
+      const hits = (await api.invoke('party.search', {
+        text: 'Ayappan',
+        kind: 'customer',
+        asOn: '2026-10-15',
+      })) as { id: number }[];
+      const p = (await api.invoke('party.get', { id: hits[0]!.id })) as Record<string, unknown>;
+      try {
+        await api.invoke('party.save', {
+          id: hits[0]!.id,
+          name: p['name'],
+          gstin: p['gstin'] ?? null,
+          stateCode: p['stateCode'] ?? null,
+          phone: p['phone'] ?? null,
+          address: p['address'] ?? null,
+          creditDays: p['creditDays'],
+          openingBalancePaise: p['openingBalancePaise'],
+          openingIsDr: !p['openingIsDr'],
+        });
+        return 'ok';
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    });
+    expect(flipped).toMatch(/entered by the owner/);
   } finally {
     await shop.close();
   }

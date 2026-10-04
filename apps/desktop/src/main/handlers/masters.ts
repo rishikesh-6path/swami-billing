@@ -73,6 +73,17 @@ export const masterHandlers: Pick<
         (fields.openingRatePaise ?? before?.openingRatePaise ?? 0) !==
           (before?.openingRatePaise ?? 0),
     );
+    // the selling price of an existing item is the owner's (staff discounts are measured against it)
+    if (
+      before !== undefined &&
+      !can(ctx.user().role, 'change_prices') &&
+      ((fields.salePricePaise ?? before.salePricePaise) !== before.salePricePaise ||
+        (fields.mrpPaise ?? before.mrpPaise) !== before.mrpPaise)
+    ) {
+      throw new ValidationError(
+        'The price of an item is changed by the owner. Please ask the owner.',
+      );
+    }
     if (id === undefined) {
       return createItem(
         ctx.db,
@@ -118,10 +129,13 @@ export const masterHandlers: Pick<
     const { id, kind, ...fields } = req;
     const who = { userId: ctx.user().id };
     const before = id === undefined ? undefined : getAccount(ctx.db, id);
+    const opening = fields.openingBalancePaise ?? before?.openingBalancePaise ?? 0;
+    const openingIsDr = fields.openingIsDr ?? before?.openingIsDr ?? true;
     staffOpeningGuard(
       ctx,
-      (fields.openingBalancePaise ?? before?.openingBalancePaise ?? 0) !==
-        (before?.openingBalancePaise ?? 0),
+      opening !== (before?.openingBalancePaise ?? 0) ||
+        // turning "they owe us" into "we owe them" changes the balance as much as a new amount
+        (before !== undefined && opening !== 0 && openingIsDr !== before.openingIsDr),
     );
     // who may owe how much is the owner's decision, not the counter's
     const newLimit = fields.creditLimitPaise ?? before?.creditLimitPaise ?? 0;

@@ -91,8 +91,10 @@ function Form({
 }) {
   const router = useRouter();
   const toast = useToast();
-  const { today } = useSession();
+  const { today, user } = useSession();
   const item = existing?.item;
+  // staff can add items, but only the owner changes the price of an existing one
+  const priceLocked = item !== undefined && user?.role !== 'owner';
   const [f, setF] = useState({
     name: item?.name ?? '',
     alias: item?.alias ?? '',
@@ -322,12 +324,15 @@ function Form({
             value={f.price}
             onChange={set('price')}
             inputMode="decimal"
+            readOnly={priceLocked}
+            {...(priceLocked ? { hint: 'Only the owner can change the price.' } : {})}
           />
           <TextField
             label="MRP (optional)"
             value={f.mrp}
             onChange={set('mrp')}
             inputMode="decimal"
+            readOnly={priceLocked}
           />
           <TextField
             label="Quantity in stock when you started"

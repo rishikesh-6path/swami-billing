@@ -88,15 +88,29 @@ export function staffDiscountProblem(
   db: Db,
   input: ItemVoucherInput,
   maxBp: number,
+  /** When a bill is being changed: its own prices count as usual, so it can be corrected after a price rise. */
+  changingVoucherId?: number,
 ): string | null {
   if (maxBp <= 0) return null;
+  const earlier = new Map<number, number>();
+  if (changingVoucherId !== undefined) {
+    const old = db
+      .prepare(
+        'SELECT item_id, price_paise FROM voucher_item WHERE voucher_id = ? ORDER BY line_no',
+      )
+      .all(changingVoucherId);
+    for (const r of old) {
+      if (!earlier.has(Number(r['item_id'])))
+        earlier.set(Number(r['item_id']), Number(r['price_paise']));
+    }
+  }
   const limitText = `${maxBp / 100}%`;
   let atMaster = 0; // what the lines come to at the master prices
   for (const line of input.lines) {
     const item = db
       .prepare('SELECT name, sale_price_paise FROM item WHERE id = ?')
       .get(line.itemId);
-    const master = Number(item?.['sale_price_paise'] ?? 0);
+    const master = earlier.get(line.itemId) ?? Number(item?.['sale_price_paise'] ?? 0);
     const after = applyDiscount(line.listPricePaise, line.discBp ?? 0);
     const base = Math.max(master, after);
     atMaster += lineAmount(line.qty, base);
@@ -112,6 +126,41 @@ export function staffDiscountProblem(
   const given = atMaster - preview.subtotalPaise + takenOff;
   if (given > 0 && atMaster > 0 && mulDivRound(given, 10000, atMaster) > maxBp) {
     return `The discount on this bill is more than ${limitText}, which is the most staff may give. Please ask the owner.`;
+  }
+  return null;
+}
+
+export interface LimitBreach {
+  accountId: number;
+  name: string;
+  limitPaise: number;
+  owingPaise: number;
+}
+
+/** What every customer with a credit limit owes now. Taken before a change, checked after it. */
+export function limitedBalances(db: Db): Map<number, number> {
+  const out = new Map<number, number>();
+  const rows = db
+    .prepare('SELECT id FROM account WHERE credit_limit_paise > 0 AND is_system = 0')
+    .all();
+  for (const r of rows) {
+    out.set(Number(r['id']), accountBalance(db, Number(r['id']), '9999-12-31'));
+  }
+  return out;
+}
+
+/**
+ * The first customer that a change has taken above their credit limit, or null. A customer who
+ * was already above it is only reported when the change made it worse.
+ */
+export function newlyOverLimit(db: Db, before: Map<number, number>): LimitBreach | null {
+  for (const [id, was] of before) {
+    const account = db.prepare('SELECT name, credit_limit_paise FROM account WHERE id = ?').get(id);
+    const limit = Number(account?.['credit_limit_paise'] ?? 0);
+    const now = accountBalance(db, id, '9999-12-31');
+    if (limit > 0 && now > limit && now > was) {
+      return { accountId: id, name: String(account?.['name']), limitPaise: limit, owingPaise: now };
+    }
   }
   return null;
 }

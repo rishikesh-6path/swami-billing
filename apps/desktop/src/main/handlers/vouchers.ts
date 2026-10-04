@@ -7,6 +7,8 @@ import {
   cancelVoucher,
   transaction,
   creditCheck,
+  limitedBalances,
+  newlyOverLimit,
   discardHeld,
   formatMoney,
   getStaffMaxDiscountBp,
@@ -71,7 +73,12 @@ function guardSale(
   const user = ctx.user();
   const isOwner = user.role === 'owner';
   if (!isOwner) {
-    const problem = staffDiscountProblem(ctx.db, input, getStaffMaxDiscountBp(ctx.db));
+    const problem = staffDiscountProblem(
+      ctx.db,
+      input,
+      getStaffMaxDiscountBp(ctx.db),
+      excludeVoucherId,
+    );
     if (problem) throw new ValidationError(problem);
   }
   const total = previewItemVoucher(ctx.db, input).totalPaise;
@@ -116,29 +123,24 @@ function recordOverride(
 }
 
 /**
- * Cancelling a receipt or a return gives the customer's debt back. Staff may not do that when it
- * would put the customer above their credit limit (it would undo the limit the owner set).
+ * Staff may not take any customer above their credit limit by any entry: a payment that gives a
+ * customer money, a receipt made smaller, a return or receipt cancelled. The change is made, what
+ * each limited customer owes is compared with before, and the whole change is undone if staff took
+ * someone over. The owner is not stopped here (sales ask the owner to confirm in guardSale).
  */
-function guardCancel(ctx: HandlerContext, voucherId: number): void {
-  const row = ctx.db
-    .prepare('SELECT status, party_account_id FROM voucher WHERE id = ?')
-    .get(voucherId);
-  if (!row || row['status'] !== 'posted' || row['party_account_id'] === null) return;
-  const partyId = Number(row['party_account_id']);
-  const net = ctx.db
-    .prepare(
-      `SELECT COALESCE(SUM(dr_paise), 0) - COALESCE(SUM(cr_paise), 0) AS net
-       FROM journal_line WHERE voucher_id = ? AND account_id = ? AND is_reversal = 0`,
-    )
-    .get(voucherId, partyId);
-  const restored = -Number(net?.['net'] ?? 0); // a receipt credits the customer: cancelling adds this back
-  if (restored <= 0) return;
-  const check = creditCheck(ctx.db, { partyId, billPaise: restored });
-  if (check?.over) {
-    throw new ValidationError(
-      `Cancelling this would take the customer above their credit limit of ₹${formatMoney(check.limitPaise)}. Please ask the owner.`,
-    );
-  }
+function withStaffLimit<T>(ctx: HandlerContext, change: () => T): T {
+  if (ctx.user().role === 'owner') return change();
+  return transaction(ctx.db, () => {
+    const before = limitedBalances(ctx.db);
+    const result = change();
+    const breach = newlyOverLimit(ctx.db, before);
+    if (breach) {
+      throw new ValidationError(
+        `This would take ${breach.name} above their credit limit of ₹${formatMoney(breach.limitPaise)} (they would owe ₹${formatMoney(breach.owingPaise)}). Please ask the owner.`,
+      );
+    }
+    return result;
+  });
 }
 
 function asVoucherType(type: string): VoucherType {
@@ -240,7 +242,9 @@ export const voucherHandlers: Pick<
     // the checks, the bill and the override record are saved together or not at all
     return transaction(ctx.db, () => {
       const over = guardSale(ctx, req);
-      const posted = postVoucher(ctx.db, withSeries(ctx, req), { role: ctx.user().role });
+      const posted = withStaffLimit(ctx, () =>
+        postVoucher(ctx.db, withSeries(ctx, req), { role: ctx.user().role }),
+      );
       recordOverride(ctx, over, posted.voucherId);
       return posted;
     });
@@ -251,8 +255,9 @@ export const voucherHandlers: Pick<
     const user = ctx.user();
     const bill = getVoucherDetail(ctx.db, req.id);
     if (bill) assertMayPost(ctx, bill.voucherType);
-    if (bill && user.role !== 'owner') guardCancel(ctx, req.id);
-    cancelVoucher(ctx.db, req.id, { userId: user.id, role: user.role, reason: req.reason });
+    withStaffLimit(ctx, () =>
+      cancelVoucher(ctx.db, req.id, { userId: user.id, role: user.role, reason: req.reason }),
+    );
     return null;
   },
   'voucher.modify': (req, ctx) => {
@@ -260,10 +265,12 @@ export const voucherHandlers: Pick<
     assertMayPost(ctx, req.input.type);
     return transaction(ctx.db, () => {
       const over = guardSale(ctx, req.input, req.id);
-      const posted = modifyVoucher(ctx.db, req.id, withSeries(ctx, req.input), {
-        role: user.role,
-        userId: user.id,
-      });
+      const posted = withStaffLimit(ctx, () =>
+        modifyVoucher(ctx.db, req.id, withSeries(ctx, req.input), {
+          role: user.role,
+          userId: user.id,
+        }),
+      );
       recordOverride(ctx, over, posted.voucherId);
       return posted;
     });

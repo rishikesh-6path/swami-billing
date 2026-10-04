@@ -6,6 +6,8 @@ import {
   createAccount,
   getAccount,
   getStaffMaxDiscountBp,
+  limitedBalances,
+  newlyOverLimit,
   setStaffMaxDiscountBp,
   staffDiscountProblem,
   updateAccount,
@@ -166,5 +168,51 @@ describe('money received on a bill', () => {
     expect(() => postVoucher(s.db, withSettlement(14))).toThrow(/cash or bank/); // an expense account
     const bank = 13; // GPAY SELVAM, a bank account in the test shop
     expect(postVoucher(s.db, withSettlement(bank)).voucherId).toBeGreaterThan(0);
+  });
+});
+
+describe('credit limit after any change', () => {
+  it('reports a customer a change took above their limit, but not one it made better', () => {
+    const s = seedShop();
+    updateAccount(s.db, s.partyA, { creditLimitPaise: 150000 });
+    const before = limitedBalances(s.db);
+    postVoucher(s.db, bill(s)); // 1,180.00: within the limit
+    expect(newlyOverLimit(s.db, before)).toBeNull();
+    const again = limitedBalances(s.db);
+    postVoucher(s.db, bill(s)); // 2,360.00: over
+    expect(newlyOverLimit(s.db, again)).toMatchObject({
+      accountId: s.partyA,
+      limitPaise: 150000,
+      owingPaise: 236000,
+    });
+    // a receipt that brings them down is never reported, even while still above the limit
+    const high = limitedBalances(s.db);
+    postVoucher(s.db, {
+      type: 'receipt',
+      seriesId: s.seriesId.receipt,
+      date: '2026-10-06',
+      partyAccountId: s.partyA,
+      entries: [
+        { accountId: s.cash, side: 'dr', amountPaise: 10000 },
+        { accountId: s.partyA, side: 'cr', amountPaise: 10000 },
+      ],
+    });
+    expect(newlyOverLimit(s.db, high)).toBeNull();
+  });
+});
+
+describe('staff discount when a bill is changed', () => {
+  it('measures against the price on the bill being changed, so it can be corrected after a price rise', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE item SET sale_price_paise = 10000 WHERE id = 1');
+    const old = postVoucher(s.db, bill(s));
+    s.db.exec('UPDATE item SET sale_price_paise = 11000 WHERE id = 1'); // price rise of 10%
+    const corrected = bill(s, {
+      lines: [{ itemId: 1, qty: 9000, unitId: 1, listPricePaise: 10000 }],
+    });
+    expect(staffDiscountProblem(s.db, corrected, 500)).toMatch(/below its usual price/);
+    expect(staffDiscountProblem(s.db, corrected, 500, old.voucherId)).toBeNull();
+    const cut = bill(s, { lines: [{ itemId: 1, qty: 9000, unitId: 1, listPricePaise: 8000 }] });
+    expect(staffDiscountProblem(s.db, cut, 500, old.voucherId)).toMatch(/below its usual price/);
   });
 });
