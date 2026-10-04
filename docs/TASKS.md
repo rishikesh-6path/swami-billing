@@ -61,7 +61,7 @@ P6-04 | done | Speed at real size (8,000-bill timing test; indexes in migration 
 P7-01 | done | Set a bill aside (Alt+H, Alt+R) and copy an old bill (Alt+N) | unit + E2E | P0-kickoff
 P7-02 | done | Credit limit and staff discount limit | unit + E2E | P0-kickoff
 P7-03 | done | Bulk price change and stock-taking sheet | unit + E2E | P0-kickoff
-P7-04 | todo | Accountant exports and PDF for GST reports and party statement | unit + E2E |
+P7-04 | done | Accountant exports, PDF for reports and statements | unit + E2E | P0-kickoff
 P7-05 | todo | Review, docs, packaged smoke test | |
 
 ## Waiting on Tony (not blocking)

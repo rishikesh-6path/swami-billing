@@ -87,6 +87,8 @@ Press **R** for the list. Every report can be saved as a spreadsheet (**Ctrl+E**
 - **Item History**: every movement of one item. Press **G**.
 - **Items to Order**: items below their minimum stock, with how much is needed and who you last bought them from, at what price and when.
 
+Press **Ctrl+S** on any report to save it as a PDF. To give a customer a statement, open the customer (Enter in Customers), press **L**, choose the period and save or print it.
+
 The owner also sees Profit and Loss, Balance Sheet, Trial Balance and the GST reports, including **Purchases for the CA**: every supplier invoice by GST rate, saved as a spreadsheet for your accountant.
 
 ## If something goes wrong

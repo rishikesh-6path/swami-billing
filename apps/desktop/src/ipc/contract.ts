@@ -500,6 +500,14 @@ export const contract = {
     'view_daily_reports',
     reportRequest,
   ),
+  'report.pdf': channel<typeof reportRequest, { saved: string | null }>(
+    'view_daily_reports',
+    reportRequest,
+  ),
+  'books.export': ch<{ saved: string | null }>()(
+    'view_balance_sheet',
+    z.object({ from: isoDate, to: isoDate }),
+  ),
   'print.preview': channel<
     z.ZodObject<{ id: typeof id; size: z.ZodEnum<{ a4: 'a4'; thermal: 'thermal' }> }>,
     { html: string; title: string }

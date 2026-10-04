@@ -95,6 +95,7 @@ const SYNONYMS: Record<string, string[]> = {
   phone: ['phone', 'mobile', 'contact'],
   address: ['address'],
   creditDays: ['credit days', 'credit'],
+  creditLimit: ['credit limit', 'limit'],
   openingBalance: ['opening balance', 'balance', 'opening'],
   drCr: ['dr/cr', 'dr cr', 'balance type'],
 };
@@ -276,6 +277,7 @@ export function importPartiesCsv(
           phone: f['phone'] || null,
           address: f['address'] || null,
           creditDays: creditDays ? Number(creditDays) : 0,
+          creditLimitPaise: f['creditLimit'] ? parseMoney(f['creditLimit']) : 0,
           openingBalancePaise: f['openingBalance'] ? parseMoney(f['openingBalance']) : 0,
           // a customer normally owes us (Dr); a supplier is owed by us (Cr), unless the file says otherwise
           openingIsDr: drCr ? !credit : !supplier,

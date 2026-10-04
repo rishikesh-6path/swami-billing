@@ -49,5 +49,6 @@ export * from './masters/last-price.ts';
 export * from './masters/price-change.ts';
 export * from './reports/gst/purchases.ts';
 export * from './reports/reorder.ts';
+export * from './reports/books-export.ts';
 export * from './support/log.ts';
 export * from './support/report.ts';

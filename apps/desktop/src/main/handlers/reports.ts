@@ -34,6 +34,7 @@ import {
   stockStatusToCsv,
   trialBalance,
   trialBalanceToCsv,
+  accountantFiles,
   type Action,
 } from '@shopledger/core';
 import type { ReportRequest, ReportResult } from '../../ipc/contract.ts';
@@ -137,9 +138,25 @@ const label = (req: ReportRequest): string => {
   return `${req.kind}_${when}`;
 };
 
-export const reportHandlers: Pick<Handlers, 'report.run' | 'report.export' | 'audit.list'> = {
+export const reportHandlers: Pick<
+  Handlers,
+  'report.run' | 'report.export' | 'report.pdf' | 'books.export' | 'audit.list'
+> = {
   'audit.list': (req, ctx) => listAudit(ctx.db, req),
   'report.run': (req, ctx) => run(req, ctx),
+  'report.pdf': async (req, ctx) => {
+    run(req, ctx); // refuses a report this person may not open
+    return { saved: await ctx.savePagePdf(`${label(req)}.pdf`) };
+  },
+  'books.export': async (req, ctx) => {
+    if (req.from > req.to) throw new ValidationError('The first date is after the last date.');
+    return {
+      saved: await ctx.saveFiles(
+        accountantFiles(ctx.db, req),
+        `accountant_${req.from}_to_${req.to}`,
+      ),
+    };
+  },
   'report.export': async (req, ctx) => {
     const result = run(req, ctx);
     const name = label(req);

@@ -223,6 +223,22 @@ if (!app.requestSingleInstanceLock()) {
           }),
       );
     };
+    const writePdf = async (pdf: Buffer, defaultName: string) => {
+      if (exportDir) {
+        mkdirSync(exportDir, { recursive: true });
+        const path = join(exportDir, defaultName);
+        writeSafely(path, pdf);
+        return path;
+      }
+      const result = await dialog.showSaveDialog(mainWindow ?? undefined!, {
+        title: 'Save as PDF',
+        defaultPath: join(app.getPath('documents'), defaultName),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (result.canceled || !result.filePath) return null;
+      writeSafely(result.filePath, pdf);
+      return result.filePath;
+    };
     const savePdf = async (html: string, opts: { size: 'a4' | 'thermal'; defaultName: string }) => {
       // printToPDF takes custom sizes in inches (print() takes microns).
       const pdfPageSize =
@@ -230,20 +246,17 @@ if (!app.requestSingleInstanceLock()) {
       const pdf = await withHiddenPage(html, (win) =>
         win.webContents.printToPDF({ printBackground: true, pageSize: pdfPageSize }),
       );
-      if (exportDir) {
-        mkdirSync(exportDir, { recursive: true });
-        const path = join(exportDir, opts.defaultName);
-        writeSafely(path, pdf);
-        return path;
-      }
-      const result = await dialog.showSaveDialog(mainWindow ?? undefined!, {
-        title: 'Save as PDF',
-        defaultPath: join(app.getPath('documents'), opts.defaultName),
-        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      return writePdf(pdf, opts.defaultName);
+    };
+    /** Saves the report on the screen as a landscape A4 PDF, as it would print (no buttons). */
+    const savePagePdf = async (defaultName: string) => {
+      if (!mainWindow) return null;
+      const pdf = await mainWindow.webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+        landscape: true,
       });
-      if (result.canceled || !result.filePath) return null;
-      writeSafely(result.filePath, pdf);
-      return result.filePath;
+      return writePdf(pdf, defaultName);
     };
     const chooseFolder = async (title: string) => {
       if (exportDir) return exportDir;
@@ -379,6 +392,7 @@ if (!app.requestSingleInstanceLock()) {
       saveFiles,
       printHtml,
       savePdf,
+      savePagePdf,
     });
     mainWindow = createWindow();
     mainWindow.on('closed', () => {

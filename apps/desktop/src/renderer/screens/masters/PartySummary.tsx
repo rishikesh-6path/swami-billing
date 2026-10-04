@@ -43,8 +43,14 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
   });
   useHints(
     customer
-      ? ['L Full ledger', 'F2 Change details', 'F8 Sale', 'F6 Receipt', 'Esc Back']
-      : ['L Full ledger', 'F2 Change details', 'F9 Purchase', 'F5 Payment', 'Esc Back'],
+      ? ['L Statement and full ledger', 'F2 Change details', 'F8 Sale', 'F6 Receipt', 'Esc Back']
+      : [
+          'L Statement and full ledger',
+          'F2 Change details',
+          'F9 Purchase',
+          'F5 Payment',
+          'Esc Back',
+        ],
   );
 
   return (
@@ -56,7 +62,7 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
           <>
             <Button onClick={router.back}>Back (Esc)</Button>
             <Button onClick={ledger} disabled={!data}>
-              Full ledger (L)
+              Statement and full ledger (L)
             </Button>
             {customer ? (
               <>

@@ -46,6 +46,8 @@ export interface HandlerContext {
     html: string,
     opts: { size: 'a4' | 'thermal'; defaultName: string },
   ) => Promise<string | null>;
+  /** Saves the page on the screen (a report) as a PDF; returns the path, or null if cancelled. */
+  savePagePdf: (defaultName: string) => Promise<string | null>;
   /** Where backups go when the owner has not chosen a folder. */
   backupPlace: { defaultFolder: string };
   /** The shop's current date and time (YYYY-MM-DD, HH:MM:SS). */

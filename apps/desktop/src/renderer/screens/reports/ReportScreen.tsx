@@ -178,8 +178,24 @@ export function ReportScreen({
     );
   };
 
-  useHotkeys({ Escape: router.back, 'Ctrl+P': () => window.print(), 'Ctrl+E': exportIt });
-  useHints(['Esc Back', 'Ctrl+E Save as spreadsheet', 'Ctrl+P Print']);
+  const savePdf = () => {
+    if (!request) return;
+    setError(null);
+    call('report.pdf', request).then(
+      ({ saved }) => {
+        if (saved) toast.show(`Saved to ${saved}`);
+      },
+      (e: unknown) => setError(e instanceof Error ? e.message : 'The PDF could not be saved.'),
+    );
+  };
+
+  useHotkeys({
+    Escape: router.back,
+    'Ctrl+P': () => window.print(),
+    'Ctrl+E': exportIt,
+    'Ctrl+S': savePdf,
+  });
+  useHints(['Esc Back', 'Ctrl+E Save as spreadsheet', 'Ctrl+S Save as PDF', 'Ctrl+P Print']);
 
   return (
     <main className="page report-page">
@@ -194,6 +210,9 @@ export function ReportScreen({
                 Save as spreadsheet
               </Button>
             )}
+            <Button onClick={savePdf} disabled={!request}>
+              Save as PDF
+            </Button>
             <Button onClick={() => window.print()}>Print</Button>
           </>
         }
