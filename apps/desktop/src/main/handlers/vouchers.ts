@@ -5,6 +5,10 @@ import {
   getNarrations,
   ValidationError,
   cancelVoucher,
+  discardHeld,
+  holdBill,
+  listHeld,
+  takeHeld,
   defaultSeriesId,
   getCompanyStateCode,
   getSetting,
@@ -38,6 +42,11 @@ function assertMayPost(ctx: HandlerContext, type: string): void {
   }
 }
 
+const whoIs = (ctx: HandlerContext) => {
+  const user = ctx.user();
+  return { userId: user.id, isOwner: user.role === 'owner' };
+};
+
 function asVoucherType(type: string): VoucherType {
   if (!(type in VOUCHER_TYPE_LABELS))
     throw new ValidationError('That kind of voucher is not known.');
@@ -65,6 +74,10 @@ export const voucherHandlers: Pick<
   | 'voucher.list'
   | 'voucher.cancel'
   | 'voucher.modify'
+  | 'bill.hold'
+  | 'bill.held'
+  | 'bill.take'
+  | 'bill.discard'
 > = {
   'voucher.setup': (req, ctx) => {
     const type = asVoucherType(req.type);
@@ -142,5 +155,20 @@ export const voucherHandlers: Pick<
       role: user.role,
       userId: user.id,
     });
+  },
+  'bill.hold': (req, ctx) => {
+    const user = ctx.user();
+    return holdBill(ctx.db, {
+      kind: req.kind,
+      userId: user.id,
+      label: req.label,
+      payload: req.payload,
+    });
+  },
+  'bill.held': (_req, ctx) => listHeld(ctx.db, whoIs(ctx)),
+  'bill.take': (req, ctx) => takeHeld(ctx.db, req.id, whoIs(ctx)),
+  'bill.discard': (req, ctx) => {
+    discardHeld(ctx.db, req.id, whoIs(ctx));
+    return null;
   },
 };

@@ -9,6 +9,7 @@ import {
   currentSchemaVersion,
   financialYearOn,
   backupReminder,
+  heldCount,
   getCompany,
   getSetting,
   isSetupComplete,
@@ -121,6 +122,7 @@ export const sessionHandlers: Pick<
       cashInHandPaise: day.cashClosingPaise,
       toCollectPaise: receivable.reduce((t, p) => t + p.outstandingPaise, 0),
       lowStockItems: stockStatus(ctx.db, { asOn: today, onlyProblems: true }).rows.length,
+      heldBills: heldCount(ctx.db, { userId: ctx.user().id, isOwner: ctx.user().role === 'owner' }),
       backupWarning:
         backupProblem(ctx.db) ?? backupReminder(getSetting(ctx.db, 'backup.last_at'), today),
     };

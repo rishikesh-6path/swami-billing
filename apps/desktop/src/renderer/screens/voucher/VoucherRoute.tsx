@@ -7,23 +7,38 @@ import { ItemVoucher } from './ItemVoucher.tsx';
 export function VoucherRoute({
   kind,
   editId,
+  copyId,
   party,
 }: {
   kind: ItemVoucherKind;
   editId: number | undefined;
+  copyId?: number | undefined;
   party?: StartParty | undefined;
 }) {
+  if (copyId !== undefined) return <EditLoader kind={kind} editId={copyId} copy />;
   if (editId === undefined) return <ItemVoucher kind={kind} startParty={party} />;
   return <EditLoader kind={kind} editId={editId} />;
 }
 
-function EditLoader({ kind, editId }: { kind: ItemVoucherKind; editId: number }) {
+function EditLoader({
+  kind,
+  editId,
+  copy = false,
+}: {
+  kind: ItemVoucherKind;
+  editId: number;
+  copy?: boolean;
+}) {
   const router = useRouter();
   const detail = useCall('voucher.get', { id: editId });
   return (
     <LoadState state={detail}>
       {detail.status === 'ready' && detail.data ? (
-        <ItemVoucher kind={kind} edit={detail.data} />
+        copy ? (
+          <ItemVoucher kind={kind} copyFrom={detail.data} />
+        ) : (
+          <ItemVoucher kind={kind} edit={detail.data} />
+        )
       ) : (
         <main className="page">
           <p>That bill could not be found.</p>

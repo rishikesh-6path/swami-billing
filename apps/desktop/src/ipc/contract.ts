@@ -31,6 +31,7 @@ import type {
   PurchasesForCa,
   ReorderRow,
   LastPrice,
+  HeldBill,
   PostedVoucher,
   Role,
   SaleTypeRow,
@@ -85,6 +86,8 @@ export interface HomeSummary {
   cashInHandPaise: number;
   toCollectPaise: number;
   lowStockItems: number;
+  /** Bills set aside and not yet finished by this person (everyone's, for the owner). */
+  heldBills: number;
   /** Plain-language warning when backups are overdue; null when all is well. */
   backupWarning: string | null;
 }
@@ -609,6 +612,17 @@ export const contract = {
       notes: z.array(z.string().max(200)).max(50),
     }),
   ),
+  'bill.hold': ch<number>()(
+    'bill',
+    z.object({
+      kind: z.enum(['sales', 'purchase', 'sales_return', 'purchase_return']),
+      label: z.string().min(1).max(120),
+      payload: z.unknown(),
+    }),
+  ),
+  'bill.held': ch<HeldBill[]>()('bill', none),
+  'bill.take': ch<{ kind: string; label: string; payload: unknown }>()('bill', z.object({ id })),
+  'bill.discard': ch<null>()('bill', z.object({ id })),
   'print.printers': ch<string[]>()('manage_settings', none),
   'item.lastPrice': ch<LastPrice | null>()(
     'bill',

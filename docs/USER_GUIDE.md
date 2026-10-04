@@ -30,6 +30,8 @@ Useful keys while making a bill:
 | F7 | Repeat the line above |
 | F9 | Delete the line you are on |
 | F12 | Copy the last bill of the same kind |
+| Alt+H | Set this bill aside and start a fresh one (for example when another customer is waiting) |
+| Alt+R | Bring a set-aside bill back |
 | F4 | Pick a standard note |
 | F5 | Show the list for the box you are in |
 | F10 | Calculator |
@@ -59,6 +61,7 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 ## Finding, changing and cancelling a bill
 
 - Press **D** on the home screen. Type part of the customer name, the bill number or a note, choose the bill and press Enter.
+- **Alt+N** copies a sale or purchase as a new bill with today's date, so a regular order can be made again with one change. Nothing is saved until you press F2.
 - **Alt+B** changes a bill. The old bill is kept and marked as replaced, and a corrected bill is saved in its place. Nothing is ever erased.
 - **Alt+C** cancels a bill. You must write a short reason. A cancelled bill stays on record but no longer counts in sales or stock.
 - If the owner has closed the day, you cannot change bills of that day. Ask the owner.

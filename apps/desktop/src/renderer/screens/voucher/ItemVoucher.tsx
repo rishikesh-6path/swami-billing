@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import type { ItemSearchRow, PartyHit, VoucherDetail, VoucherPreview } from '@shopledger/core';
+import type {
+  HeldBill,
+  ItemSearchRow,
+  PartyHit,
+  VoucherDetail,
+  VoucherPreview,
+} from '@shopledger/core';
 import {
   Button,
   Card,
@@ -48,10 +54,13 @@ type Col = 'item' | 'qty' | 'price' | 'disc';
 export function ItemVoucher({
   kind: kindName,
   edit,
+  copyFrom,
   startParty,
 }: {
   kind: ItemVoucherKind;
   edit?: VoucherDetail | undefined;
+  /** An earlier bill whose party and lines start this new bill. */
+  copyFrom?: VoucherDetail | undefined;
   /** Who the bill starts with, when opened from a customer or supplier page. */
   startParty?: StartParty | undefined;
 }) {
@@ -68,8 +77,8 @@ export function ItemVoucher({
 
   // party: undefined = the default (Cash for sales), null = cleared, otherwise a chosen party
   const [chosen, setChosen] = useState<Party | null | undefined>(
-    edit?.party
-      ? { id: edit.party.id, name: edit.party.name }
+    (edit ?? copyFrom)?.party
+      ? { id: (edit ?? copyFrom)!.party!.id, name: (edit ?? copyFrom)!.party!.name }
       : startParty
         ? { id: startParty.id, name: startParty.name, stateCode: startParty.stateCode }
         : undefined,
@@ -77,7 +86,7 @@ export function ItemVoucher({
   const [partyText, setPartyText] = useState<string | null>(null);
   const [partyLookup, setPartyLookup] = useState(0);
   const [saleTypeId, setSaleTypeId] = useState<number | null>(null);
-  const [broker, setBroker] = useState(edit?.broker ?? '');
+  const [broker, setBroker] = useState((edit ?? copyFrom)?.broker ?? '');
   const [rows, setRows] = useState<Row[]>([blankRow()]);
   const [focusRow, setFocusRow] = useState(0);
   const [lookup, setLookup] = useState({ row: -1, n: 0 });
@@ -92,7 +101,7 @@ export function ItemVoucher({
   const [settleAccount, setSettleAccount] = useState<number | null>(
     edit?.settlements[0]?.accountId ?? null,
   );
-  const [narration, setNarration] = useState(edit?.narration ?? '');
+  const [narration, setNarration] = useState((edit ?? copyFrom)?.narration ?? '');
   // the supplier's own invoice (purchases only)
   const [billNo, setBillNo] = useState(edit?.partyBillNo ?? '');
   const [billDateIso, setBillDateIso] = useState<string | null>(edit?.partyBillDate ?? null);
@@ -125,6 +134,22 @@ export function ItemVoucher({
       { listPricePaise: number; discBp: number; date: string; partyId: number; itemId: number }
     >
   >({});
+
+  // copying an earlier bill: today's date, the same lines and prices, nothing else carried over
+  useEffect(() => {
+    if (!copyFrom) return;
+    let cancelled = false;
+    void rowsFromDetail(copyFrom, shopToday, true).then((loaded) => {
+      if (!cancelled) {
+        setRows([...loaded, blankRow()]);
+        setDirty(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [copyFrom]);
 
   // when changing an existing bill, load its lines
   useEffect(() => {
@@ -270,6 +295,130 @@ export function ItemVoucher({
     toast.show(`Copied the lines of bill ${last.displayNumber}. Please check the quantities.`);
   };
 
+  /** Empties the screen for the next bill. */
+  const resetForm = () => {
+    setRows([blankRow()]);
+    setSundryText({});
+    setSettleText('');
+    setNarration('');
+    setBillNo('');
+    setBillDateIso(null);
+    setBroker('');
+    setChosen(undefined);
+    setPartyText(null);
+    setRefId(null);
+    setPreview(null);
+    setDirty(false);
+  };
+
+  // ---- setting a bill aside while someone else is served ----
+  const [heldList, setHeldList] = useState<HeldBill[] | null>(null);
+  const holdThis = async () => {
+    if (edit) return setError('A bill that is being changed cannot be set aside.');
+    const filled = rows.filter((r) => !isBlank(r));
+    if (filled.length === 0) return setError('There is nothing to set aside yet.');
+    const who = party && !isCashParty ? party.name : kind.cashDefault ? 'Cash sale' : 'No name';
+    const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const total = preview ? ` - ${rupees(preview.totalPaise)}` : '';
+    try {
+      await call('bill.hold', {
+        kind: kindName,
+        label: `${who} - ${filled.length} ${filled.length === 1 ? 'item' : 'items'}${total} - ${time}`,
+        payload: {
+          party: chosen ?? null,
+          dateIso,
+          saleTypeId,
+          broker,
+          rows: filled.map(({ item, text, qty, price, disc }) => ({
+            item,
+            text,
+            qty,
+            price,
+            disc,
+          })),
+          sundryText,
+          settleText,
+          settleAccount,
+          narration,
+          billNo,
+          billDateIso,
+          refId,
+        },
+      });
+      resetForm();
+      setError(null);
+      toast.show('The bill is set aside. Press Alt+R to bring it back.');
+      cells.focusId('party');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The bill could not be set aside.');
+    }
+  };
+  const openHeld = async () => {
+    if (edit) return;
+    if (dirty && rows.some((r) => !isBlank(r))) {
+      return setError(
+        'Please save this bill or set it aside (Alt+H) before bringing back another.',
+      );
+    }
+    try {
+      const list = (await call('bill.held', {})).filter((h) => h.kind === kindName);
+      if (list.length === 0) return setError('There are no bills set aside here.');
+      setError(null);
+      setHeldList(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The list could not be shown.');
+    }
+  };
+  const resumeHeld = async (id: number) => {
+    try {
+      const { payload } = await call('bill.take', { id });
+      const p = payload as {
+        party: Party | null;
+        dateIso: string | null;
+        saleTypeId: number | null;
+        broker: string;
+        rows: Omit<Row, 'key'>[];
+        sundryText: Record<number, string>;
+        settleText: string;
+        settleAccount: number | null;
+        narration: string;
+        billNo: string;
+        billDateIso: string | null;
+        refId: number | null;
+      };
+      setChosen(p.party ?? undefined);
+      setPartyText(null);
+      setDateIso(p.dateIso);
+      setSaleTypeId(p.saleTypeId);
+      setBroker(p.broker);
+      setRows([...p.rows.map((r) => ({ ...blankRow(), ...r })), blankRow()]);
+      setSundryText(p.sundryText);
+      setSettleText(p.settleText);
+      setSettleAccount(p.settleAccount);
+      setNarration(p.narration);
+      setBillNo(p.billNo);
+      setBillDateIso(p.billDateIso);
+      setRefId(p.refId);
+      setDirty(true);
+      setHeldList(null);
+      setError(null);
+      toast.show('The set-aside bill is back. Please check it before saving.');
+    } catch (e) {
+      setHeldList(null);
+      setError(e instanceof Error ? e.message : 'The bill could not be brought back.');
+    }
+  };
+  const dropHeld = async (id: number) => {
+    try {
+      await call('bill.discard', { id });
+      const rest = (heldList ?? []).filter((h) => h.id !== id);
+      setHeldList(rest.length > 0 ? rest : null);
+    } catch (e) {
+      setHeldList(null);
+      setError(e instanceof Error ? e.message : 'The bill could not be thrown away.');
+    }
+  };
+
   // ---- saving ----
   const save = async () => {
     if (saving || !ready) return;
@@ -341,18 +490,7 @@ export function ItemVoucher({
         : await call('voucher.post', input);
       toast.show(`Saved. Bill number ${posted.number}, total ${rupees(posted.totalPaise)}.`);
       if (edit) return router.back();
-      setRows([blankRow()]);
-      setSundryText({});
-      setSettleText('');
-      setNarration('');
-      setBillNo('');
-      setBillDateIso(null);
-      setBroker('');
-      setChosen(undefined);
-      setPartyText(null);
-      setRefId(null);
-      setPreview(null);
-      setDirty(false);
+      resetForm();
       setup.reload();
       if (ready.autoPrint && kindName === 'sales') setPrintAfter(posted.voucherId);
       else cells.focusId('party');
@@ -430,6 +568,8 @@ export function ItemVoucher({
     F7: repeatLine,
     F9: deleteLine,
     F12: () => void pasteLast(),
+    'Alt+H': () => void holdThis(),
+    'Alt+R': () => void openHeld(),
   });
   useHints([
     'F2 Save',
@@ -441,6 +581,8 @@ export function ItemVoucher({
     'F9 Delete line',
     'F12 Copy last bill',
     'F4 Standard note',
+    'Alt+H Set aside',
+    'Alt+R Bring back',
   ]);
 
   if (!ready) {
@@ -968,6 +1110,20 @@ export function ItemVoucher({
         >
           You have started a bill that is not saved. If you leave now it will be lost.
         </ConfirmDialog>
+      )}
+      {heldList && (
+        <InfoDialog title="Bills set aside" onClose={() => setHeldList(null)}>
+          <ul className="pick-list">
+            {heldList.map((h) => (
+              <li key={h.id}>
+                <Button onClick={() => void resumeHeld(h.id)}>{h.label}</Button>{' '}
+                <Button variant="danger" onClick={() => void dropHeld(h.id)}>
+                  Throw away
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </InfoDialog>
       )}
       {narrationPicker && (
         <InfoDialog title="Standard notes" onClose={() => setNarrationPicker(false)}>

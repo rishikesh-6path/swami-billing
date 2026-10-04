@@ -11,7 +11,7 @@ export interface Migration {
 }
 
 /** The newest schema this build understands. A test checks it against the migration files. */
-export const LATEST_SCHEMA_VERSION = 10;
+export const LATEST_SCHEMA_VERSION = 11;
 
 export class MigrationError extends Error {
   constructor(message: string) {

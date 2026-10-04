@@ -57,7 +57,14 @@ export type Route =
   | { name: 'entry'; kind: EntryKind; editId?: number; party?: StartParty }
   | { name: 'stock'; kind: StockKind }
   | { name: 'home' }
-  | { name: 'voucher'; kind: ItemVoucherKind; editId?: number; party?: StartParty }
+  | {
+      name: 'voucher';
+      kind: ItemVoucherKind;
+      editId?: number;
+      /** Start a new bill with the lines of this earlier bill. */
+      copyId?: number;
+      party?: StartParty;
+    }
   | { name: 'note'; kind: 'credit_note' | 'debit_note' }
   | { name: 'placeholder'; title: string };
 

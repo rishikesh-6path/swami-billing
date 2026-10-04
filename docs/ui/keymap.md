@@ -39,6 +39,9 @@ Item grid | F9 | Delete the current line
 Item grid | F4 | Standard note
 Item grid (sale, purchase) | F3 | Use the price this party paid last time for the item on the current row
 Sale, purchase, returns | F12 | Copy the last bill of the same kind
+Sale, purchase, returns | Alt+H | Set the bill aside and start a fresh one
+Sale, purchase, returns | Alt+R | Bring back a bill that was set aside
+Bill view (sale, purchase) | Alt+N | Copy as new bill: same party and lines, today's date
 Item grid | Esc | Close the open list first, then leave the bill
 Find a bill | Type | Search by customer name, bill number or note
 Find a bill | Up/Down, Enter | Choose and open a bill

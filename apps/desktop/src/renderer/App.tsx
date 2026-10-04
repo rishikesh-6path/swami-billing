@@ -135,12 +135,13 @@ function Routes({
     return <NoteVoucher key={router.route.kind} kind={router.route.kind} />;
   }
   if (router.route.name === 'voucher') {
-    const { kind, editId, party } = router.route;
+    const { kind, editId, copyId, party } = router.route;
     return (
       <VoucherRoute
-        key={`${kind}-${editId ?? 'new'}-${party?.id ?? ''}`}
+        key={`${kind}-${editId ?? 'new'}-${copyId ?? ''}-${party?.id ?? ''}`}
         kind={kind}
         editId={editId}
+        copyId={copyId}
         party={party}
       />
     );

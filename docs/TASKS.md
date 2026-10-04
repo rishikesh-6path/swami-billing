@@ -57,5 +57,12 @@ P6-02 | done | Registers and CA purchases CSV with supplier invoices; reorder li
 P6-03 | done | Support log, support file, idle lock | unit + E2E | P0-kickoff
 P6-04 | done | Speed at real size (8,000-bill timing test; indexes in migration 0010) | timing test | P0-kickoff
 
+## Phase 7 — Counter speed, shop controls, accountant handover
+P7-01 | done | Set a bill aside (Alt+H, Alt+R) and copy an old bill (Alt+N) | unit + E2E | P0-kickoff
+P7-02 | todo | Credit limit and staff discount limit | unit + E2E |
+P7-03 | todo | Bulk price change and stock-taking sheet | unit + E2E |
+P7-04 | todo | Accountant exports and PDF for GST reports and party statement | unit + E2E |
+P7-05 | todo | Review, docs, packaged smoke test | |
+
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

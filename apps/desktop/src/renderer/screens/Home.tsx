@@ -66,6 +66,14 @@ export function Home({
       </header>
 
       <LoadState state={summary}>
+        {summary.status === 'ready' && summary.data.heldBills > 0 && (
+          <Notice kind="info">
+            {summary.data.heldBills === 1
+              ? 'One bill is set aside.'
+              : `${summary.data.heldBills} bills are set aside.`}{' '}
+            Open the same bill screen and press Alt+R to bring it back.
+          </Notice>
+        )}
         {summary.status === 'ready' && summary.data.backupWarning && (
           <Notice kind="info">{summary.data.backupWarning}</Notice>
         )}

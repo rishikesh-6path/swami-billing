@@ -42,6 +42,7 @@ export * from './print/words.ts';
 export * from './backup/backup.ts';
 export * from './calc.ts';
 export * from './masters/narrations.ts';
+export * from './domain/held.ts';
 export * from './reports/party-summary.ts';
 export * from './masters/last-price.ts';
 export * from './reports/gst/purchases.ts';
