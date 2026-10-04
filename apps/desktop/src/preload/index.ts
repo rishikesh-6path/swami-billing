@@ -8,6 +8,10 @@ const api: ShopledgerApi = {
     if (!result.ok) throw new Error(result.message);
     return result.data;
   },
+  async invokeResult(channel: Channel, request: unknown) {
+    if (!channels.includes(channel)) throw new Error(`Unknown channel: ${String(channel)}`);
+    return (await ipcRenderer.invoke(channel, request)) as IpcResult<never>;
+  },
 };
 
 contextBridge.exposeInMainWorld('shopledger', api);

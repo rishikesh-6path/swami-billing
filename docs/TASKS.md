@@ -68,7 +68,7 @@ P7-05 | done | Review of P7-01..04, fixes, docs, packaged smoke test | unit + E2
 P8-01 | done | GST kept on changed bills and returns (rate, HSN, GST type, party of the original) | unit + E2E | P0-kickoff
 P8-02 | done | Owner-only controls staff could get round | unit + E2E | P0-kickoff
 P8-03 | done | Year end: next year without closing, reopen a year | E2E | P0-kickoff
-P8-04 | todo | Bill screen: series, all payments, held-bill limit, stock warning, structured confirmation | unit + E2E |
+P8-04 | done | Bill screen: series, all payments, held-bill limit, stock warning, structured confirmation; review fixes | unit + E2E | P0-kickoff
 P8-05 | todo | Exports and plain wording | unit |
 P8-06 | todo | Lock enforced in main, tidy-ups, review, docs | unit + E2E |
 

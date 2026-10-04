@@ -43,7 +43,9 @@ export function holdBill(
   }
   return transaction(db, () => {
     const mine = Number(
-      db.prepare('SELECT COUNT(*) AS n FROM held_bill WHERE user_id = ?').get(args.userId)?.['n'],
+      db
+        .prepare('SELECT COUNT(*) AS n FROM held_bill WHERE user_id = ? AND created_at >= ?')
+        .get(args.userId, cutoffOf(ctx))?.['n'],
     );
     if (mine >= HELD_MAX) {
       throw new ValidationError(

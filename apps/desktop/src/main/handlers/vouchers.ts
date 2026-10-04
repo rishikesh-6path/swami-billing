@@ -7,8 +7,8 @@ import {
   cancelVoucher,
   transaction,
   creditCheck,
-  limitedBalances,
-  newlyOverLimit,
+  journalMark,
+  overLimitSince,
   discardHeld,
   formatMoney,
   getStaffMaxDiscountBp,
@@ -100,7 +100,7 @@ function guardSale(
     );
   }
   if (!(req as { overrideCredit?: boolean }).overrideCredit) {
-    throw new ValidationError(`${text} Please confirm that you want to go on.`);
+    throw new ValidationError(text, 'confirm_credit');
   }
   return { check };
 }
@@ -132,9 +132,9 @@ function recordOverride(
 function withStaffLimit<T>(ctx: HandlerContext, change: () => T): T {
   if (ctx.user().role === 'owner') return change();
   return transaction(ctx.db, () => {
-    const before = limitedBalances(ctx.db);
+    const mark = journalMark(ctx.db);
     const result = change();
-    const breach = newlyOverLimit(ctx.db, before);
+    const breach = overLimitSince(ctx.db, mark);
     if (breach) {
       throw new ValidationError(
         `This would take ${breach.name} above their credit limit of ₹${formatMoney(breach.limitPaise)} (they would owe ₹${formatMoney(breach.owingPaise)}). Please ask the owner.`,

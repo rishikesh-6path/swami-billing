@@ -61,11 +61,64 @@ describe('review: a return reverses exactly what the bill charged', () => {
     ).toBeGreaterThan(0);
   });
 
+  it('refuses an item that is on the bill twice at different rates, and keeps the item HSN when the bill line had none', () => {
+    const s = seedShop();
+    const twice = sale(s, {
+      lines: [
+        { itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000 },
+        { itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000, taxRateBp: 500 },
+      ],
+    });
+    expect(() => postVoucher(s.db, salesReturn(s, twice.voucherId))).toThrow(/more than once/);
+    const plain = sale(s);
+    s.db.prepare('UPDATE voucher_item SET hsn = NULL WHERE voucher_id = ?').run(plain.voucherId);
+    const r = postVoucher(s.db, salesReturn(s, plain.voucherId));
+    expect(getVoucherDetail(s.db, r.voucherId)!.lines[0]!.hsn).toBe('73079990');
+  });
+
   it('must be made out to the same party as the bill', () => {
     const s = seedShop();
     const original = sale(s);
     expect(() =>
       postVoucher(s.db, salesReturn(s, original.voucherId, { partyAccountId: s.partyA })),
     ).toThrow(/same party/);
+  });
+});
+
+describe('review: the low stock warning on a bill', () => {
+  const lines = (qtys: number[]) =>
+    qtys.map((qty) => ({ itemId: 1, qty, unitId: 1, listPricePaise: 10000 }));
+  const draft = (s: Shop, date: string, qtys: number[]) => ({
+    type: 'sales' as const,
+    seriesId: s.seriesId.sales,
+    date,
+    partyAccountId: s.partyB,
+    taxMode: 'local' as const,
+    lines: lines(qtys),
+  });
+  const warnings = (s: Shop, date: string, qtys: number[]) =>
+    previewItemVoucher(s.db, draft(s, date, qtys)).problems.filter((p) => p.kind === 'warning');
+
+  it('adds up the same item on several lines, and warns once', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE item SET opening_qty = 10000 WHERE id = 1'); // 10 in stock
+    expect(warnings(s, '2026-10-05', [6000])).toEqual([]);
+    expect(warnings(s, '2026-10-05', [6000, 6000])).toHaveLength(1);
+  });
+
+  it('does not count a purchase dated after the bill', () => {
+    const s = seedShop();
+    postVoucher(s.db, {
+      type: 'purchase',
+      seriesId: s.seriesId.purchase,
+      date: '2026-10-25',
+      partyAccountId: s.partyB,
+      taxMode: 'local',
+      partyBillNo: 'LATER/1',
+      partyBillDate: '2026-10-25',
+      lines: [{ itemId: 1, qty: 50000, unitId: 1, listPricePaise: 5000 }],
+    });
+    expect(warnings(s, '2026-10-30', [5000])).toEqual([]);
+    expect(warnings(s, '2026-10-05', [5000])).toHaveLength(1);
   });
 });

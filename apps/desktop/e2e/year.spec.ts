@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { launch, signIn } from './helpers.ts';
 
@@ -40,4 +41,29 @@ test('on 1 April bills can be made at once, and the old year stays open', async 
   } finally {
     await shop.close();
   }
+});
+
+test('a computer clock that is badly wrong does not stop the app or create years', async () => {
+  const setUp = await launch({ demo: true, keepData: true });
+  await setUp.close();
+  for (const today of ['2000-01-01', '2035-06-01']) {
+    const shop = await launch({ today, dataDir: setUp.dataDir, keepData: true });
+    try {
+      await signIn(shop.page);
+      await expect(shop.page.getByText('Sales today')).toBeVisible();
+      const labels = await shop.page.evaluate(async () => {
+        const api = (
+          globalThis as unknown as {
+            shopledger: { invoke: (c: string, r: unknown) => Promise<unknown> };
+          }
+        ).shopledger;
+        const settings = (await api.invoke('settings.get', {})) as { years: { label: string }[] };
+        return settings.years.map((y) => y.label);
+      });
+      expect(labels).toEqual(['2026-27']);
+    } finally {
+      await shop.close();
+    }
+  }
+  rmSync(setUp.dataDir, { recursive: true, force: true });
 });

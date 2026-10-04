@@ -398,12 +398,26 @@ export function lineTaxRate(
   return line.taxRateBp ?? resolveTaxRate(db, line.itemId, input.date);
 }
 
-/** The rate and HSN a bill charged for an item (first line of that item). */
+/**
+ * The rate and HSN a bill charged for an item. An item that is on the bill more than once at
+ * different rates or HSN codes cannot be matched to one of them, so it is refused.
+ */
 function billLine(
   db: Db,
   voucherId: number,
   itemId: number,
 ): { rate: number; hsn: string | null } | undefined {
+  const kinds = row(
+    db,
+    "SELECT COUNT(DISTINCT tax_rate_bp) AS rates, COUNT(DISTINCT COALESCE(hsn, '')) AS hsns FROM voucher_item WHERE voucher_id = ? AND item_id = ?",
+    voucherId,
+    itemId,
+  );
+  if (Number(kinds?.['rates']) > 1 || Number(kinds?.['hsns']) > 1) {
+    throw new PostingError(
+      `${itemName(db, itemId)} is on that bill more than once with different GST rates or HSN codes, so it cannot be returned or adjusted here. Please ask your accountant how to record this.`,
+    );
+  }
   const found = row(
     db,
     'SELECT tax_rate_bp, hsn FROM voucher_item WHERE voucher_id = ? AND item_id = ? ORDER BY line_no LIMIT 1',
@@ -571,9 +585,7 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
         `${itemName(db, l.itemId)} is sold in whole units, so the quantity cannot have decimals.`,
       );
     }
-    const hsn = onBill
-      ? onBill.hsn
-      : (l.hsn ?? (item['hsn'] === null ? null : String(item['hsn'])));
+    const hsn = onBill?.hsn ?? l.hsn ?? (item['hsn'] === null ? null : String(item['hsn']));
     if (
       (input.type === 'sales' || input.type === 'credit_note') &&
       !legacyImport &&

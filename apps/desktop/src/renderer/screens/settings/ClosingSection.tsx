@@ -234,8 +234,9 @@ function ClosingBody({
           }}
         >
           <p>
-            Bills can then be made and changed in {reopenYear.label} again. Your accountant may have
-            already used its figures, so please tell them about any change.
+            Bills can then be made and changed in {reopenYear.label} again (except for dates the
+            books are locked for). Changes there also change the balances carried into later years,
+            and your accountant may have already used its figures, so please tell them.
           </p>
         </ConfirmDialog>
       )}

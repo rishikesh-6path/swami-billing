@@ -52,6 +52,23 @@ describe('set-aside bills', () => {
     expect(heldCount(s.db, { userId: s.ravi, isOwner: false })).toBe(0);
   });
 
+  it('does not count expired bills towards the limit of bills one person may keep', () => {
+    const s = shop();
+    for (let i = 0; i < HELD_MAX; i++)
+      holdBill(
+        s.db,
+        { kind: 'sales', userId: s.ravi, label: `old ${i}`, payload: {} },
+        { now: '2026-10-01T10:00:00.000Z' },
+      );
+    expect(
+      holdBill(
+        s.db,
+        { kind: 'sales', userId: s.ravi, label: 'new', payload: {} },
+        { now: '2026-10-20T10:00:00.000Z' },
+      ),
+    ).toBeGreaterThan(0);
+  });
+
   it('counts only bills that are still kept, and records the ones that expire', () => {
     const s = shop();
     holdBill(

@@ -6,8 +6,8 @@ import {
   createAccount,
   getAccount,
   getStaffMaxDiscountBp,
-  limitedBalances,
-  newlyOverLimit,
+  journalMark,
+  overLimitSince,
   setStaffMaxDiscountBp,
   staffDiscountProblem,
   updateAccount,
@@ -175,18 +175,18 @@ describe('credit limit after any change', () => {
   it('reports a customer a change took above their limit, but not one it made better', () => {
     const s = seedShop();
     updateAccount(s.db, s.partyA, { creditLimitPaise: 150000 });
-    const before = limitedBalances(s.db);
+    const first = journalMark(s.db);
     postVoucher(s.db, bill(s)); // 1,180.00: within the limit
-    expect(newlyOverLimit(s.db, before)).toBeNull();
-    const again = limitedBalances(s.db);
+    expect(overLimitSince(s.db, first)).toBeNull();
+    const second = journalMark(s.db);
     postVoucher(s.db, bill(s)); // 2,360.00: over
-    expect(newlyOverLimit(s.db, again)).toMatchObject({
+    expect(overLimitSince(s.db, second)).toMatchObject({
       accountId: s.partyA,
       limitPaise: 150000,
       owingPaise: 236000,
     });
     // a receipt that brings them down is never reported, even while still above the limit
-    const high = limitedBalances(s.db);
+    const third = journalMark(s.db);
     postVoucher(s.db, {
       type: 'receipt',
       seriesId: s.seriesId.receipt,
@@ -197,22 +197,33 @@ describe('credit limit after any change', () => {
         { accountId: s.partyA, side: 'cr', amountPaise: 10000 },
       ],
     });
-    expect(newlyOverLimit(s.db, high)).toBeNull();
+    expect(overLimitSince(s.db, third)).toBeNull();
   });
 });
 
 describe('staff discount when a bill is changed', () => {
-  it('measures against the price on the bill being changed, so it can be corrected after a price rise', () => {
+  it('lets a bill made before a small price rise be corrected at its own price', () => {
     const s = seedShop();
     s.db.exec('UPDATE item SET sale_price_paise = 10000 WHERE id = 1');
     const old = postVoucher(s.db, bill(s));
-    s.db.exec('UPDATE item SET sale_price_paise = 11000 WHERE id = 1'); // price rise of 10%
+    s.db.exec('UPDATE item SET sale_price_paise = 10400 WHERE id = 1'); // 4% dearer now
     const corrected = bill(s, {
       lines: [{ itemId: 1, qty: 9000, unitId: 1, listPricePaise: 10000 }],
     });
-    expect(staffDiscountProblem(s.db, corrected, 500)).toMatch(/below its usual price/);
     expect(staffDiscountProblem(s.db, corrected, 500, old.voucherId)).toBeNull();
-    const cut = bill(s, { lines: [{ itemId: 1, qty: 9000, unitId: 1, listPricePaise: 8000 }] });
-    expect(staffDiscountProblem(s.db, cut, 500, old.voucherId)).toMatch(/below its usual price/);
+  });
+
+  it('does not let a discount grow each time the bill is changed', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE item SET sale_price_paise = 10000 WHERE id = 1');
+    // first saved at 5% off (allowed), then changed to the discounted price with 5% off again
+    const old = postVoucher(
+      s.db,
+      bill(s, { lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000, discBp: 500 }] }),
+    );
+    const again = bill(s, {
+      lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 9500, discBp: 500 }],
+    });
+    expect(staffDiscountProblem(s.db, again, 500, old.voucherId)).toMatch(/below its usual price/);
   });
 });

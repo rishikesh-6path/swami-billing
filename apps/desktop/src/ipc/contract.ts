@@ -758,10 +758,17 @@ export type Req<C extends Channel> = z.infer<(typeof contract)[C]['request']>;
 export type Res<C extends Channel> = (typeof contract)[C]['response'];
 
 /** What main sends back: either the data, or a message already written for shop staff. */
-export type IpcResult<T> = { ok: true; data: T } | { ok: false; message: string };
+export type IpcResult<T> =
+  { ok: true; data: T } | { ok: false; message: string; code?: string | undefined };
 
 export interface ShopledgerApi {
   invoke<C extends Channel>(channel: C, request: Req<C>): Promise<Res<C>>;
+  /**
+   * The same call, but the answer comes back as data instead of a thrown error. Electron passes
+   * only the message of an error between the main side and the screen, so the screens use this
+   * one to keep the code of a refusal (for example 'confirm_credit').
+   */
+  invokeResult<C extends Channel>(channel: C, request: Req<C>): Promise<IpcResult<Res<C>>>;
 }
 
 export const channels = Object.keys(contract) as Channel[];

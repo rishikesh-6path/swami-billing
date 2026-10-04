@@ -40,6 +40,7 @@ export interface VoucherDetail {
   number: number;
   /** Series prefix and number, as printed on the bill. */
   displayNumber: string;
+  seriesId: number;
   seriesName: string;
   date: string;
   status: 'draft' | 'posted' | 'cancelled';
@@ -147,6 +148,7 @@ export function getVoucherDetail(db: Db, id: number): VoucherDetail | undefined 
     voucherType: String(v['voucher_type']),
     number: Number(v['number']),
     displayNumber: `${String(v['prefix'])}${Number(v['number'])}`,
+    seriesId: Number(v['series_id']),
     seriesName: String(v['series_name']),
     date: String(v['date']),
     status: String(v['status']) as VoucherDetail['status'],

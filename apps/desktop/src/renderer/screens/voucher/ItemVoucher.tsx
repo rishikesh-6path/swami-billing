@@ -21,7 +21,7 @@ import { PrintDialog } from '../../components/PrintDialog.tsx';
 import { HeldBillsDialog } from './HeldBillsDialog.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { useCellFocus } from './cells.ts';
-import { call, useCall, useKept } from '../../lib/api.ts';
+import { call, CallError, useCall, useKept } from '../../lib/api.ts';
 import {
   formatBalance,
   formatDate,
@@ -48,9 +48,6 @@ import {
 } from './model.ts';
 
 type Col = 'item' | 'qty' | 'price' | 'disc';
-
-/** The ending of the message that asks the owner to confirm a bill over the credit limit. */
-const CONFIRM_CREDIT = 'Please confirm that you want to go on.';
 
 /**
  * The bill screen for sales, purchases and their returns. Everything can be done from the
@@ -112,6 +109,9 @@ export function ItemVoucher({
   const [settleAccount, setSettleAccount] = useState<number | null>(
     edit?.settlements[0]?.accountId ?? null,
   );
+  // a bill being changed may have been paid in more than one way; the screen edits the first
+  // payment and keeps the others as they were
+  const otherSettlements = (edit?.settlements ?? []).slice(1);
   const [narration, setNarration] = useState((edit ?? copyFrom)?.narration ?? '');
   // the supplier's own invoice (purchases only)
   const [billNo, setBillNo] = useState(edit?.partyBillNo ?? '');
@@ -541,20 +541,23 @@ export function ItemVoucher({
     const received = parseMoney(settleText);
     if (settleText.trim() !== '' && (received === null || received < 0))
       return setError('The amount received is not a valid amount.');
-    const settlements =
-      !isCashParty && received && received > 0
+    const settlements = [
+      ...(!isCashParty && received && received > 0
         ? [
             {
               accountId: settleAccount ?? ready.paymentAccounts[0]?.id ?? ready.cashAccountId,
               amountPaise: received,
             },
           ]
-        : [];
+        : []),
+      ...otherSettlements.map((x) => ({ accountId: x.accountId, amountPaise: x.amountPaise })),
+    ];
 
     const input = {
       type: kindName,
       date: dateIso ?? today,
-      seriesId: ready.defaultSeriesId,
+      // a changed bill stays in its own number series
+      seriesId: edit ? edit.seriesId : ready.defaultSeriesId,
       partyAccountId: party.id,
       ...(saleType ? { saleTypeId: saleType.id } : {}),
       taxMode,
@@ -587,9 +590,8 @@ export function ItemVoucher({
       const message =
         e instanceof Error ? e.message : 'Something went wrong and nothing was saved.';
       // the owner is asked to confirm a bill that takes a customer over their credit limit
-      if (message.endsWith(CONFIRM_CREDIT)) {
-        setConfirmCredit(message.slice(0, -CONFIRM_CREDIT.length).trim());
-      } else setError(message);
+      if (e instanceof CallError && e.code === 'confirm_credit') setConfirmCredit(message);
+      else setError(message);
     } finally {
       setSaving(false);
     }
@@ -1118,6 +1120,14 @@ export function ItemVoucher({
                     }}
                   />
                 </div>
+              )}
+              {otherSettlements.length > 0 && (
+                <p className="muted">
+                  Also paid on this bill (kept as it was):{' '}
+                  {otherSettlements
+                    .map((x) => `${rupees(x.amountPaise)} in ${x.accountName}`)
+                    .join(', ')}
+                </p>
               )}
               {!isCashParty && (ready?.paymentAccounts.length ?? 0) > 1 && (
                 <div className="field">

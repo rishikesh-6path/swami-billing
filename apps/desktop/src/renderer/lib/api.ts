@@ -2,8 +2,19 @@ import { useEffect, useState } from 'react';
 import type { Channel, Req, Res } from '../../ipc/contract.ts';
 
 /** Calls the main process. Rejects with a message that is already written for shop staff. */
-export function call<C extends Channel>(channel: C, request: Req<C>): Promise<Res<C>> {
-  return window.shopledger.invoke(channel, request);
+/** An error from the main side: its message is written for shop staff; `code` is for the screen. */
+export class CallError extends Error {
+  readonly code: string | undefined;
+  constructor(message: string, code: string | undefined) {
+    super(message);
+    this.code = code;
+  }
+}
+
+export async function call<C extends Channel>(channel: C, request: Req<C>): Promise<Res<C>> {
+  const result = await window.shopledger.invokeResult(channel, request);
+  if (!result.ok) throw new CallError(result.message, result.code);
+  return result.data;
 }
 
 /**

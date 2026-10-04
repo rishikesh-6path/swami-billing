@@ -137,7 +137,11 @@ export function registerHandlers(
         if (!(error instanceof ValidationError || error instanceof PostingError)) {
           log('error', `${channel} failed`, error);
         }
-        return { ok: false, message: friendlyMessage(error, channel) };
+        return {
+          ok: false,
+          message: friendlyMessage(error, channel),
+          ...(error instanceof ValidationError && error.code ? { code: error.code } : {}),
+        };
       }
     });
   }

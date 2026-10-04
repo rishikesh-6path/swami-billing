@@ -61,6 +61,12 @@ const EMPTY: Omit<VoucherPreview, 'lines' | 'problems'> = {
 export function previewItemVoucher(db: Db, input: ItemVoucherInput): VoucherPreview {
   const problems: PreviewProblem[] = [];
   const index: number[] = [];
+  // how much of each item the whole bill takes, for the stock warning
+  const neededQty = new Map<number, number>();
+  for (const l of input.lines) {
+    if (l.itemId > 0 && l.qty > 0) neededQty.set(l.itemId, (neededQty.get(l.itemId) ?? 0) + l.qty);
+  }
+  const warned = new Set<number>();
   const lines = input.lines
     .map((l, i) => ({ l, i }))
     // a note's line is a value (qty is ignored), so only the item and amount matter
@@ -90,15 +96,19 @@ export function previewItemVoucher(db: Db, input: ItemVoucherInput): VoucherPrev
           message: `"${name}" needs an HSN code (4 to 8 digits). Please add it in Items.`,
         });
       }
-      if (input.type === 'sales') {
+      // warn once per item, for all its lines together, against the stock on the bill's date
+      if (input.type === 'sales' && !warned.has(l.itemId)) {
+        warned.add(l.itemId);
         const stock = db
           .prepare(
             `SELECT i.opening_qty + COALESCE((SELECT SUM(m.qty_in) - SUM(m.qty_out) FROM stock_movement m
-               JOIN voucher v ON v.id = m.voucher_id WHERE m.item_id = i.id AND v.status = 'posted'), 0) AS qty
+               JOIN voucher v ON v.id = m.voucher_id
+               WHERE m.item_id = i.id AND v.status = 'posted' AND m.date <= ?), 0) AS qty
              FROM item i WHERE i.id = ?`,
           )
-          .get(l.itemId) as { qty: number } | undefined;
-        if (stock && l.qty > stock.qty) {
+          .get(input.date, l.itemId) as { qty: number } | undefined;
+        const wanted = neededQty.get(l.itemId) ?? l.qty;
+        if (stock && wanted > stock.qty) {
           problems.push({
             kind: 'warning',
             message: `Only ${stock.qty / 1000} of "${name}" is in stock.`,

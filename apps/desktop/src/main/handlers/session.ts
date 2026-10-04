@@ -19,6 +19,7 @@ import {
 } from '@shopledger/core';
 import { backupProblem } from '../backup.ts';
 import { testKnob } from '../env.ts';
+import { log } from '../log.ts';
 import type { Handlers, HandlerContext } from '../ipc.ts';
 import type { SessionState } from '../../ipc/contract.ts';
 
@@ -39,10 +40,20 @@ export function lockMinutes(db: Db): number {
  * On 1 April the new financial year starts by itself: bills can be made straight away, and the
  * old year stays open (for late supplier bills and returns) until the owner closes it.
  */
-export function ensureCurrentYear(ctx: Pick<HandlerContext, 'db' | 'today'>): void {
-  if (!isSetupComplete(ctx.db)) return;
-  if (financialYearOn(ctx.db, ctx.today())) return;
-  ensureFinancialYearFor(ctx.db, ctx.today());
+export function ensureCurrentYear(ctx: Pick<HandlerContext, 'db' | 'today' | 'session'>): void {
+  const today = ctx.today();
+  if (!isSetupComplete(ctx.db) || financialYearOn(ctx.db, today)) return;
+  // Only the year straight after the newest one is started this way. A computer clock that is
+  // badly wrong (a flat clock battery shows 2000 or a far-off year) must not create years.
+  const latest = ctx.db.prepare('SELECT MAX(end_date) AS d FROM financial_year').get()?.['d'];
+  if (typeof latest !== 'string' || today <= latest) return;
+  const nextEnd = `${Number(latest.slice(0, 4)) + 1}${latest.slice(4)}`;
+  if (today > nextEnd) return;
+  try {
+    ensureFinancialYearFor(ctx.db, today, { userId: ctx.session.user?.id });
+  } catch (error) {
+    log('warn', 'the new financial year could not be started', error);
+  }
 }
 
 export function sessionState(ctx: Omit<HandlerContext, 'user'>): SessionState {

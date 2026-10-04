@@ -92,17 +92,16 @@ export function staffDiscountProblem(
   changingVoucherId?: number,
 ): string | null {
   if (maxBp <= 0) return null;
+  // when a bill is changed, its own list prices are compared too (never its discounted prices,
+  // or each change could add another discount on top)
   const earlier = new Map<number, number>();
   if (changingVoucherId !== undefined) {
     const old = db
       .prepare(
-        'SELECT item_id, price_paise FROM voucher_item WHERE voucher_id = ? ORDER BY line_no',
+        'SELECT item_id, MAX(list_price_paise) AS price FROM voucher_item WHERE voucher_id = ? GROUP BY item_id',
       )
       .all(changingVoucherId);
-    for (const r of old) {
-      if (!earlier.has(Number(r['item_id'])))
-        earlier.set(Number(r['item_id']), Number(r['price_paise']));
-    }
+    for (const r of old) earlier.set(Number(r['item_id']), Number(r['price']));
   }
   const limitText = `${maxBp / 100}%`;
   let atMaster = 0; // what the lines come to at the master prices
@@ -110,7 +109,8 @@ export function staffDiscountProblem(
     const item = db
       .prepare('SELECT name, sale_price_paise FROM item WHERE id = ?')
       .get(line.itemId);
-    const master = earlier.get(line.itemId) ?? Number(item?.['sale_price_paise'] ?? 0);
+    // the usual price, or the bill's own list price when that was higher
+    const master = Math.max(Number(item?.['sale_price_paise'] ?? 0), earlier.get(line.itemId) ?? 0);
     const after = applyDiscount(line.listPricePaise, line.discBp ?? 0);
     const base = Math.max(master, after);
     atMaster += lineAmount(line.qty, base);
@@ -137,29 +137,32 @@ export interface LimitBreach {
   owingPaise: number;
 }
 
-/** What every customer with a credit limit owes now. Taken before a change, checked after it. */
-export function limitedBalances(db: Db): Map<number, number> {
-  const out = new Map<number, number>();
-  const rows = db
-    .prepare('SELECT id FROM account WHERE credit_limit_paise > 0 AND is_system = 0')
-    .all();
-  for (const r of rows) {
-    out.set(Number(r['id']), accountBalance(db, Number(r['id']), '9999-12-31'));
-  }
-  return out;
+/** Where the ledger ends now; lines written after this belong to the change being checked. */
+export function journalMark(db: Db): number {
+  return Number(db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM journal_line').get()?.['n']);
 }
 
 /**
- * The first customer that a change has taken above their credit limit, or null. A customer who
- * was already above it is only reported when the change made it worse.
+ * The first customer that the ledger lines written since `mark` took above their credit limit,
+ * or null. Only customers whose debt the change increased are looked at, so a change that brings
+ * someone down is never reported, even while they are still above their limit.
  */
-export function newlyOverLimit(db: Db, before: Map<number, number>): LimitBreach | null {
-  for (const [id, was] of before) {
-    const account = db.prepare('SELECT name, credit_limit_paise FROM account WHERE id = ?').get(id);
-    const limit = Number(account?.['credit_limit_paise'] ?? 0);
+export function overLimitSince(db: Db, mark: number): LimitBreach | null {
+  const touched = db
+    .prepare(
+      `SELECT j.account_id, SUM(j.dr_paise) - SUM(j.cr_paise) AS added, a.name, a.credit_limit_paise
+       FROM journal_line j JOIN account a ON a.id = j.account_id
+       WHERE j.id > ? AND a.credit_limit_paise > 0 AND a.is_system = 0
+       GROUP BY j.account_id`,
+    )
+    .all(mark);
+  for (const r of touched) {
+    if (Number(r['added']) <= 0) continue;
+    const id = Number(r['account_id']);
+    const limit = Number(r['credit_limit_paise']);
     const now = accountBalance(db, id, '9999-12-31');
-    if (limit > 0 && now > limit && now > was) {
-      return { accountId: id, name: String(account?.['name']), limitPaise: limit, owingPaise: now };
+    if (now > limit) {
+      return { accountId: id, name: String(r['name']), limitPaise: limit, owingPaise: now };
     }
   }
   return null;
