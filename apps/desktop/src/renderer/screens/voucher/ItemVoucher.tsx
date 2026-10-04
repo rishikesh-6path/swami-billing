@@ -18,6 +18,7 @@ import {
   useToast,
 } from '../../components/ui.tsx';
 import { PrintDialog } from '../../components/PrintDialog.tsx';
+import { HeldBillsDialog } from './HeldBillsDialog.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { useCellFocus } from './cells.ts';
 import { call, useCall, useKept } from '../../lib/api.ts';
@@ -143,12 +144,18 @@ export function ItemVoucher({
   useEffect(() => {
     if (!copyFrom) return;
     let cancelled = false;
-    void rowsFromDetail(copyFrom, shopToday, true).then((loaded) => {
-      if (!cancelled) {
+    rowsFromDetail(copyFrom, shopToday, true).then(
+      (loaded) => {
+        if (cancelled) return;
         setRows([...loaded, blankRow()]);
         setDirty(true);
-      }
-    });
+        toast.show('Copied the lines and prices of the old bill. Please check the prices.');
+      },
+      () => {
+        if (!cancelled)
+          setError('The lines of the old bill could not be copied. Please try again.');
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -318,19 +325,28 @@ export function ItemVoucher({
   // ---- setting a bill aside while someone else is served ----
   const [confirmCredit, setConfirmCredit] = useState<string | null>(null);
   const [heldList, setHeldList] = useState<HeldBill[] | null>(null);
+  // the set-aside bill now on the screen; it stays in the list until this bill is saved
+  const [resumedId, setResumedId] = useState<number | null>(null);
+  const holdBusy = useRef(false);
+  const { user: me } = useSession();
   const holdThis = async () => {
+    if (holdBusy.current || saving) return;
     if (edit) return setError('A bill that is being changed cannot be set aside.');
     const filled = rows.filter((r) => !isBlank(r));
     if (filled.length === 0) return setError('There is nothing to set aside yet.');
     const who = party && !isCashParty ? party.name : kind.cashDefault ? 'Cash sale' : 'No name';
     const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const total = preview ? ` - ${rupees(preview.totalPaise)}` : '';
+    holdBusy.current = true;
     try {
       await call('bill.hold', {
         kind: kindName,
         label: `${who} - ${filled.length} ${filled.length === 1 ? 'item' : 'items'}${total} - ${time}`,
         payload: {
-          party: chosen ?? null,
+          version: 1,
+          party: chosen
+            ? { id: chosen.id, name: chosen.name, stateCode: chosen.stateCode ?? null }
+            : null,
           dateIso,
           saleTypeId,
           broker,
@@ -350,16 +366,26 @@ export function ItemVoucher({
           refId,
         },
       });
+      // a bill that came back from the list and is set aside again replaces its old copy
+      if (resumedId !== null) await call('bill.finish', { id: resumedId });
+      setResumedId(null);
       resetForm();
+      // the next customer starts with today's date and the usual bill type
+      setDateIso(null);
+      setDateText(null);
+      setSaleTypeId(null);
+      setSettleAccount(null);
       setError(null);
       toast.show('The bill is set aside. Press Alt+R to bring it back.');
       cells.focusId('party');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The bill could not be set aside.');
+    } finally {
+      holdBusy.current = false;
     }
   };
   const openHeld = async () => {
-    if (edit) return;
+    if (edit || holdBusy.current) return;
     if (dirty && rows.some((r) => !isBlank(r))) {
       return setError(
         'Please save this bill or set it aside (Alt+H) before bringing back another.',
@@ -375,42 +401,59 @@ export function ItemVoucher({
     }
   };
   const resumeHeld = async (id: number) => {
+    if (holdBusy.current) return;
+    holdBusy.current = true;
     try {
-      const { payload } = await call('bill.take', { id });
-      const p = payload as {
-        party: Party | null;
-        dateIso: string | null;
-        saleTypeId: number | null;
-        broker: string;
-        rows: Omit<Row, 'key'>[];
-        sundryText: Record<number, string>;
-        settleText: string;
-        settleAccount: number | null;
-        narration: string;
-        billNo: string;
-        billDateIso: string | null;
-        refId: number | null;
-      };
-      setChosen(p.party ?? undefined);
-      setPartyText(null);
-      setDateIso(p.dateIso);
-      setSaleTypeId(p.saleTypeId);
-      setBroker(p.broker);
-      setRows([...p.rows.map((r) => ({ ...blankRow(), ...r })), blankRow()]);
-      setSundryText(p.sundryText);
-      setSettleText(p.settleText);
-      setSettleAccount(p.settleAccount);
-      setNarration(p.narration);
-      setBillNo(p.billNo);
-      setBillDateIso(p.billDateIso);
-      setRefId(p.refId);
-      setDirty(true);
-      setHeldList(null);
+      const { payload: p } = await call('bill.take', { id });
+      const fresh = blankRow();
+      flushSync(() => {
+        setChosen(
+          p.party
+            ? {
+                id: p.party.id,
+                name: p.party.name,
+                ...(p.party.stateCode ? { stateCode: p.party.stateCode } : {}),
+              }
+            : undefined,
+        );
+        setPartyText(null);
+        setDateIso(p.dateIso);
+        setSaleTypeId(p.saleTypeId);
+        setBroker(p.broker);
+        setRows([
+          ...p.rows.map((r) => ({
+            ...blankRow(),
+            item: r.item,
+            text: r.text,
+            qty: r.qty,
+            price: r.price,
+            disc: r.disc,
+          })),
+          fresh,
+        ]);
+        setSundryText(
+          Object.fromEntries(Object.entries(p.sundryText).map(([k, v]) => [Number(k), v])),
+        );
+        setSettleText(p.settleText);
+        setSettleAccount(p.settleAccount);
+        setNarration(p.narration);
+        setBillNo(p.billNo);
+        setBillDateIso(p.billDateIso);
+        setRefId(p.refId);
+        setDirty(true);
+        setHeldList(null);
+      });
+      setResumedId(id);
       setError(null);
-      toast.show('The set-aside bill is back. Please check it before saving.');
+      cells.focus(fresh.key, 'item');
+      toast.show(
+        'The set-aside bill is back. The prices are the ones typed earlier; please check it.',
+      );
     } catch (e) {
       setHeldList(null);
       setError(e instanceof Error ? e.message : 'The bill could not be brought back.');
+    } finally {
+      holdBusy.current = false;
     }
   };
   const dropHeld = async (id: number) => {
@@ -496,6 +539,10 @@ export function ItemVoucher({
         : await call('voucher.post', input);
       toast.show(`Saved. Bill number ${posted.number}, total ${rupees(posted.totalPaise)}.`);
       if (edit) return router.back();
+      if (resumedId !== null) {
+        void call('bill.finish', { id: resumedId }).catch(() => undefined);
+        setResumedId(null);
+      }
       resetForm();
       setup.reload();
       if (ready.autoPrint && kindName === 'sales') setPrintAfter(posted.voucherId);
@@ -1155,18 +1202,13 @@ export function ItemVoucher({
         </ConfirmDialog>
       )}
       {heldList && (
-        <InfoDialog title="Bills set aside" onClose={() => setHeldList(null)}>
-          <ul className="pick-list">
-            {heldList.map((h) => (
-              <li key={h.id}>
-                <Button onClick={() => void resumeHeld(h.id)}>{h.label}</Button>{' '}
-                <Button variant="danger" onClick={() => void dropHeld(h.id)}>
-                  Throw away
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </InfoDialog>
+        <HeldBillsDialog
+          bills={heldList}
+          showOwner={me?.role === 'owner'}
+          onPick={(id) => void resumeHeld(id)}
+          onThrowAway={(id) => void dropHeld(id)}
+          onClose={() => setHeldList(null)}
+        />
       )}
       {confirmCredit !== null && (
         <ConfirmDialog

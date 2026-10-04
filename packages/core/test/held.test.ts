@@ -6,7 +6,8 @@ import {
   heldCount,
   holdBill,
   listHeld,
-  takeHeld,
+  peekHeld,
+  finishHeld,
   ValidationError,
 } from '../src/index.ts';
 import { freshDb } from './helpers/db.ts';
@@ -22,18 +23,52 @@ function shop() {
 }
 
 describe('set-aside bills', () => {
-  it('keeps what was typed and gives it back once', () => {
+  it('keeps what was typed, and keeps the bill until it is finished', () => {
     const s = shop();
     const payload = { rows: [{ text: 'GI ELBOW', qty: '3' }], party: { id: 5, name: 'Kumar' } };
     const id = holdBill(s.db, { kind: 'sales', userId: s.ravi, label: 'Kumar 10:15', payload });
     expect(heldCount(s.db, { userId: s.ravi, isOwner: false })).toBe(1);
-    expect(takeHeld(s.db, id, { userId: s.ravi, isOwner: false })).toEqual({
+    expect(peekHeld(s.db, id, { userId: s.ravi, isOwner: false })).toEqual({
       kind: 'sales',
       label: 'Kumar 10:15',
       payload,
     });
+    // opening it takes nothing away: a power cut at this moment loses no bill
+    expect(heldCount(s.db, { userId: s.ravi, isOwner: false })).toBe(1);
+    finishHeld(s.db, id, { userId: s.ravi, isOwner: false });
     expect(heldCount(s.db, { userId: s.ravi, isOwner: false })).toBe(0);
-    expect(() => takeHeld(s.db, id, { userId: s.ravi, isOwner: false })).toThrow(ValidationError);
+    expect(() => peekHeld(s.db, id, { userId: s.ravi, isOwner: false })).toThrow(ValidationError);
+    finishHeld(s.db, id, { userId: s.ravi, isOwner: false }); // finishing twice is harmless
+  });
+
+  it('says plainly when a stored bill is damaged, and still lets it be thrown away', () => {
+    const s = shop();
+    const id = holdBill(s.db, { kind: 'sales', userId: s.ravi, label: 'x', payload: {} });
+    s.db.prepare("UPDATE held_bill SET payload_json = '{not json' WHERE id = ?").run(id);
+    expect(() => peekHeld(s.db, id, { userId: s.ravi, isOwner: false })).toThrow(
+      /cannot be opened/,
+    );
+    discardHeld(s.db, id, { userId: s.ravi, isOwner: false });
+    expect(heldCount(s.db, { userId: s.ravi, isOwner: false })).toBe(0);
+  });
+
+  it('counts only bills that are still kept, and records the ones that expire', () => {
+    const s = shop();
+    holdBill(
+      s.db,
+      { kind: 'sales', userId: s.ravi, label: 'old', payload: {} },
+      { now: '2026-10-01T10:00:00.000Z' },
+    );
+    const who = { userId: s.ravi, isOwner: false };
+    expect(heldCount(s.db, who, { now: '2026-10-05T10:00:00.000Z' })).toBe(1);
+    expect(heldCount(s.db, who, { now: '2026-10-09T10:00:00.000Z' })).toBe(0);
+    expect(listHeld(s.db, who, { now: '2026-10-09T10:00:00.000Z' })).toEqual([]);
+    const n = Number(
+      s.db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'bill_expired'").get()?.[
+        'n'
+      ],
+    );
+    expect(n).toBe(1);
   });
 
   it('has no effect on the books: no voucher, no journal line, no stock', () => {
@@ -51,7 +86,7 @@ describe('set-aside bills', () => {
     holdBill(s.db, { kind: 'sales', userId: s.mani, label: 'B', payload: {} });
     expect(listHeld(s.db, { userId: s.ravi, isOwner: false }).map((h) => h.label)).toEqual(['A']);
     expect(listHeld(s.db, { userId: s.owner, isOwner: true })).toHaveLength(2);
-    expect(() => takeHeld(s.db, a, { userId: s.mani, isOwner: false })).toThrow(ValidationError);
+    expect(() => peekHeld(s.db, a, { userId: s.mani, isOwner: false })).toThrow(ValidationError);
     expect(() => discardHeld(s.db, a, { userId: s.mani, isOwner: false })).toThrow(ValidationError);
     discardHeld(s.db, a, { userId: s.owner, isOwner: true });
     expect(listHeld(s.db, { userId: s.ravi, isOwner: false })).toEqual([]);
@@ -89,7 +124,7 @@ describe('set-aside bills', () => {
       holdBill(s.db, { kind: 'sales', userId: s.ravi, label: 'big', payload: 'x'.repeat(300_000) }),
     ).toThrow(ValidationError);
     const a = holdBill(s.db, { kind: 'sales', userId: s.ravi, label: 'A', payload: {} });
-    takeHeld(s.db, a, { userId: s.ravi, isOwner: false });
+    peekHeld(s.db, a, { userId: s.ravi, isOwner: false });
     const b = holdBill(s.db, { kind: 'sales', userId: s.ravi, label: 'B', payload: {} });
     discardHeld(s.db, b, { userId: s.ravi, isOwner: false });
     const actions = s.db

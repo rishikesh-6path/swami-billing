@@ -5,7 +5,7 @@ import { DateField } from '../../components/DateField.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { Button, LoadState, Notice, PageHeader, useToast } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
-import { formatBalance } from '../../lib/format.ts';
+import { formatBalance, formatDate } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { PRESET_LABELS, presetRange, type Preset } from '../../lib/periods.ts';
 import { useRouter, type ReportKind } from '../../lib/router.tsx';
@@ -218,6 +218,23 @@ export function ReportScreen({
         }
       />
       {error && <Notice>{error}</Notice>}
+      <p className="print-only">
+        <strong>{info.title}</strong>
+        {request &&
+          (info.shape === 'period' && 'from' in request
+            ? ` — ${formatDate(request.from)} to ${formatDate(request.to)}`
+            : info.shape === 'asOn' || info.shape === 'day'
+              ? ` — as on ${formatDate(asOn)}`
+              : '')}
+        {info.subject && subject ? ` — ${subject.name}` : ''}
+        {kind === 'outstanding'
+          ? outSide === 'receivable'
+            ? ' — who owes me'
+            : ' — whom I owe'
+          : ''}
+        {kind === 'stock' && onlyProblems ? ' — only items running low or below zero' : ''}
+        {kind === 'stock' && countSheet ? ' — counting sheet' : ''}
+      </p>
       <div className="report-controls">
         {info.subject === 'account' && (
           <div className="field">

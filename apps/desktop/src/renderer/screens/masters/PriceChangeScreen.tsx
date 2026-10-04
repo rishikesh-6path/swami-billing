@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PriceChangeRow } from '@shopledger/core';
 import { DataTable } from '../../components/DataTable.tsx';
 import {
@@ -16,6 +16,13 @@ import { formatMoney, parsePercent } from '../../lib/format.ts';
 import { useHints, useHotkeys } from '../../lib/hotkeys.tsx';
 import { useRouter } from '../../lib/router.tsx';
 
+type PriceRequest = {
+  groupId?: number;
+  percentBp: number;
+  alsoMrp: boolean;
+  rounding: 'rupee' | 'fifty' | 'exact';
+};
+
 /** The owner raises or lowers the selling prices of many items at once, after seeing the result. */
 export function PriceChangeScreen() {
   const router = useRouter();
@@ -26,15 +33,29 @@ export function PriceChangeScreen() {
   const [percent, setPercent] = useState('');
   const [rounding, setRounding] = useState<'rupee' | 'fifty' | 'exact'>('rupee');
   const [alsoMrp, setAlsoMrp] = useState(false);
-  const [rows, setRows] = useState<PriceChangeRow[] | null>(null);
+  const [shown, setShown] = useState<{
+    req: PriceRequest;
+    rows: PriceChangeRow[];
+  } | null>(null);
+  const rows = shown?.rows ?? null;
+  const latest = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  /** What the choices on the screen ask for, or null (with a message) when they are not usable. */
   const request = () => {
     const bp = parsePercent(percent);
     if (bp === null || bp <= 0) {
       setError('Please type how many per cent to add or take off, for example 10.');
+      return null;
+    }
+    if (direction === 'down' && bp > 9000) {
+      setError('Prices can be lowered by at most 90 per cent. Please type a smaller number.');
+      return null;
+    }
+    if (direction === 'up' && bp > 100000) {
+      setError('Prices can be raised by at most 1000 per cent. Please type a smaller number.');
       return null;
     }
     return {
@@ -48,32 +69,36 @@ export function PriceChangeScreen() {
     <T,>(setter: (v: T) => void) =>
     (v: T) => {
       setter(v);
-      setRows(null); // the list on screen no longer matches the choices
+      setShown(null); // the list on screen no longer matches the choices
+      latest.current += 1; // and an answer still on its way is for the old choices
     };
 
   const show = () => {
     setError(null);
     const req = request();
     if (!req || busy) return;
+    const mine = ++latest.current;
     setBusy(true);
     call('price.preview', req).then(
       (found) => {
+        if (mine !== latest.current) return;
         setBusy(false);
-        setRows(found);
+        setShown({ req, rows: found });
         if (found.length === 0) setError('No price would change with these choices.');
       },
       (e: unknown) => {
+        if (mine !== latest.current) return;
         setBusy(false);
         setError(e instanceof Error ? e.message : 'The new prices could not be worked out.');
       },
     );
   };
+  // exactly the request whose list the owner saw is the one that is applied
   const apply = () => {
-    const req = request();
-    if (!req || busy) return;
+    if (!shown || busy) return;
     setAsking(false);
     setBusy(true);
-    call('price.apply', req).then(
+    call('price.apply', shown.req).then(
       ({ changed: n }) => {
         toast.show(`Done. The prices of ${n} ${n === 1 ? 'item' : 'items'} were changed.`);
         router.back();
@@ -134,6 +159,12 @@ export function PriceChangeScreen() {
           inputMode="decimal"
           value={percent}
           onChange={(e) => changed(setPercent)(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              primary();
+            }
+          }}
           hint="For example 10 for ten per cent."
         />
         <SelectField
@@ -196,6 +227,7 @@ export function PriceChangeScreen() {
           title="Change these prices?"
           confirmLabel="Yes, change the prices"
           cancelLabel="No, go back"
+          danger
           onConfirm={apply}
           onCancel={() => setAsking(false)}
         >

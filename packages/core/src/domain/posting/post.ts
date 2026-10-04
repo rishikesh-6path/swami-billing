@@ -601,6 +601,13 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
     throw new PostingError('Settlement amounts must be positive');
   if (settled > computed.totalPaise)
     throw new PostingError('The amount received or paid is more than the bill total.');
+  for (const s of settlements) {
+    if (s.accountId === input.partyAccountId || !isCashOrBank(db, s.accountId)) {
+      throw new PostingError(
+        'Money received or paid on a bill must go to a cash or bank account. Please choose Cash or a bank account.',
+      );
+    }
+  }
 
   const goodsSide: Side = opposite(rule.partySide);
   const drafts: JournalDraft[] = [

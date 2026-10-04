@@ -68,6 +68,25 @@ describe('data for the accountant', () => {
     const purchase = rows.find((r) => r[col('Type')] === 'Purchase')!;
     expect(purchase[col("Supplier's invoice no.")]).toBe('SUP/1');
     expect(rows[0]![col('Narration')]).toBe('Goods, "special" order'); // quotes survive
+    expect(rows[0]![col('Financial year')]).toBe('2026-27');
+    // the signed column adds up to the register, with nothing for the cancelled bill
+    const sales = rows.filter((r) => r[col('Type')] === 'Sales');
+    expect(sales.reduce((t, r) => t + money(r[col('Total for adding up')]), 0)).toBe(
+      reg.totals.totalPaise,
+    );
+    expect(rows.find((r) => r[col('Status')] === 'Cancelled')![col('Total for adding up')]).toBe(
+      '0.00',
+    );
+    // each row foots: taxable + tax + other charges + round off = total
+    for (const r of rows) {
+      const tax = money(r[col('CGST')]) + money(r[col('SGST')]) + money(r[col('IGST')]);
+      expect(
+        money(r[col('Taxable')]) +
+          tax +
+          money(r[col('Other charges')]) +
+          money(r[col('Round off')]),
+      ).toBe(money(r[col('Total')]));
+    }
   });
 
   it('has ledger lines whose debits and credits are equal, with the reversal of a cancelled bill', () => {

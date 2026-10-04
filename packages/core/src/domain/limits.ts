@@ -1,6 +1,7 @@
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
 import { writeAudit, type Ctx } from '../audit.ts';
+import { divRound, mulDivRound, applyDiscount, lineAmount } from '../money.ts';
 import { accountBalance } from '../reports/ledger.ts';
 import { getSetting, setSetting } from '../settings.ts';
 import { previewItemVoucher } from './posting/preview.ts';
@@ -56,6 +57,7 @@ export function creditCheck(
   const limit = Number(account?.['credit_limit_paise'] ?? 0);
   if (!account || limit <= 0 || account['is_system']) return null;
   let owing = accountBalance(db, args.partyId, '9999-12-31');
+  const owingBefore = owing;
   if (args.excludeVoucherId !== undefined) {
     const old = db
       .prepare(
@@ -71,14 +73,16 @@ export function creditCheck(
     limitPaise: limit,
     owingPaise: owing,
     afterPaise: after,
-    over: args.billPaise > 0 && after > limit,
+    // a change that does not add to what they owe is never refused, so a bill can always be corrected
+    over: after > limit && after > owingBefore,
   };
 }
 
 /**
- * The reason a bill gives more discount than staff may, or null when it is fine. Line discounts
- * are compared one by one; money taken off at the bottom (a negative bill sundry) is compared with
- * the value of all the lines.
+ * The reason a bill gives more discount than staff may, or null when it is fine. The discount is
+ * measured against the item's price on its master record, so a lower price typed by hand counts
+ * the same as a discount percentage; money taken off at the bottom of the bill (a negative bill
+ * sundry) is added to it. A price above the master price is never counted as a discount.
  */
 export function staffDiscountProblem(
   db: Db,
@@ -87,19 +91,27 @@ export function staffDiscountProblem(
 ): string | null {
   if (maxBp <= 0) return null;
   const limitText = `${maxBp / 100}%`;
+  let atMaster = 0; // what the lines come to at the master prices
   for (const line of input.lines) {
-    if ((line.discBp ?? 0) > maxBp) {
-      const item = db.prepare('SELECT name FROM item WHERE id = ?').get(line.itemId);
-      return `The discount on ${String(item?.['name'] ?? 'an item')} is more than ${limitText}, which is the most staff may give. Please ask the owner.`;
+    const item = db
+      .prepare('SELECT name, sale_price_paise FROM item WHERE id = ?')
+      .get(line.itemId);
+    const master = Number(item?.['sale_price_paise'] ?? 0);
+    const after = applyDiscount(line.listPricePaise, line.discBp ?? 0);
+    const base = Math.max(master, after);
+    atMaster += lineAmount(line.qty, base);
+    if (master > 0 && after < master && divRound((master - after) * 10000, master) > maxBp) {
+      return `The price of ${String(item?.['name'] ?? 'an item')} is more than ${limitText} below its usual price, which is the most discount staff may give. Please ask the owner.`;
     }
   }
   const preview = previewItemVoucher(db, input);
   const takenOff = preview.sundries.reduce(
-    (t, s) => (s.signedPaise < 0 ? t - s.signedPaise : t),
+    (t, x) => (x.signedPaise < 0 ? t - x.signedPaise : t),
     0,
   );
-  if (takenOff > 0 && takenOff * 10000 > maxBp * preview.subtotalPaise) {
-    return `The money taken off this bill is more than ${limitText}, which is the most staff may give. Please ask the owner.`;
+  const given = atMaster - preview.subtotalPaise + takenOff;
+  if (given > 0 && atMaster > 0 && mulDivRound(given, 10000, atMaster) > maxBp) {
+    return `The discount on this bill is more than ${limitText}, which is the most staff may give. Please ask the owner.`;
   }
   return null;
 }

@@ -5,6 +5,7 @@ import {
   getNarrations,
   ValidationError,
   cancelVoucher,
+  transaction,
   creditCheck,
   discardHeld,
   formatMoney,
@@ -15,7 +16,8 @@ import {
   type ItemVoucherInput,
   holdBill,
   listHeld,
-  takeHeld,
+  peekHeld,
+  finishHeld,
   defaultSeriesId,
   getCompanyStateCode,
   getSetting,
@@ -36,7 +38,7 @@ import {
   type VoucherType,
 } from '@shopledger/core';
 import type { z } from 'zod';
-import type { voucherInput } from '../../ipc/contract.ts';
+import { heldPayload, type voucherInput } from '../../ipc/contract.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
 
 const STAFF_GROUPS = ['Sundry Debtors', 'Sundry Creditors'];
@@ -113,6 +115,32 @@ function recordOverride(
   );
 }
 
+/**
+ * Cancelling a receipt or a return gives the customer's debt back. Staff may not do that when it
+ * would put the customer above their credit limit (it would undo the limit the owner set).
+ */
+function guardCancel(ctx: HandlerContext, voucherId: number): void {
+  const row = ctx.db
+    .prepare('SELECT status, party_account_id FROM voucher WHERE id = ?')
+    .get(voucherId);
+  if (!row || row['status'] !== 'posted' || row['party_account_id'] === null) return;
+  const partyId = Number(row['party_account_id']);
+  const net = ctx.db
+    .prepare(
+      `SELECT COALESCE(SUM(dr_paise), 0) - COALESCE(SUM(cr_paise), 0) AS net
+       FROM journal_line WHERE voucher_id = ? AND account_id = ? AND is_reversal = 0`,
+    )
+    .get(voucherId, partyId);
+  const restored = -Number(net?.['net'] ?? 0); // a receipt credits the customer: cancelling adds this back
+  if (restored <= 0) return;
+  const check = creditCheck(ctx.db, { partyId, billPaise: restored });
+  if (check?.over) {
+    throw new ValidationError(
+      `Cancelling this would take the customer above their credit limit of ₹${formatMoney(check.limitPaise)}. Please ask the owner.`,
+    );
+  }
+}
+
 function asVoucherType(type: string): VoucherType {
   if (!(type in VOUCHER_TYPE_LABELS))
     throw new ValidationError('That kind of voucher is not known.');
@@ -148,6 +176,7 @@ export const voucherHandlers: Pick<
   | 'bill.hold'
   | 'bill.held'
   | 'bill.take'
+  | 'bill.finish'
   | 'bill.discard'
 > = {
   'voucher.setup': (req, ctx) => {
@@ -208,10 +237,13 @@ export const voucherHandlers: Pick<
     }),
   'voucher.post': (req, ctx) => {
     assertMayPost(ctx, req.type);
-    const over = guardSale(ctx, req);
-    const posted = postVoucher(ctx.db, withSeries(ctx, req), { role: ctx.user().role });
-    recordOverride(ctx, over, posted.voucherId);
-    return posted;
+    // the checks, the bill and the override record are saved together or not at all
+    return transaction(ctx.db, () => {
+      const over = guardSale(ctx, req);
+      const posted = postVoucher(ctx.db, withSeries(ctx, req), { role: ctx.user().role });
+      recordOverride(ctx, over, posted.voucherId);
+      return posted;
+    });
   },
   'voucher.get': (req, ctx) => getVoucherDetail(ctx.db, req.id) ?? null,
   'voucher.list': (req, ctx) => listVouchers(ctx.db, req),
@@ -219,19 +251,22 @@ export const voucherHandlers: Pick<
     const user = ctx.user();
     const bill = getVoucherDetail(ctx.db, req.id);
     if (bill) assertMayPost(ctx, bill.voucherType);
+    if (bill && user.role !== 'owner') guardCancel(ctx, req.id);
     cancelVoucher(ctx.db, req.id, { userId: user.id, role: user.role, reason: req.reason });
     return null;
   },
   'voucher.modify': (req, ctx) => {
     const user = ctx.user();
     assertMayPost(ctx, req.input.type);
-    const over = guardSale(ctx, req.input, req.id);
-    const posted = modifyVoucher(ctx.db, req.id, withSeries(ctx, req.input), {
-      role: user.role,
-      userId: user.id,
+    return transaction(ctx.db, () => {
+      const over = guardSale(ctx, req.input, req.id);
+      const posted = modifyVoucher(ctx.db, req.id, withSeries(ctx, req.input), {
+        role: user.role,
+        userId: user.id,
+      });
+      recordOverride(ctx, over, posted.voucherId);
+      return posted;
     });
-    recordOverride(ctx, over, posted.voucherId);
-    return posted;
   },
   'credit.check': (req, ctx) => creditCheck(ctx.db, req),
   'bill.hold': (req, ctx) => {
@@ -244,7 +279,20 @@ export const voucherHandlers: Pick<
     });
   },
   'bill.held': (_req, ctx) => listHeld(ctx.db, whoIs(ctx)),
-  'bill.take': (req, ctx) => takeHeld(ctx.db, req.id, whoIs(ctx)),
+  'bill.take': (req, ctx) => {
+    const held = peekHeld(ctx.db, req.id, whoIs(ctx));
+    const payload = heldPayload.safeParse(held.payload);
+    if (!payload.success) {
+      throw new ValidationError(
+        'This set-aside bill cannot be opened. Please throw it away and make the bill again.',
+      );
+    }
+    return { kind: held.kind, label: held.label, payload: payload.data };
+  },
+  'bill.finish': (req, ctx) => {
+    finishHeld(ctx.db, req.id, whoIs(ctx));
+    return null;
+  },
   'bill.discard': (req, ctx) => {
     discardHeld(ctx.db, req.id, whoIs(ctx));
     return null;

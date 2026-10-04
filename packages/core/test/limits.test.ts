@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PostingError } from '../src/domain/posting/types.ts';
 import { postVoucher } from '../src/domain/posting/post.ts';
 import {
   creditCheck,
@@ -72,6 +73,21 @@ describe('credit limit', () => {
     expect(creditCheck(s.db, { partyId: s.partyA, billPaise: 1 })?.over).toBe(true);
   });
 
+  it('never refuses a change that does not add to what they owe', () => {
+    const s = seedShop();
+    const first = postVoucher(s.db, bill(s)); // 1,180.00
+    updateAccount(s.db, s.partyA, { creditLimitPaise: 50000 }); // the limit was lowered afterwards
+    // correcting the same bill to a smaller amount is allowed even though it is still above the limit
+    expect(
+      creditCheck(s.db, { partyId: s.partyA, billPaise: 100000, excludeVoucherId: first.voucherId })
+        ?.over,
+    ).toBe(false);
+    expect(
+      creditCheck(s.db, { partyId: s.partyA, billPaise: 130000, excludeVoucherId: first.voucherId })
+        ?.over,
+    ).toBe(true);
+  });
+
   it('does not count the bill being changed twice', () => {
     const s = seedShop();
     updateAccount(s.db, s.partyA, { creditLimitPaise: 150000 });
@@ -103,6 +119,7 @@ describe('staff discount limit', () => {
 
   it('refuses a line discount above the limit and allows one at the limit', () => {
     const s = seedShop();
+    s.db.exec('UPDATE item SET sale_price_paise = 10000 WHERE id = 1');
     const lines = (discBp: number) => [
       { itemId: 1, qty: 1000, unitId: 1, listPricePaise: 10000, discBp },
     ];
@@ -111,14 +128,43 @@ describe('staff discount limit', () => {
     expect(staffDiscountProblem(s.db, bill(s, { lines: lines(9000) }), 0)).toBeNull();
   });
 
-  it('also covers money taken off at the bottom of the bill', () => {
+  it('counts a lower price typed by hand as a discount, but not a higher price', () => {
     const s = seedShop();
-    const withDiscount = (paise: number) =>
-      bill(s, { sundries: [{ billSundryId: s.sundry.discount, amountPaise: paise }] });
+    s.db.exec('UPDATE item SET sale_price_paise = 10000 WHERE id = 1');
+    const priced = (listPricePaise: number) =>
+      bill(s, { lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise }] });
+    expect(staffDiscountProblem(s.db, priced(9500), 500)).toBeNull(); // 5% below
+    expect(staffDiscountProblem(s.db, priced(6000), 500)).toMatch(/below its usual price/);
+    expect(staffDiscountProblem(s.db, priced(12000), 500)).toBeNull(); // dearer is fine
+  });
+
+  it('adds the discount on the lines to money taken off at the bottom', () => {
+    const s = seedShop();
+    s.db.exec('UPDATE item SET sale_price_paise = 10000 WHERE id = 1');
+    const withDiscount = (paise: number, discBp = 0) =>
+      bill(s, {
+        lines: [{ itemId: 1, qty: 10000, unitId: 1, listPricePaise: 10000, discBp }],
+        sundries: [{ billSundryId: s.sundry.discount, amountPaise: paise }],
+      });
     expect(staffDiscountProblem(s.db, withDiscount(5000), 500)).toBeNull(); // 5% of 1,000.00
-    expect(staffDiscountProblem(s.db, withDiscount(5100), 500)).toMatch(/money taken off/);
+    expect(staffDiscountProblem(s.db, withDiscount(5100), 500)).toMatch(/more than 5%/);
+    // 4% on the lines and 4% at the bottom is about 8%, over a 5% limit
+    expect(staffDiscountProblem(s.db, withDiscount(4000, 400), 500)).toMatch(/more than 5%/);
+    expect(staffDiscountProblem(s.db, withDiscount(2000, 200), 500)).toBeNull(); // about 4%
     // freight adds money and is not a discount
     const freight = bill(s, { sundries: [{ billSundryId: s.sundry.freight, amountPaise: 90000 }] });
     expect(staffDiscountProblem(s.db, freight, 500)).toBeNull();
+  });
+});
+
+describe('money received on a bill', () => {
+  it('must go to a cash or bank account, never to the customer or another account', () => {
+    const s = seedShop();
+    const withSettlement = (accountId: number) =>
+      bill(s, { settlements: [{ accountId, amountPaise: 50000 }] });
+    expect(() => postVoucher(s.db, withSettlement(s.partyA))).toThrow(PostingError);
+    expect(() => postVoucher(s.db, withSettlement(14))).toThrow(/cash or bank/); // an expense account
+    const bank = 13; // GPAY SELVAM, a bank account in the test shop
+    expect(postVoucher(s.db, withSettlement(bank)).voucherId).toBeGreaterThan(0);
   });
 });

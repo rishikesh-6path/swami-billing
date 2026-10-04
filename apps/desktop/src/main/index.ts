@@ -249,9 +249,18 @@ if (!app.requestSingleInstanceLock()) {
       return writePdf(pdf, opts.defaultName);
     };
     /** Saves the report on the screen as a landscape A4 PDF, as it would print (no buttons). */
+    let savingPage = false;
     const savePagePdf = async (defaultName: string) => {
-      if (!mainWindow) return null;
-      const pdf = await mainWindow.webContents.printToPDF({
+      if (!mainWindow || savingPage) return null;
+      savingPage = true;
+      try {
+        return await savePagePdfNow(mainWindow, defaultName);
+      } finally {
+        savingPage = false;
+      }
+    };
+    const savePagePdfNow = async (win: BrowserWindow, defaultName: string) => {
+      const pdf = await win.webContents.printToPDF({
         printBackground: true,
         pageSize: 'A4',
         landscape: true,

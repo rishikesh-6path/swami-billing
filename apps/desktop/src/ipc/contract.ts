@@ -262,6 +262,50 @@ const itemFields = {
   minStockQty: paise,
 };
 
+/** What the bill screen saves when a bill is set aside. Checked on the way in and on the way out. */
+export const heldPayload = z.object({
+  version: z.literal(1),
+  party: z
+    .object({ id: id, name: z.string().max(200), stateCode: z.string().max(4).nullish() })
+    .nullable(),
+  dateIso: isoDate.nullable(),
+  saleTypeId: id.nullable(),
+  broker: z.string().max(100),
+  rows: z
+    .array(
+      z.object({
+        item: z
+          .object({
+            id,
+            name: z.string().max(200),
+            alias: z.string().max(60).nullable(),
+            unitId: id,
+            unitName: z.string().max(40),
+            unitDecimals: z.number().int().min(0).max(3),
+            hsn: z.string().max(12).nullable(),
+            salePricePaise: z.number().int(),
+            costPaise: z.number().int(),
+            rateBp: z.number().int().nullable(),
+            stockQty: z.number().int(),
+          })
+          .nullable(),
+        text: z.string().max(200),
+        qty: z.string().max(20),
+        price: z.string().max(20),
+        disc: z.string().max(10),
+      }),
+    )
+    .max(200),
+  sundryText: z.record(z.string(), z.string().max(20)),
+  settleText: z.string().max(20),
+  settleAccount: id.nullable(),
+  narration: z.string().max(300),
+  billNo: z.string().max(60),
+  billDateIso: isoDate.nullable(),
+  refId: id.nullable(),
+});
+export type HeldPayload = z.infer<typeof heldPayload>;
+
 const priceChange = z.object({
   groupId: id.optional(),
   percentBp: z.number().int().min(-9000).max(100000),
@@ -647,11 +691,15 @@ export const contract = {
     z.object({
       kind: z.enum(['sales', 'purchase', 'sales_return', 'purchase_return']),
       label: z.string().min(1).max(120),
-      payload: z.unknown(),
+      payload: heldPayload,
     }),
   ),
   'bill.held': ch<HeldBill[]>()('bill', none),
-  'bill.take': ch<{ kind: string; label: string; payload: unknown }>()('bill', z.object({ id })),
+  'bill.take': ch<{ kind: string; label: string; payload: HeldPayload }>()(
+    'bill',
+    z.object({ id }),
+  ),
+  'bill.finish': ch<null>()('bill', z.object({ id })),
   'bill.discard': ch<null>()('bill', z.object({ id })),
   'print.printers': ch<string[]>()('manage_settings', none),
   'item.lastPrice': ch<LastPrice | null>()(

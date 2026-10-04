@@ -71,7 +71,8 @@ export function Home({
             {summary.data.heldBills === 1
               ? 'One bill is set aside.'
               : `${summary.data.heldBills} bills are set aside.`}{' '}
-            Open the same bill screen and press Alt+R to bring it back.
+            Open the screen it was made on (for example New Sale) and press Alt+R to bring it back.
+            Bills are kept for 7 days.
           </Notice>
         )}
         {summary.status === 'ready' && summary.data.backupWarning && (

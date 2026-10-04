@@ -71,10 +71,35 @@ export function holdBill(
   });
 }
 
+const cutoffOf = (ctx: Ctx) =>
+  new Date(Date.parse(nowOf(ctx)) - HELD_DAYS * 86_400_000).toISOString();
+
+/** Drops set-aside bills that were never taken back, and records each one that was dropped. */
+function dropOld(db: Db, ctx: Ctx): void {
+  const old = db
+    .prepare('SELECT id, user_id, label FROM held_bill WHERE created_at < ?')
+    .all(cutoffOf(ctx));
+  if (old.length === 0) return;
+  transaction(db, () => {
+    for (const r of old) {
+      db.prepare('DELETE FROM held_bill WHERE id = ?').run(Number(r['id']));
+      writeAudit(
+        db,
+        { ...ctx, userId: Number(r['user_id']) },
+        {
+          action: 'bill_expired',
+          table: 'held_bill',
+          rowId: Number(r['id']),
+          before: { label: String(r['label']) },
+        },
+      );
+    }
+  });
+}
+
 /** The set-aside bills this person may see, newest first. Old ones are dropped first. */
 export function listHeld(db: Db, who: Who, ctx: Ctx = {}): HeldBill[] {
-  const cutoff = new Date(Date.parse(nowOf(ctx)) - HELD_DAYS * 86_400_000).toISOString();
-  db.prepare('DELETE FROM held_bill WHERE created_at < ?').run(cutoff);
+  dropOld(db, ctx);
   return db
     .prepare(
       `SELECT h.id, h.kind, h.label, h.created_at, h.user_id, u.name AS user_name
@@ -103,30 +128,52 @@ function find(db: Db, id: number, who: Who) {
   return row;
 }
 
-/** Takes a set-aside bill back: returns what was saved and removes it from the list. */
-export function takeHeld(
+/**
+ * Opens a set-aside bill: returns what was saved. The bill stays in the list until the screen has
+ * it and it is saved (see `finishHeld`), so a power cut in between loses nothing.
+ */
+export function peekHeld(
   db: Db,
   id: number,
   who: Who,
   ctx: Ctx = {},
 ): { kind: string; label: string; payload: unknown } {
-  return transaction(db, () => {
-    const row = find(db, id, who);
+  const row = find(db, id, who);
+  let payload: unknown;
+  try {
+    payload = JSON.parse(String(row['payload_json']));
+  } catch {
+    throw new ValidationError(
+      'This set-aside bill cannot be opened. Please throw it away and make the bill again.',
+    );
+  }
+  writeAudit(
+    db,
+    { ...ctx, userId: who.userId },
+    {
+      action: 'bill_resumed',
+      table: 'held_bill',
+      rowId: id,
+    },
+  );
+  return { kind: String(row['kind']), label: String(row['label']), payload };
+}
+
+/** Removes a set-aside bill that has been saved as a real bill or set aside again. */
+export function finishHeld(db: Db, id: number, who: Who, ctx: Ctx = {}): void {
+  transaction(db, () => {
+    const row = db.prepare('SELECT user_id FROM held_bill WHERE id = ?').get(id);
+    if (!row || (!who.isOwner && Number(row['user_id']) !== who.userId)) return; // already gone
     db.prepare('DELETE FROM held_bill WHERE id = ?').run(id);
     writeAudit(
       db,
       { ...ctx, userId: who.userId },
       {
-        action: 'bill_resumed',
+        action: 'bill_finished',
         table: 'held_bill',
         rowId: id,
       },
     );
-    return {
-      kind: String(row['kind']),
-      label: String(row['label']),
-      payload: JSON.parse(String(row['payload_json'])) as unknown,
-    };
   });
 }
 
@@ -149,10 +196,12 @@ export function discardHeld(db: Db, id: number, who: Who, ctx: Ctx = {}): void {
 }
 
 /** How many set-aside bills this person has (shown on the home screen). */
-export function heldCount(db: Db, who: Who): number {
+export function heldCount(db: Db, who: Who, ctx: Ctx = {}): number {
   return Number(
     db
-      .prepare('SELECT COUNT(*) AS n FROM held_bill WHERE (? = 1 OR user_id = ?)')
-      .get(who.isOwner ? 1 : 0, who.userId)?.['n'],
+      .prepare(
+        'SELECT COUNT(*) AS n FROM held_bill WHERE (? = 1 OR user_id = ?) AND created_at >= ?',
+      )
+      .get(who.isOwner ? 1 : 0, who.userId, cutoffOf(ctx))?.['n'],
   );
 }

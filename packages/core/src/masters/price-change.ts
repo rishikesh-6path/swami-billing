@@ -29,11 +29,22 @@ export interface PriceChangeRow {
   newMrpPaise: number;
 }
 
+/**
+ * Rounding must not distort a cheap item (a 40 paise item rounded to a rupee would more than
+ * double), so the step is made finer until rounding can change the price by at most 5%.
+ */
+function stepFor(old: number, rounding: PriceRounding): number {
+  const chosen = STEP[rounding];
+  return [100, 50, 10, 1].find((c) => c <= chosen && c * 20 <= old) ?? 1;
+}
+
 function newPrice(old: number, percentBp: number, rounding: PriceRounding): number {
   if (old <= 0) return old;
-  const step = STEP[rounding];
+  const step = stepFor(old, rounding);
   const exact = mulDivRound(old, 10000 + percentBp, 10000);
-  return Math.max(step, divRound(exact, step) * step);
+  const rounded = Math.max(step, divRound(exact, step) * step);
+  // rounding must never turn a rise into a cut or a cut into a rise
+  return percentBp > 0 ? Math.max(old, rounded) : Math.min(old, rounded);
 }
 
 function check(args: PriceChangeArgs): PriceRounding {
@@ -53,7 +64,7 @@ export function previewPriceChange(db: Db, args: PriceChangeArgs): PriceChangeRo
     .prepare(
       `WITH RECURSIVE tree(id) AS (
          SELECT id FROM item_group WHERE id = ?
-         UNION ALL SELECT g.id FROM item_group g JOIN tree t ON g.parent_id = t.id)
+         UNION SELECT g.id FROM item_group g JOIN tree t ON g.parent_id = t.id)
        SELECT i.id, i.name, i.alias, g.name AS group_name, i.sale_price_paise, i.mrp_paise
        FROM item i JOIN item_group g ON g.id = i.group_id
        WHERE i.is_active = 1 AND (? IS NULL OR i.group_id IN (SELECT id FROM tree))
@@ -64,8 +75,10 @@ export function previewPriceChange(db: Db, args: PriceChangeArgs): PriceChangeRo
   for (const r of rows) {
     const oldSale = Number(r['sale_price_paise']);
     const oldMrp = Number(r['mrp_paise']);
-    const newSale = newPrice(oldSale, args.percentBp, rounding);
     const newMrp = args.alsoMrp ? newPrice(oldMrp, args.percentBp, rounding) : oldMrp;
+    let newSale = newPrice(oldSale, args.percentBp, rounding);
+    // a selling price is never raised above the printed (MRP) price
+    if (newMrp > 0 && newSale > newMrp && newSale > oldSale) newSale = Math.max(oldSale, newMrp);
     if (newSale === oldSale && newMrp === oldMrp) continue;
     out.push({
       itemId: Number(r['id']),

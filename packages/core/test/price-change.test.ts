@@ -54,6 +54,33 @@ describe('bulk price change', () => {
       expect(() => previewPriceChange(s.db, { percentBp })).toThrow(ValidationError);
   });
 
+  it('keeps cheap items sensible and never raises a price on a Lower change', () => {
+    const s = priced();
+    s.db.exec('UPDATE item SET sale_price_paise = 50 WHERE id = 4');
+    const lower = previewPriceChange(s.db, { percentBp: -1000 }).find((r) => r.itemId === 4);
+    expect(lower?.newSalePaise).toBe(45); // not rounded up to a whole rupee
+    const higher = previewPriceChange(s.db, { percentBp: 1000 }).find((r) => r.itemId === 4);
+    expect(higher?.newSalePaise).toBe(55); // exact, not rounded to a rupee
+    for (const bp of [-9000, -1000, -1, 1, 1000]) {
+      for (const r of previewPriceChange(s.db, { percentBp: bp })) {
+        expect(bp < 0 ? r.newSalePaise <= r.oldSalePaise : r.newSalePaise >= r.oldSalePaise).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it('does not raise the selling price above the printed price', () => {
+    const s = priced();
+    s.db.exec('UPDATE item SET sale_price_paise = 4800, mrp_paise = 5000 WHERE id = 1');
+    const row = previewPriceChange(s.db, { percentBp: 1000 }).find((r) => r.itemId === 1);
+    expect(row).toMatchObject({ newSalePaise: 5000, newMrpPaise: 5000 });
+    const both = previewPriceChange(s.db, { percentBp: 1000, alsoMrp: true }).find(
+      (r) => r.itemId === 1,
+    );
+    expect(both).toMatchObject({ newSalePaise: 5300, newMrpPaise: 5500 });
+  });
+
   it('limits the change to one group and the groups inside it', () => {
     const s = priced();
     const small = previewPriceChange(s.db, { groupId: 2, percentBp: 1000 });

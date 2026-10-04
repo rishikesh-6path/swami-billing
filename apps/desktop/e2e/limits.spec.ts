@@ -120,6 +120,30 @@ test('staff are stopped by the credit limit and by the discount limit', async ()
       lines: [{ itemId: 1, qty: 1000, unitId: 1, listPricePaise: 4500, discBp: 500 }],
     });
     expect(fine).toBe('ok');
+
+    // staff cannot change a customer's credit limit themselves
+    const selvamId = await page.evaluate(async () => {
+      const api = (globalThis as unknown as { shopledger: { invoke: Invoke } }).shopledger;
+      const hits = (await api.invoke('party.search', {
+        text: 'Selvam',
+        kind: 'customer',
+        asOn: '2026-10-15',
+      })) as { id: number }[];
+      return hits[0]!.id;
+    });
+    const raise = await callMain(page, 'party.save', {
+      id: selvamId,
+      name: 'Selvam Traders',
+      gstin: null,
+      stateCode: null,
+      phone: null,
+      address: null,
+      creditDays: 0,
+      creditLimitPaise: 0,
+      openingBalancePaise: 0,
+      openingIsDr: true,
+    });
+    expect(raise).toMatch(/credit limit is for the owner|owner/);
   } finally {
     await shop.close();
   }

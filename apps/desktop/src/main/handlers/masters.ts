@@ -2,6 +2,7 @@ import {
   ValidationError,
   can,
   transaction,
+  writeAudit,
   createAccount,
   createItem,
   createItemGroup,
@@ -122,8 +123,25 @@ export const masterHandlers: Pick<
       (fields.openingBalancePaise ?? before?.openingBalancePaise ?? 0) !==
         (before?.openingBalancePaise ?? 0),
     );
+    // who may owe how much is the owner's decision, not the counter's
+    const newLimit = fields.creditLimitPaise ?? before?.creditLimitPaise ?? 0;
+    const limitChanged = newLimit !== (before?.creditLimitPaise ?? 0);
+    if (limitChanged && !can(ctx.user().role, 'set_limits')) {
+      throw new ValidationError('The credit limit is for the owner. Please ask the owner.');
+    }
     if (id !== undefined) {
-      updateAccount(ctx.db, id, fields, who);
+      transaction(ctx.db, () => {
+        updateAccount(ctx.db, id, fields, who);
+        if (limitChanged) {
+          writeAudit(ctx.db, who, {
+            action: 'credit_limit_changed',
+            table: 'account',
+            rowId: id,
+            before: { limitPaise: before?.creditLimitPaise ?? 0 },
+            after: { limitPaise: newLimit },
+          });
+        }
+      });
       return id;
     }
     const group = ctx.db

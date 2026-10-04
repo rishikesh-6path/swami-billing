@@ -36,10 +36,13 @@ test('a bill is set aside while another customer is served, then brought back', 
     // the first bill comes back with its lines
     await page.keyboard.press('Alt+R');
     await expect(page.getByRole('dialog', { name: 'Bills set aside' })).toBeVisible();
-    await page.getByRole('button', { name: /Cash sale - 1 item/ }).click();
+    // the first bill is already selected, so Enter brings it back (keyboard only)
+    await expect(page.getByRole('button', { name: /Cash sale - 1 item/ })).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.getByText(/The set-aside bill is back/)).toBeVisible();
     await expect(page.getByLabel('Item, row 1')).toHaveValue('GI Clamp 1/2 inch');
     await expect(page.getByLabel('Quantity, row 1')).toHaveValue('3');
+    await expect(page.getByLabel('Item, row 2')).toBeFocused(); // ready for the next item
     await page.keyboard.press('F2');
     await expect(page.getByText(/Saved\. Bill number/)).toBeVisible();
 
@@ -83,6 +86,34 @@ test('the home screen reminds about a set-aside bill, and a saved bill can be co
     await page.getByLabel('Quantity, row 1').fill('4');
     await page.keyboard.press('F2');
     await expect(page.getByText(/Saved\. Bill number/)).toBeVisible();
+  } finally {
+    await shop.close();
+  }
+});
+
+test('throwing a set-aside bill away asks first, and a bill stays listed until it is saved', async () => {
+  const shop = await launch({ demo: true });
+  try {
+    const { page } = shop;
+    await signIn(page);
+    await startCashBill(page);
+    await addItem(page, '1500', '2');
+    await page.keyboard.press('Alt+H');
+    await expect(page.getByText(/The bill is set aside/)).toBeVisible();
+
+    await page.keyboard.press('Alt+R');
+    await page.getByRole('button', { name: 'Throw away' }).click();
+    const sure = page.getByRole('alertdialog', { name: 'Throw this bill away?' });
+    await expect(sure).toBeVisible();
+    await sure.getByRole('button', { name: 'No, keep it' }).click();
+    await expect(page.getByRole('button', { name: /Cash sale - 1 item/ })).toBeVisible();
+
+    // bring it back: it stays in the list until the bill is saved
+    await page.keyboard.press('Enter');
+    await expect(page.getByText(/The set-aside bill is back/)).toBeVisible();
+    await page.keyboard.press('Escape'); // leave, throwing the screen away
+    await page.getByRole('button', { name: 'Yes, throw it away' }).click();
+    await expect(page.getByText('One bill is set aside.')).toBeVisible();
   } finally {
     await shop.close();
   }

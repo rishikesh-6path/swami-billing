@@ -62,7 +62,7 @@ P7-01 | done | Set a bill aside (Alt+H, Alt+R) and copy an old bill (Alt+N) | un
 P7-02 | done | Credit limit and staff discount limit | unit + E2E | P0-kickoff
 P7-03 | done | Bulk price change and stock-taking sheet | unit + E2E | P0-kickoff
 P7-04 | done | Accountant exports, PDF for reports and statements | unit + E2E | P0-kickoff
-P7-05 | todo | Review, docs, packaged smoke test | |
+P7-05 | done | Review of P7-01..04, fixes, docs, packaged smoke test | unit + E2E, packaged check | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.
