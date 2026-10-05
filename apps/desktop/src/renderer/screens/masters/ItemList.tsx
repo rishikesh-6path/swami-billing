@@ -20,6 +20,8 @@ export function ItemList() {
   const isOwner = user?.role === 'owner';
   useHotkeys({
     F2: add,
+    'Alt+L': () =>
+      router.go({ name: 'labels', ...(rows[selected] ? { itemIds: [rows[selected].id] } : {}) }),
     ...(isOwner ? { 'Alt+P': () => router.go({ name: 'priceChange' }) } : {}),
   });
   useHints([
@@ -27,6 +29,7 @@ export function ItemList() {
     'Up/Down Choose',
     'Enter Open',
     'F2 Add item',
+    'Alt+L Print labels',
     ...(isOwner ? ['Alt+P Change prices'] : []),
     'Esc Back',
   ]);

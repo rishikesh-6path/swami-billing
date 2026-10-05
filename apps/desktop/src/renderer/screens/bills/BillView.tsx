@@ -64,6 +64,11 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
       router.go({ name: 'voucher', kind: bill.voucherType as ItemVoucherKind, editId: bill.id });
     else router.go({ name: 'entry', kind: bill.voucherType as EntryKind, editId: bill.id });
   };
+  // labels for goods that came in on a purchase
+  const labelable = !cancelled && bill.voucherType === 'purchase';
+  const labels = () => {
+    if (labelable) router.go({ name: 'labels', fromBill: bill.id });
+  };
   const copyable = !cancelled && (bill.voucherType === 'sales' || bill.voucherType === 'purchase');
   const copy = () => {
     if (copyable)
@@ -102,6 +107,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
             Escape: router.back,
             'Alt+B': change,
             'Alt+N': copy,
+            'Alt+L': labels,
             'Alt+C': () => (cancelled ? undefined : setAsking(true)),
             'Ctrl+P': () => (printable ? setPrinting(true) : undefined),
           },
@@ -115,6 +121,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
           'Esc Back',
           ...(changeable ? ['Alt+B Change'] : []),
           ...(copyable ? ['Alt+N Copy as new bill'] : []),
+          ...(labelable ? ['Alt+L Print labels'] : []),
           ...(cancelled ? [] : ['Alt+C Cancel this bill']),
           'Ctrl+P Print',
         ],
@@ -131,6 +138,7 @@ function View({ bill, onChanged }: { bill: VoucherDetail; onChanged: () => void 
             {printable && <Button onClick={() => setPrinting(true)}>Print (Ctrl+P)</Button>}
             {changeable && <Button onClick={change}>Change (Alt+B)</Button>}
             {copyable && <Button onClick={copy}>Copy as new bill (Alt+N)</Button>}
+            {labelable && <Button onClick={labels}>Print labels (Alt+L)</Button>}
             {!cancelled && (
               <Button variant="danger" onClick={() => setAsking(true)}>
                 Cancel this bill (Alt+C)

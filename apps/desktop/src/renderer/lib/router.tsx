@@ -40,6 +40,13 @@ export type Route =
   | { name: 'import' }
   | { name: 'priceChange' }
   | {
+      name: 'labels';
+      /** Start with these items, one label each. */
+      itemIds?: number[];
+      /** Start with the lines of this purchase bill, as many labels as were bought. */
+      fromBill?: number;
+    }
+  | {
       name: 'settings';
       section?: 'shop' | 'print' | 'users' | 'notes' | 'closing' | 'backup' | 'support';
     }

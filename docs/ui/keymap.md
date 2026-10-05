@@ -40,6 +40,9 @@ Item grid | F4 | Standard note
 Item grid (sale, purchase) | F3 | Use the price this party paid last time for the item on the current row
 Sale, purchase, returns | F12 | Copy the last bill of the same kind
 Reports | Ctrl+S | Save the report as a PDF
+Items list | Alt+L | Print labels for the chosen item
+Purchase bill view | Alt+L | Print labels for the goods on the bill
+Print Labels | F2, Ctrl+S, Esc | Print, save as PDF, back (Enter in a count goes back to add the next item)
 Items list (owner) | Alt+P | Change prices of many items at once
 Sale, purchase, returns | Alt+H | Set the bill aside and start a fresh one
 Sale, purchase, returns | Alt+R | Bring back a bill that was set aside

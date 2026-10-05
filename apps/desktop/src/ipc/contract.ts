@@ -308,6 +308,11 @@ export const heldPayload = z.object({
 });
 export type HeldPayload = z.infer<typeof heldPayload>;
 
+const labelsRequest = z.object({
+  items: z.array(z.object({ itemId: id, count: z.number().int().min(0).max(1000) })).max(300),
+  layout: z.enum(['3x8', '4x10']),
+});
+
 const priceChange = z.object({
   groupId: id.optional(),
   percentBp: z.number().int().min(-9000).max(100000),
@@ -706,6 +711,9 @@ export const contract = {
   ),
   'bill.finish': ch<null>()('bill', z.object({ id })),
   'bill.discard': ch<null>()('bill', z.object({ id })),
+  'labels.preview': ch<{ html: string; labels: number; pages: number }>()('bill', labelsRequest),
+  'labels.print': ch<{ printed: boolean }>()('bill', labelsRequest),
+  'labels.pdf': ch<{ saved: string | null }>()('bill', labelsRequest),
   'print.printers': ch<string[]>()('manage_settings', none),
   'item.lastPrice': ch<LastPrice | null>()(
     'bill',

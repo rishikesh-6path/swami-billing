@@ -73,6 +73,7 @@ Open the bill (see "Finding, changing and cancelling" below) and press **Ctrl+P*
 - Press Enter on a customer or supplier to see their page: what they owe, how much of it is late, and their latest bills and payments. **L** shows the full ledger and **F2** changes their details. On a customer's page **F8** starts a sale and **F6** a receipt; on a supplier's page **F9** starts a purchase and **F5** a payment. The person is already filled in.
 - On a bill, after you choose the customer and an item, the price that customer paid last time is shown under the price box. Press **F3** to use it; otherwise the list price stays.
 - The owner can raise or lower many prices at once: on the Items list press **Alt+P**, choose the group, type the per cent, press **F2** to see every new price, then **F2** again to save. Bills already made are not touched.
+- **Labels:** on the Items list press **Alt+L** for the chosen item, or open a purchase bill and press **Alt+L** for everything on it. Type more items by name or code, set how many labels each, check the preview, then **F2** prints or **Ctrl+S** saves a PDF.
 - **F2** adds an item, **F3** adds a customer. Fill the boxes with Enter and save with **F2**.
 - The item "code" (alias) is the short number you type when billing. Keep each code different.
 

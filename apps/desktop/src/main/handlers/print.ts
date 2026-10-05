@@ -4,6 +4,9 @@ import {
   getSetting,
   getVoucherDetail,
   renderDocument,
+  labelItems,
+  labelsHtml,
+  type LabelLayout,
 } from '@shopledger/core';
 import type { HandlerContext, Handlers } from '../ipc.ts';
 
@@ -35,7 +38,27 @@ function page(ctx: HandlerContext, id: number, size: 'a4' | 'thermal') {
   return { html: renderDocument(detail, company, size), label };
 }
 
-export const printHandlers: Pick<Handlers, 'print.preview' | 'print.run' | 'print.pdf'> = {
+const labelSheet = (
+  ctx: HandlerContext,
+  req: { items: { itemId: number; count: number }[]; layout: LabelLayout },
+) => labelsHtml(labelItems(ctx.db, req.items), req.layout);
+
+export const printHandlers: Pick<
+  Handlers,
+  'print.preview' | 'print.run' | 'print.pdf' | 'labels.preview' | 'labels.print' | 'labels.pdf'
+> = {
+  'labels.preview': (req, ctx) => labelSheet(ctx, req),
+  'labels.print': async (req, ctx) => {
+    const { html } = labelSheet(ctx, req);
+    const printerName = getSetting(ctx.db, 'print.printer');
+    return {
+      printed: await ctx.printHtml(html, { size: 'a4', printerName: printerName || undefined }),
+    };
+  },
+  'labels.pdf': async (req, ctx) => {
+    const { html } = labelSheet(ctx, req);
+    return { saved: await ctx.savePdf(html, { size: 'a4', defaultName: 'labels.pdf' }) };
+  },
   'print.preview': (req, ctx) => {
     const { html, label } = page(ctx, req.id, req.size);
     return { html, title: label };
