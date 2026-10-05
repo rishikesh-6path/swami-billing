@@ -178,7 +178,7 @@ function BookCheckCard() {
           <Notice kind={health.ok ? 'info' : 'error'}>
             {health.ok
               ? 'All is well. Your books add up.'
-              : 'Something does not add up. Please take a backup now (Settings > Backup), do not change the bills listed below, and send the support file to whoever supports you.'}
+              : 'Something does not add up. Please take a backup now (Settings > Backup and restore), do not change the bills listed below, then press "Save information for support" below and send that file to whoever supports you.'}
           </Notice>
           <ul className="check-list">
             {health.checks.map((c) => (

@@ -42,6 +42,16 @@ export function ItemList() {
         actions={
           <>
             <Button onClick={router.back}>Back (Esc)</Button>
+            <Button
+              onClick={() =>
+                router.go({
+                  name: 'labels',
+                  ...(rows[selected] ? { itemIds: [rows[selected].id] } : {}),
+                })
+              }
+            >
+              Print labels (Alt+L)
+            </Button>
             {isOwner && (
               <Button onClick={() => router.go({ name: 'priceChange' })}>
                 Change prices (Alt+P)

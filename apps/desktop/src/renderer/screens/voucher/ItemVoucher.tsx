@@ -676,6 +676,11 @@ export function ItemVoucher({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kindName, party?.id, isCashParty, unpaid, edit?.id]);
 
+  // a message from saving may be above a long bill that has scrolled; bring it into view
+  useEffect(() => {
+    if (error) document.getElementById('voucher-error')?.scrollIntoView({ block: 'center' });
+  }, [error]);
+
   const leave = () => (dirty ? setConfirmExit(true) : router.back());
   useHotkeys({
     F2: () => void save(),
@@ -754,7 +759,11 @@ export function ItemVoucher({
         }
       />
       {setup.status === 'error' && <Notice>{setup.message}</Notice>}
-      {error && <Notice>{error}</Notice>}
+      {error && (
+        <div id="voucher-error">
+          <Notice>{error}</Notice>
+        </div>
+      )}
 
       <div className="voucher-top">
         <div className="field" onFocusCapture={() => setFocusRow(-1)}>

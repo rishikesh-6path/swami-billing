@@ -215,6 +215,9 @@ export function NoteVoucher({ kind: kindName }: { kind: 'credit_note' | 'debit_n
         subtitle={`Number ${prefix}${ready.nextNumber}`}
         actions={
           <>
+            <span className="header-total">
+              Total <strong>{rupees(preview?.totalPaise ?? 0)}</strong>
+            </span>
             <Button onClick={leave}>Cancel (Esc)</Button>
             <Button variant="primary" disabled={saving} onClick={() => void save()}>
               {saving ? 'Saving...' : 'Save (F2)'}

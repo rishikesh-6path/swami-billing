@@ -77,7 +77,7 @@ P9-01 | done | What Sold report (quantity, sales, cost, profit per item) | unit 
 P9-02 | done | Check my books | unit + E2E | P0-kickoff
 P9-03 | done | Plain item labels | unit + E2E | P0-kickoff
 P9-04 | done | Tidy-ups and small-screen check | E2E | P0-kickoff
-P9-05 | todo | Review, docs, packaged smoke test | |
+P9-05 | done | Review of round 6, fixes, docs, packaged smoke test | unit + E2E, packaged check | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

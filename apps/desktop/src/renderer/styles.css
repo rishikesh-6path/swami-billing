@@ -30,6 +30,12 @@ body {
   margin: 0;
 }
 
+/* a field reached with the keyboard is scrolled clear of the bill's title bar and the key bar */
+html {
+  scroll-padding-top: 7.5rem;
+  scroll-padding-bottom: 5.5rem;
+}
+
 #root {
   min-height: 100vh;
   display: flex;
@@ -835,6 +841,21 @@ tr.clickable:hover td {
   border: 2px solid var(--border);
   border-radius: 8px;
   background: #fff;
+}
+
+.labels-frame {
+  /* close to the real A4 width, so the preview looks like the sheet */
+  max-width: 52rem;
+  height: 70vh;
+  display: block;
+}
+
+.field-error-text {
+  color: var(--danger);
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--danger);
 }
 
 .print-frame-thermal {

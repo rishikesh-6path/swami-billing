@@ -41,7 +41,7 @@ function page(ctx: HandlerContext, id: number, size: 'a4' | 'thermal') {
 const labelSheet = (
   ctx: HandlerContext,
   req: { items: { itemId: number; count: number }[]; layout: LabelLayout },
-) => labelsHtml(labelItems(ctx.db, req.items), req.layout);
+) => labelsHtml(labelItems(ctx.db, req.items, ctx.today()), req.layout);
 
 export const printHandlers: Pick<
   Handlers,
@@ -50,10 +50,9 @@ export const printHandlers: Pick<
   'labels.preview': (req, ctx) => labelSheet(ctx, req),
   'labels.print': async (req, ctx) => {
     const { html } = labelSheet(ctx, req);
-    const printerName = getSetting(ctx.db, 'print.printer');
-    return {
-      printed: await ctx.printHtml(html, { size: 'a4', printerName: printerName || undefined }),
-    };
+    // always through the print window: the printer set for bills is often an 80 mm receipt
+    // printer, and label sheets may need another printer or the hand-feed tray
+    return { printed: await ctx.printHtml(html, { size: 'a4' }) };
   },
   'labels.pdf': async (req, ctx) => {
     const { html } = labelSheet(ctx, req);

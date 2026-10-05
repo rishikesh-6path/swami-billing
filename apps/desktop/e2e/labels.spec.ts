@@ -29,6 +29,26 @@ test('labels are made from a purchase bill and saved as a PDF, by keyboard', asy
     await page.keyboard.press('Enter');
     await expect(page.getByLabel('Add an item')).toBeFocused();
 
+    // picking an item already in the list goes to its number instead of adding it twice
+    await page.keyboard.type('1500');
+    await page.keyboard.press('Enter');
+    await expect(count).toBeFocused();
+    await expect(page.getByLabel(/Labels for GI Clamp 1\/2 inch/)).toHaveCount(1);
+
+    // a number that cannot be printed hides the preview and says which item
+    await page.keyboard.type('x');
+    await expect(page.getByText(/must be a whole number/)).toBeVisible();
+    await expect(page.getByTitle('Labels preview')).toHaveCount(0);
+    await count.fill('3');
+    await expect(page.getByTitle('Labels preview')).toBeVisible();
+    await expect(
+      page
+        .frameLocator('iframe[title="Labels preview"]')
+        .getByText(/incl\. GST/)
+        .first(),
+    ).toBeVisible();
+    await page.getByLabel('Add an item').focus();
+
     await page.keyboard.press('Control+S');
     await expect(page.getByText(/^Saved to /)).toBeVisible();
     const pdf = readdirSync(shop.exportPath).find((f) => f === 'labels.pdf');

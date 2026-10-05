@@ -135,6 +135,7 @@ export function ReportScreen({
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [countSheet, setCountSheet] = useState(false);
   const [groupId, setGroupId] = useState('');
+  const [groupName, setGroupName] = useState('');
   const [subject, setSubject] = useState<{ id: number; name: string } | null>(
     accountId ? { id: accountId, name: accountName ?? '' } : null,
   );
@@ -243,6 +244,7 @@ export function ReportScreen({
           : ''}
         {kind === 'stock' && onlyProblems ? ' — only items running low or below zero' : ''}
         {kind === 'stock' && countSheet ? ' — counting sheet' : ''}
+        {kind === 'itemSales' && groupId ? ` — item group ${groupName}` : ''}
       </p>
       <div className="report-controls">
         {info.subject === 'account' && (
@@ -373,7 +375,15 @@ export function ReportScreen({
             Only items running low or below zero
           </label>
         )}
-        {kind === 'itemSales' && <GroupPicker value={groupId} onChange={setGroupId} />}
+        {kind === 'itemSales' && (
+          <GroupPicker
+            value={groupId}
+            onChange={(id, name) => {
+              setGroupId(id);
+              setGroupName(name);
+            }}
+          />
+        )}
         {kind === 'stock' && (
           <label className="check">
             <input
@@ -414,12 +424,22 @@ function Result({ request }: { request: ReportRequest }) {
 }
 
 /** Narrows a report to one item group (and the groups inside it). */
-function GroupPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function GroupPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string, name: string) => void;
+}) {
   const groups = useCall('itemgroup.list', {});
   return (
     <div className="field">
       <label htmlFor="report-group">Item group</label>
-      <select id="report-group" value={value} onChange={(e) => onChange(e.target.value)}>
+      <select
+        id="report-group"
+        value={value}
+        onChange={(e) => onChange(e.target.value, e.target.selectedOptions[0]?.textContent ?? '')}
+      >
         <option value="">All items</option>
         {groups.status === 'ready' &&
           groups.data.map((g) => (
