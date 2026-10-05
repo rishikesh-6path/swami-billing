@@ -552,6 +552,44 @@ export function ReportBody({ result }: { result: ReportResult }) {
         />
       );
     }
+    case 'itemSales': {
+      const r = result.data;
+      const pct = (bp: number | null) => (bp === null ? '' : formatPercent(bp));
+      return (
+        <>
+          <p className="muted">
+            Profit is the sales value before GST less what the goods cost at their average purchase
+            cost.
+          </p>
+          <DataTable
+            rowKey={(x) => x.itemId}
+            rows={r.rows}
+            empty="Nothing was sold in this period."
+            rowClass={(x) => (x.profitPaise < 0 ? 'row-bad' : '')}
+            columns={[
+              { header: 'Group', cell: (x) => x.groupName },
+              { header: 'Item', cell: (x) => x.name },
+              { header: 'Code', cell: (x) => x.alias },
+              { header: 'Sold', num: true, cell: (x) => `${formatQty(x.qty)} ${x.unitName}` },
+              { header: 'Sales', num: true, cell: (x) => formatMoney(x.valuePaise) },
+              { header: 'Cost', num: true, cell: (x) => formatMoney(x.costPaise) },
+              { header: 'Profit', num: true, cell: (x) => formatMoney(x.profitPaise) },
+              { header: 'Margin', num: true, cell: (x) => pct(x.marginBp) },
+            ]}
+            footer={[
+              'Total',
+              '',
+              '',
+              '',
+              formatMoney(r.totals.valuePaise),
+              formatMoney(r.totals.costPaise),
+              formatMoney(r.totals.profitPaise),
+              pct(r.totals.marginBp),
+            ]}
+          />
+        </>
+      );
+    }
     case 'profitAndLoss': {
       const p = result.data;
       const block = (

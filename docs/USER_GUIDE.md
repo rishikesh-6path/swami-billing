@@ -89,6 +89,8 @@ Press **R** for the list. Every report can be saved as a spreadsheet (**Ctrl+E**
 
 Press **Ctrl+S** on any report to save it as a PDF. To give a customer a statement, open the customer (Enter in Customers), press **L**, choose the period and save or print it.
 
+The owner also sees **What Sold**: each item sold in a period with the sales before GST, what it cost, the profit and the margin (choose an item group to narrow it).
+
 The owner also sees Profit and Loss, Balance Sheet, Trial Balance and the GST reports, including **Purchases for the CA**: every supplier invoice by GST rate, saved as a spreadsheet for your accountant.
 
 ## If something goes wrong

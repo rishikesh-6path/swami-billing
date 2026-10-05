@@ -89,6 +89,11 @@ export const REPORT_INFO: Record<
     about: 'Items that are running below their minimum, with who you last bought them from.',
     shape: 'asOn',
   },
+  itemSales: {
+    title: 'What Sold',
+    about: 'Each item sold in the period, with what it earned after its cost.',
+    shape: 'period',
+  },
   profitAndLoss: {
     title: 'Profit and Loss',
     about: 'What you earned and spent, and the profit.',
@@ -120,7 +125,7 @@ export function ReportScreen({
   const defaultPreset: Preset =
     kind === 'gstSummary' || kind === 'gstr1' || kind === 'gstr3b' || kind === 'purchasesForCa'
       ? 'thisMonth'
-      : kind === 'profitAndLoss' || kind === 'trialBalance'
+      : kind === 'profitAndLoss' || kind === 'trialBalance' || kind === 'itemSales'
         ? 'thisYear'
         : 'thisMonth';
   const [preset, setPreset] = useState<Preset>(defaultPreset);
@@ -129,6 +134,7 @@ export function ReportScreen({
   const [outSide, setOutSide] = useState<'receivable' | 'payable'>(side ?? 'receivable');
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [countSheet, setCountSheet] = useState(false);
+  const [groupId, setGroupId] = useState('');
   const [subject, setSubject] = useState<{ id: number; name: string } | null>(
     accountId ? { id: accountId, name: accountName ?? '' } : null,
   );
@@ -162,6 +168,9 @@ export function ReportScreen({
       break;
     case 'daySummary':
       request = { kind, date: asOn };
+      break;
+    case 'itemSales':
+      request = { kind, ...range, ...(groupId ? { groupId: Number(groupId) } : {}) };
       break;
     default:
       request = { kind, ...range };
@@ -364,6 +373,7 @@ export function ReportScreen({
             Only items running low or below zero
           </label>
         )}
+        {kind === 'itemSales' && <GroupPicker value={groupId} onChange={setGroupId} />}
         {kind === 'stock' && (
           <label className="check">
             <input
@@ -400,5 +410,25 @@ function Result({ request }: { request: ReportRequest }) {
     <LoadState state={result}>
       {result.status === 'ready' && <ReportBody result={result.data} />}
     </LoadState>
+  );
+}
+
+/** Narrows a report to one item group (and the groups inside it). */
+function GroupPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const groups = useCall('itemgroup.list', {});
+  return (
+    <div className="field">
+      <label htmlFor="report-group">Item group</label>
+      <select id="report-group" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">All items</option>
+        {groups.status === 'ready' &&
+          groups.data.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+      </select>
+      <div className="field-note" />
+    </div>
   );
 }

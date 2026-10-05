@@ -15,7 +15,7 @@ const GROUPS: { title: string; kinds: ReportKind[]; ownerOnly?: boolean }[] = [
   },
   {
     title: 'Accounts (owner)',
-    kinds: ['profitAndLoss', 'balanceSheet', 'trialBalance'],
+    kinds: ['profitAndLoss', 'itemSales', 'balanceSheet', 'trialBalance'],
     ownerOnly: true,
   },
   {

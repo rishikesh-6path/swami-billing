@@ -26,6 +26,8 @@ import {
   outstanding,
   outstandingToCsv,
   profitAndLoss,
+  itemSales,
+  itemSalesToCsv,
   profitAndLossToCsv,
   purchaseRegister,
   registerToCsv,
@@ -53,6 +55,7 @@ const NEEDS: Record<ReportRequest['kind'], Action> = {
   trialBalance: 'view_balance_sheet',
   balanceSheet: 'view_balance_sheet',
   profitAndLoss: 'view_profit_and_loss',
+  itemSales: 'view_profit_and_loss',
   gstSummary: 'view_gst',
   gstr1: 'view_gst',
   gstr3b: 'view_gst',
@@ -121,6 +124,8 @@ function run(req: ReportRequest, ctx: HandlerContext): ReportResult {
       return { kind: 'reorder', data: reorderList(db, req) };
     case 'profitAndLoss':
       return { kind: 'profitAndLoss', data: profitAndLoss(db, req) };
+    case 'itemSales':
+      return { kind: 'itemSales', data: itemSales(db, req) };
     case 'balanceSheet':
       return { kind: 'balanceSheet', data: balanceSheet(db, req) };
   }
@@ -193,6 +198,8 @@ export const reportHandlers: Pick<
         return { saved: await ctx.saveText(`${name}.csv`, reorderToCsv(result.data)) };
       case 'profitAndLoss':
         return { saved: await ctx.saveText(`${name}.csv`, profitAndLossToCsv(result.data)) };
+      case 'itemSales':
+        return { saved: await ctx.saveText(`${name}.csv`, itemSalesToCsv(result.data)) };
       case 'balanceSheet':
         return { saved: await ctx.saveText(`${name}.csv`, balanceSheetToCsv(result.data)) };
       case 'daySummary':

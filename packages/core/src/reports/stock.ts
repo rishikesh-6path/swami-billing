@@ -22,6 +22,58 @@ export interface StockStatus {
   totalValuePaise: Paise;
 }
 
+export interface CostBasis {
+  /** Quantity and value the average is taken over: opening stock plus everything bought. */
+  qty: Milli;
+  cost: Paise;
+  openingRatePaise: Paise;
+}
+
+/**
+ * Weighted-average cost basis of every item as of a date: opening stock, purchases and
+ * stock-journal receipts, less purchase returns at the price returned. Stock value and the cost
+ * of goods sold both use it, so they agree.
+ */
+export function averageCosts(db: Db, asOn: string): Map<number, CostBasis> {
+  const out = new Map<number, CostBasis>();
+  for (const i of db.prepare('SELECT id, opening_qty, opening_rate_paise FROM item').all()) {
+    const openingQty = Math.max(Number(i['opening_qty']), 0);
+    out.set(Number(i['id']), {
+      qty: openingQty,
+      cost: lineAmount(openingQty, Number(i['opening_rate_paise'])),
+      openingRatePaise: Number(i['opening_rate_paise']),
+    });
+  }
+  for (const r of db
+    .prepare(
+      `SELECT m.item_id, v.voucher_type, m.qty_in, m.qty_out, m.rate_paise
+       FROM stock_movement m JOIN voucher v ON v.id = m.voucher_id
+       WHERE v.status = 'posted' AND m.is_reversal = 0 AND m.date <= ?
+         AND (v.voucher_type IN ('purchase', 'purchase_return')
+              OR (v.voucher_type = 'stock_journal' AND m.qty_in > 0))`,
+    )
+    .all(asOn)) {
+    const entry = out.get(Number(r['item_id']));
+    if (!entry) continue;
+    const sign = r['voucher_type'] === 'purchase_return' ? -1 : 1;
+    const qty = Number(r['qty_in']) + Number(r['qty_out']);
+    entry.qty += sign * qty;
+    entry.cost += sign * lineAmount(qty, Number(r['rate_paise']));
+  }
+  return out;
+}
+
+/** What `qty` of an item is worth at its average cost (opening rate when nothing was ever bought). */
+export function costOf(costs: Map<number, CostBasis>, itemId: number, qty: Milli): Paise {
+  const basis = costs.get(itemId);
+  if (!basis) return 0;
+  const basisQty = Math.max(basis.qty, 0);
+  const basisCost = Math.max(basis.cost, 0);
+  return basisQty > 0
+    ? mulDivRound(qty, basisCost, basisQty)
+    : lineAmount(qty, basis.openingRatePaise);
+}
+
 /**
  * Stock on hand as of a date: opening quantity plus posted movements up to that date,
  * recomputed from stock_movement only (KICKOFF invariant 2). Cancelled vouchers are ignored
@@ -52,41 +104,13 @@ export function stockStatus(
     moved.set(Number(r['item_id']), Number(r['net']));
   }
 
-  // weighted-average cost basis: opening stock, purchases and stock-journal receipts, less purchase returns at the price returned
-  const purchased = new Map<number, { qty: Milli; cost: Paise }>();
-  for (const r of db
-    .prepare(
-      `SELECT m.item_id, v.voucher_type, m.qty_in, m.qty_out, m.rate_paise
-       FROM stock_movement m JOIN voucher v ON v.id = m.voucher_id
-       WHERE v.status = 'posted' AND m.is_reversal = 0 AND m.date <= ?
-         AND (v.voucher_type IN ('purchase', 'purchase_return')
-              OR (v.voucher_type = 'stock_journal' AND m.qty_in > 0))`,
-    )
-    .all(args.asOn)) {
-    const id = Number(r['item_id']);
-    const entry = purchased.get(id) ?? { qty: 0, cost: 0 };
-    const sign = r['voucher_type'] === 'purchase_return' ? -1 : 1;
-    const qty = Number(r['qty_in']) + Number(r['qty_out']);
-    entry.qty += sign * qty;
-    entry.cost += sign * lineAmount(qty, Number(r['rate_paise']));
-    purchased.set(id, entry);
-  }
+  const costs = averageCosts(db, args.asOn);
 
   const rows = items.map((i): StockRow => {
     const id = Number(i['id']);
     const qty = Number(i['opening_qty']) + (moved.get(id) ?? 0);
-    const openingQty = Math.max(Number(i['opening_qty']), 0);
-    const bought = purchased.get(id) ?? { qty: 0, cost: 0 };
-    const basisQty = Math.max(openingQty + bought.qty, 0);
-    const basisCost = Math.max(
-      lineAmount(openingQty, Number(i['opening_rate_paise'])) + bought.cost,
-      0,
-    );
     const onHand = Math.max(qty, 0);
-    const valuePaise =
-      basisQty > 0
-        ? mulDivRound(onHand, basisCost, basisQty)
-        : lineAmount(onHand, Number(i['opening_rate_paise']));
+    const valuePaise = costOf(costs, id, onHand);
     const min = Number(i['min_stock_qty']);
     return {
       itemId: id,

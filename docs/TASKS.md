@@ -72,5 +72,12 @@ P8-04 | done | Bill screen: series, all payments, held-bill limit, stock warning
 P8-05 | done | Exports and plain wording | unit | P0-kickoff
 P8-06 | done | Lock enforced in main, review of P8-01..03, docs, packaged smoke test | E2E, packaged check | P0-kickoff
 
+## Phase 9 — What sold, book health, labels, tidy-up
+P9-01 | done | What Sold report (quantity, sales, cost, profit per item) | unit + E2E | P0-kickoff
+P9-02 | todo | Check my books | unit + E2E |
+P9-03 | todo | Plain item labels | unit + E2E |
+P9-04 | todo | Tidy-ups and small-screen check | E2E |
+P9-05 | todo | Review, docs, packaged smoke test | |
+
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.
