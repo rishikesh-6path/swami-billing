@@ -51,6 +51,7 @@ test('a purchase from a registered supplier cannot be saved without the supplier
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F9');
     await expect(page.getByLabel('Supplier', { exact: true })).toBeFocused();
     await page.keyboard.type('finolex');

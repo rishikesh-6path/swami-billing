@@ -413,13 +413,20 @@ kbd {
   right: 0;
   bottom: 0;
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  column-gap: 1.25rem;
+  row-gap: 0.15rem;
   padding: 0.5rem 1.5rem;
   background: var(--text);
   color: #fff;
   font-size: 0.95rem;
   min-height: 2.4rem;
   z-index: 10;
+}
+
+/* a key and its meaning stay together; on a narrow screen the bar takes a second line instead */
+.status-bar > span {
+  white-space: nowrap;
 }
 
 /* ---- typeahead ---- */
@@ -472,7 +479,18 @@ kbd {
 /* ---- bill screen ---- */
 .voucher-page {
   max-width: 96rem;
-  padding: 1rem 1.25rem 4rem;
+  /* room for the key bar, which can take two lines on a small screen */
+  padding: 1rem 1.25rem 6rem;
+}
+
+/* a long bill scrolls under its title, so Save and Cancel stay on screen */
+.voucher-page .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
 }
 
 .voucher-top {
@@ -490,7 +508,12 @@ kbd {
 
 .voucher-side {
   position: sticky;
-  top: 1rem;
+  /* below the bill's title bar, which also stays on screen */
+  top: 6.5rem;
+}
+
+.header-total {
+  display: none;
 }
 
 .bill-grid .cell-input {
@@ -614,6 +637,14 @@ kbd {
 @media (max-width: 1180px) {
   .voucher-body {
     grid-template-columns: 1fr;
+  }
+
+  .header-total {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 1.25rem;
+    margin-right: 0.5rem;
   }
 
   .voucher-side {

@@ -73,16 +73,19 @@ function guardSale(
   const input = withSeries(ctx, req) as ItemVoucherInput;
   const user = ctx.user();
   const isOwner = user.role === 'owner';
+  // the bill is worked out once and used by both checks
+  const preview = previewItemVoucher(ctx.db, input);
   if (!isOwner) {
     const problem = staffDiscountProblem(
       ctx.db,
       input,
       getStaffMaxDiscountBp(ctx.db),
       excludeVoucherId,
+      preview,
     );
     if (problem) throw new ValidationError(problem);
   }
-  const total = previewItemVoucher(ctx.db, input).totalPaise;
+  const total = preview.totalPaise;
   const received = (input.settlements ?? []).reduce((t, s) => t + s.amountPaise, 0);
   const check = creditCheck(ctx.db, {
     partyId: input.partyAccountId,

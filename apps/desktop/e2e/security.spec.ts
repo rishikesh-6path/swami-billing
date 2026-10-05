@@ -8,6 +8,7 @@ test('the screen locks when idle, a wrong PIN is refused, and the bill is still 
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F8');
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('Enter');

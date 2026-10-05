@@ -63,6 +63,7 @@ test('mistakes are explained in plain words and nothing is lost by pressing Esc'
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F8');
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('Enter'); // Cash
@@ -93,6 +94,7 @@ test('a credit sale to a named customer shows what they owe and takes part payme
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F8');
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('Control+A');

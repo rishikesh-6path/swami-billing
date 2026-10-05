@@ -737,6 +737,10 @@ export function ItemVoucher({
         }
         actions={
           <>
+            {/* on a small screen the totals panel is below the items, so the total also shows here */}
+            <span className="header-total">
+              Total <strong>{rupees(preview?.totalPaise ?? 0)}</strong>
+            </span>
             <Button onClick={leave}>Cancel (Esc)</Button>
             <Button
               ref={(el: HTMLButtonElement | null) => cells.set('footer-button', el)}

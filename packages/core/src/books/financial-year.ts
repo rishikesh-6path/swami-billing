@@ -1,3 +1,4 @@
+import { fyStartOf } from '../dates.ts';
 import type { SQLOutputValue } from 'node:sqlite';
 import { writeAudit, type Ctx } from '../audit.ts';
 import { transaction, type Db } from '../db/connection.ts';
@@ -60,9 +61,7 @@ export function createFinancialYear(db: Db, startYear: number, ctx: Ctx = {}): n
 
 /** First-run helper: makes sure the year containing `today` exists. Safe to call every start. */
 export function ensureFinancialYearFor(db: Db, today: string, ctx: Ctx = {}): FinancialYearRow {
-  const year = Number(today.slice(0, 4));
-  const month = Number(today.slice(5, 7));
-  createFinancialYear(db, month >= 4 ? year : year - 1, ctx);
+  createFinancialYear(db, Number(fyStartOf(today).slice(0, 4)), ctx);
   const found = financialYearOn(db, today);
   if (!found) throw new ValidationError('Could not set up the financial year.');
   return found;

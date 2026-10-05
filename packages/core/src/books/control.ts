@@ -1,3 +1,4 @@
+import { isRealDate, showDate } from '../dates.ts';
 import { writeAudit, type Ctx } from '../audit.ts';
 import { transaction, type Db } from '../db/connection.ts';
 import { ValidationError } from '../errors.ts';
@@ -10,13 +11,6 @@ const LOCK_KEY = 'books.locked_through';
 
 const iso = /^\d{4}-\d{2}-\d{2}$/;
 
-/** True for a real calendar date written YYYY-MM-DD (so 2026-02-30 and 2026-13-01 are not). */
-function isRealDate(text: string): boolean {
-  if (!iso.test(text)) return false;
-  const d = new Date(`${text}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === text;
-}
-
 function readDate(db: Db, key: string): string | undefined {
   const value = getSetting(db, key);
   return value && iso.test(value) ? value : undefined;
@@ -25,10 +19,7 @@ function readDate(db: Db, key: string): string | undefined {
 export const dayClosedThrough = (db: Db) => readDate(db, DAY_KEY);
 export const booksLockedThrough = (db: Db) => readDate(db, LOCK_KEY);
 
-function pretty(date: string): string {
-  const [y, m, d] = date.split('-');
-  return `${d}-${m}-${y}`;
-}
+const pretty = showDate;
 
 /**
  * Throws if `date` is no longer open for changes. Two controls apply:

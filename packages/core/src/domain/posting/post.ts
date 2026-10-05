@@ -1,3 +1,5 @@
+import { stockOnHand } from '../../reports/stock.ts';
+import { fyEndOf, fyStartOf, isRealDate, showDate } from '../../dates.ts';
 import { transaction, type Db } from '../../db/connection.ts';
 import { assertDateOpen } from '../../books/control.ts';
 import { getCompanyStateCode } from '../../settings.ts';
@@ -73,13 +75,7 @@ function systemAccountId(db: Db, name: string): number {
 }
 
 function assertRealDate(date: string): void {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  const valid =
-    match !== null &&
-    new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
-      .toISOString()
-      .slice(0, 10) === date;
-  if (!valid) throw new PostingError(`Invalid date "${date}"`);
+  if (!isRealDate(date)) throw new PostingError(`Invalid date "${date}"`);
 }
 
 export function financialYearFor(db: Db, date: string): number {
@@ -224,15 +220,10 @@ function takeSnapshot(db: Db, h: Header): VoucherSnapshot {
   };
 }
 
-const fyStartOf = (iso: string): string => {
-  const year = Number(iso.slice(0, 4));
-  return `${Number(iso.slice(5, 7)) >= 4 ? year : year - 1}-04-01`;
-};
-const fyEndOf = (iso: string): string => `${Number(fyStartOf(iso).slice(0, 4)) + 1}-03-31`;
 /** Voucher types that take value away from an earlier bill. */
 const ADJUSTS = new Set<string>(['sales_return', 'purchase_return', 'credit_note', 'debit_note']);
 
-const dmy = (iso: string): string => iso.split('-').reverse().join('-');
+const dmy = showDate;
 
 /** The item's name in quotes, for messages shown to shop staff (never "Item 5"). */
 function itemName(db: Db, itemId: number): string {
@@ -352,10 +343,7 @@ function checkSupplierInvoice(
   if (no.length > 30)
     throw new PostingError("The supplier's invoice number is too long (30 letters at most).");
   if (date === '') throw new PostingError("Please enter the date on the supplier's invoice.");
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-    new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date
-  ) {
+  if (!isRealDate(date)) {
     throw new PostingError("The date on the supplier's invoice is not a real date.");
   }
   if (date > input.date) {
@@ -446,6 +434,18 @@ const MODE_WORDS: Record<string, string> = {
   exempt: 'no',
 };
 
+/** How much of a bill its posted returns and notes have already taken back. */
+function alreadyAdjustedPaise(db: Db, billId: number): number {
+  const earlier = row(
+    db,
+    `SELECT COALESCE(SUM(total_paise), 0) AS n FROM voucher
+      WHERE ref_voucher_id = ? AND status = 'posted'
+        AND voucher_type IN ('credit_note', 'debit_note', 'sales_return', 'purchase_return')`,
+    billId,
+  );
+  return Number(earlier?.['n']);
+}
+
 const ADJUST_LABELS: Record<string, string> = {
   credit_note: 'credit note',
   debit_note: 'debit note',
@@ -481,14 +481,7 @@ function assertNoteAgainstInvoice(db: Db, input: ItemVoucherInput, legacyImport:
     );
   }
   if (!isNoteType(input.type)) return; // returns are limited by quantity instead
-  const earlier = row(
-    db,
-    `SELECT COALESCE(SUM(total_paise), 0) AS n FROM voucher
-      WHERE ref_voucher_id = ? AND status = 'posted'
-        AND voucher_type IN ('credit_note', 'debit_note', 'sales_return', 'purchase_return')`,
-    input.refVoucherId,
-  );
-  if (Number(earlier?.['n']) >= Number(original['total_paise'])) {
+  if (alreadyAdjustedPaise(db, input.refVoucherId) >= Number(original['total_paise'])) {
     throw new PostingError(
       `Bill ${String(original['prefix'])}${Number(original['number'])} has already been returned or adjusted in full.`,
     );
@@ -630,16 +623,10 @@ function buildItemVoucher(db: Db, input: ItemVoucherInput, legacyImport: boolean
   if (computed.totalPaise <= 0) throw new PostingError('The bill total must be more than zero.');
   if (ADJUSTS.has(input.type) && !legacyImport && input.refVoucherId !== undefined) {
     const original = row(db, 'SELECT total_paise FROM voucher WHERE id = ?', input.refVoucherId);
-    const earlier = row(
-      db,
-      `SELECT COALESCE(SUM(total_paise), 0) AS n FROM voucher
-        WHERE ref_voucher_id = ? AND status = 'posted'
-          AND voucher_type IN ('credit_note', 'debit_note', 'sales_return', 'purchase_return')`,
-      input.refVoucherId,
-    );
     if (
       original &&
-      Number(earlier?.['n']) + computed.totalPaise > Number(original['total_paise'])
+      alreadyAdjustedPaise(db, input.refVoucherId) + computed.totalPaise >
+        Number(original['total_paise'])
     ) {
       throw new PostingError(
         'Together with what was already returned or adjusted, this is more than the bill itself. Please check the amounts.',
@@ -960,16 +947,7 @@ function postStockVoucher(
       if (seen.has(l.itemId)) throw new PostingError('An item appears twice in the stock count.');
       seen.add(l.itemId);
       assertItemUnit(db, l.itemId, l.unitId, l.countedQty);
-      const book = row(
-        db,
-        `SELECT i.opening_qty + COALESCE((SELECT SUM(m.qty_in) - SUM(m.qty_out) FROM stock_movement m
-           JOIN voucher v ON v.id = m.voucher_id
-           WHERE m.item_id = i.id AND v.status = 'posted' AND m.date <= ?), 0) AS qty
-         FROM item i WHERE i.id = ?`,
-        input.date,
-        l.itemId,
-      );
-      const diff = l.countedQty - Number(book?.['qty']);
+      const diff = l.countedQty - stockOnHand(db, l.itemId, input.date);
       movements.push({
         itemId: l.itemId,
         unitId: l.unitId,

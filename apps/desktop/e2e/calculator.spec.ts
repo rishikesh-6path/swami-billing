@@ -6,6 +6,7 @@ test('F10 opens a calculator from the bill screen and Esc returns to the bill', 
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F8');
     await expect(page.getByLabel('Customer')).toBeFocused();
     await page.keyboard.press('F10');

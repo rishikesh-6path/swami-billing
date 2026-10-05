@@ -39,6 +39,7 @@ test('the calculator keeps Tab inside too', async () => {
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F10');
     await expect(page.getByRole('dialog', { name: 'Calculator' })).toBeVisible();
     for (let i = 0; i < 8; i++) {

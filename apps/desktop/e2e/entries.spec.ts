@@ -61,6 +61,7 @@ test('a journal entry offers the balancing amount and refuses unequal totals', a
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('F7');
     await expect(page.getByRole('heading', { name: 'New Journal Entry' })).toBeVisible();
     await expect(page.getByLabel('Account, line 1')).toBeFocused();

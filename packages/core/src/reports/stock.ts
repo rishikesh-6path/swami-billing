@@ -22,6 +22,22 @@ export interface StockStatus {
   totalValuePaise: Paise;
 }
 
+/**
+ * Quantity of one item on hand: opening quantity plus posted movements (up to `asOn` when given).
+ * Cancelled bills do not count. The one place this sum is written for a single item.
+ */
+export function stockOnHand(db: Db, itemId: number, asOn?: string): Milli {
+  const r = db
+    .prepare(
+      `SELECT i.opening_qty + COALESCE((SELECT SUM(m.qty_in) - SUM(m.qty_out) FROM stock_movement m
+         JOIN voucher v ON v.id = m.voucher_id
+         WHERE m.item_id = i.id AND v.status = 'posted' AND (? IS NULL OR m.date <= ?)), 0) AS qty
+       FROM item i WHERE i.id = ?`,
+    )
+    .get(asOn ?? null, asOn ?? null, itemId);
+  return Number(r?.['qty'] ?? 0);
+}
+
 export interface CostBasis {
   /** Quantity and value the average is taken over: opening stock plus everything bought. */
   qty: Milli;

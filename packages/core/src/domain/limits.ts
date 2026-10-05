@@ -4,7 +4,7 @@ import { writeAudit, type Ctx } from '../audit.ts';
 import { divRound, mulDivRound, applyDiscount, lineAmount } from '../money.ts';
 import { accountBalance } from '../reports/ledger.ts';
 import { getSetting, setSetting } from '../settings.ts';
-import { previewItemVoucher } from './posting/preview.ts';
+import { previewItemVoucher, type VoucherPreview } from './posting/preview.ts';
 import type { ItemVoucherInput } from './posting/types.ts';
 
 const MAX_DISCOUNT_KEY = 'discount.staff_max_bp';
@@ -90,6 +90,8 @@ export function staffDiscountProblem(
   maxBp: number,
   /** When a bill is being changed: its own prices count as usual, so it can be corrected after a price rise. */
   changingVoucherId?: number,
+  /** The bill's totals when the caller has already worked them out. */
+  preview?: VoucherPreview,
 ): string | null {
   if (maxBp <= 0) return null;
   // when a bill is changed, its own list prices are compared too (never its discounted prices,
@@ -118,12 +120,9 @@ export function staffDiscountProblem(
       return `The price of ${String(item?.['name'] ?? 'an item')} is more than ${limitText} below its usual price, which is the most discount staff may give. Please ask the owner.`;
     }
   }
-  const preview = previewItemVoucher(db, input);
-  const takenOff = preview.sundries.reduce(
-    (t, x) => (x.signedPaise < 0 ? t - x.signedPaise : t),
-    0,
-  );
-  const given = atMaster - preview.subtotalPaise + takenOff;
+  const totals = preview ?? previewItemVoucher(db, input);
+  const takenOff = totals.sundries.reduce((t, x) => (x.signedPaise < 0 ? t - x.signedPaise : t), 0);
+  const given = atMaster - totals.subtotalPaise + takenOff;
   if (given > 0 && atMaster > 0 && mulDivRound(given, 10000, atMaster) > maxBp) {
     return `The discount on this bill is more than ${limitText}, which is the most staff may give. Please ask the owner.`;
   }

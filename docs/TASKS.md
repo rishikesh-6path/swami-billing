@@ -76,7 +76,7 @@ P8-06 | done | Lock enforced in main, review of P8-01..03, docs, packaged smoke 
 P9-01 | done | What Sold report (quantity, sales, cost, profit per item) | unit + E2E | P0-kickoff
 P9-02 | done | Check my books | unit + E2E | P0-kickoff
 P9-03 | done | Plain item labels | unit + E2E | P0-kickoff
-P9-04 | todo | Tidy-ups and small-screen check | E2E |
+P9-04 | done | Tidy-ups and small-screen check | E2E | P0-kickoff
 P9-05 | todo | Review, docs, packaged smoke test | |
 
 ## Waiting on Tony (not blocking)

@@ -1,3 +1,4 @@
+import { stockOnHand } from '../../reports/stock.ts';
 import type { Db } from '../../db/connection.ts';
 import type { BasisPoints, Paise } from '../../money.ts';
 import { computeItemVoucher, type ComputeSundry } from './compute.ts';
@@ -99,16 +100,9 @@ export function previewItemVoucher(db: Db, input: ItemVoucherInput): VoucherPrev
       // warn once per item, for all its lines together, against the stock on the bill's date
       if (input.type === 'sales' && !warned.has(l.itemId)) {
         warned.add(l.itemId);
-        const stock = db
-          .prepare(
-            `SELECT i.opening_qty + COALESCE((SELECT SUM(m.qty_in) - SUM(m.qty_out) FROM stock_movement m
-               JOIN voucher v ON v.id = m.voucher_id
-               WHERE m.item_id = i.id AND v.status = 'posted' AND m.date <= ?), 0) AS qty
-             FROM item i WHERE i.id = ?`,
-          )
-          .get(input.date, l.itemId) as { qty: number } | undefined;
+        const stock = { qty: stockOnHand(db, l.itemId, input.date) };
         const wanted = neededQty.get(l.itemId) ?? l.qty;
-        if (stock && wanted > stock.qty) {
+        if (wanted > stock.qty) {
           problems.push({
             kind: 'warning',
             message: `Only ${stock.qty / 1000} of "${name}" is in stock.`,
