@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { BookHealth } from '@shopledger/core';
 import type { SessionState } from '../../../ipc/contract.ts';
 import { Button, Card, LoadState, Notice, TextField, useToast } from '../../components/ui.tsx';
 import { call, useCall } from '../../lib/api.ts';
@@ -120,6 +121,7 @@ function SupportBody({
           Save the limit
         </Button>
       </Card>
+      <BookCheckCard />
       <Card title="About this computer">
         <p className="muted">
           If something is not working, save this file and send it to the person who supports you. It
@@ -137,5 +139,57 @@ function SupportBody({
         </dl>
       </Card>
     </>
+  );
+}
+
+/** Runs the book checks and says plainly what was found and what to do. */
+function BookCheckCard() {
+  const [health, setHealth] = useState<BookHealth | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    call('support.checkBooks', {}).then(
+      (h) => {
+        setHealth(h);
+        setBusy(false);
+      },
+      (e: unknown) => {
+        setBusy(false);
+        setError(e instanceof Error ? e.message : 'The check could not be run.');
+      },
+    );
+  };
+  return (
+    <Card title="Check my books">
+      <p className="muted">
+        Reads every bill and entry and checks that the accounts, stock and bill numbers still add
+        up. It changes nothing and takes a few seconds. Run it once a month, or when something looks
+        wrong.
+      </p>
+      <Button onClick={run} disabled={busy}>
+        {busy ? 'Checking...' : 'Check my books now'}
+      </Button>
+      {error && <Notice>{error}</Notice>}
+      {health && (
+        <>
+          <Notice kind={health.ok ? 'info' : 'error'}>
+            {health.ok
+              ? 'All is well. Your books add up.'
+              : 'Something does not add up. Please take a backup now (Settings > Backup), do not change the bills listed below, and send the support file to whoever supports you.'}
+          </Notice>
+          <ul className="check-list">
+            {health.checks.map((c) => (
+              <li key={c.title} className={c.ok ? 'check-ok' : 'check-bad'}>
+                <strong>{c.ok ? 'OK' : 'Problem'}:</strong> {c.message}
+                {c.examples.length > 0 && <span className="muted"> ({c.examples.join(', ')})</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
   );
 }

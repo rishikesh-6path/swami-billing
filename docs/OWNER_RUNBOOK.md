@@ -18,6 +18,10 @@ For the owner only. Sign in with an owner PIN. The home screen has two extra til
 - **Settings > Closing days and years > Close the day**. Staff can then no longer change that day's bills. You still can. If one of the latest days must be changed, use "keep closed up to" to reopen only the days after a date.
 - Switch off the computer from the Windows Start menu, not the power button. ShopLedger makes a backup when it closes.
 
+## Checking your books
+
+Once a month, or whenever a figure looks wrong, open **Settings > Locking, limits and support > Check my books now**. It reads every bill and checks that the accounts, stock and bill numbers still add up; it changes nothing. If it says all is well, there is nothing to do. If it finds a problem: take a backup at once, do not change the bills it lists, and send the support file (same page) to whoever supports you.
+
 ## Giving your accountant the books
 
 Open **Reports (R)**, scroll to **Data for the accountant**, choose the period and press **Save everything for my accountant**. Choose a folder (a pen drive is fine). It holds the bills, the ledger lines behind them, and your item, customer and supplier lists as spreadsheets, with a short note saying what each one is.

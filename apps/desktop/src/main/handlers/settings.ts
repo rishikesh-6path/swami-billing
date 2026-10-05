@@ -33,6 +33,7 @@ import {
   transaction,
   writeAudit,
   getStaffMaxDiscountBp,
+  checkBooks,
   setStaffMaxDiscountBp,
 } from '@shopledger/core';
 import { writeFileSync, rmSync } from 'node:fs';
@@ -99,6 +100,7 @@ export const settingsHandlers: Pick<
   | 'settings.saveLock'
   | 'settings.saveLimits'
   | 'support.save'
+  | 'support.checkBooks'
   | 'users.list'
   | 'users.create'
   | 'users.update'
@@ -158,6 +160,7 @@ export const settingsHandlers: Pick<
     setStaffMaxDiscountBp(ctx.db, req.staffMaxDiscountBp, audit(ctx));
     return null;
   },
+  'support.checkBooks': (_req, ctx) => checkBooks(ctx.db),
   'support.save': async (_req, ctx) => {
     const text = buildSupportReport(ctx.db, {
       appVersion: ctx.appVersion,

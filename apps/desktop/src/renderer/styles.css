@@ -896,3 +896,17 @@ tr.clickable:hover td {
   min-height: 1.8rem;
   border-bottom: 1px solid currentColor;
 }
+
+/* results of "Check my books" */
+.check-list {
+  list-style: none;
+  padding: 0;
+}
+
+.check-list li {
+  padding: 0.3rem 0;
+}
+
+.check-bad strong {
+  color: var(--danger);
+}

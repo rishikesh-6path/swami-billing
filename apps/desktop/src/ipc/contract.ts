@@ -33,6 +33,7 @@ import type {
   LastPrice,
   HeldBill,
   CreditCheck,
+  BookHealth,
   ItemSales,
   PriceChangeRow,
   PostedVoucher,
@@ -732,6 +733,7 @@ export const contract = {
   'auth.unlock': ch<null>()('user', z.object({ pin: z.string().max(6) })),
   'auth.lock': ch<null>()('user', none),
   'support.save': ch<{ saved: string | null }>()('manage_settings', none),
+  'support.checkBooks': ch<BookHealth>()('manage_settings', none),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',

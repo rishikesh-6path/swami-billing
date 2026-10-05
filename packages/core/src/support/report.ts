@@ -1,3 +1,4 @@
+import { checkBooks } from './check.ts';
 import { statfsSync, statSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import type { Db } from '../db/connection.ts';
@@ -66,6 +67,17 @@ export function buildSupportReport(
     }
   })();
   add('Data file check', integrity);
+  // only which checks passed: the bill numbers in the examples stay out of the support file
+  const health = (() => {
+    try {
+      return checkBooks(db)
+        .checks.map((c) => `${c.title}: ${c.ok ? 'ok' : 'PROBLEM'}`)
+        .join('; ');
+    } catch {
+      return 'could not be run';
+    }
+  })();
+  add('Book checks', health);
 
   lines.push('', 'Counts');
   add('  Bills and entries', count(db, 'SELECT COUNT(*) AS n FROM voucher'));
