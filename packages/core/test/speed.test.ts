@@ -6,6 +6,8 @@ import type { Db } from '../src/db/connection.ts';
 import {
   accountLedger,
   balanceSheet,
+  checkBooks,
+  itemSales,
   daySummary,
   gstPurchases,
   gstr1,
@@ -68,6 +70,8 @@ describe('screens stay quick in a big shop', () => {
     ['items to order', () => reorderList(db, { asOn: today })],
     ['customer page', () => partySummary(db, partyId, today)],
     ['customer ledger', () => accountLedger(db, { accountId: partyId, ...P })],
+    ['check my books', () => checkBooks(db)],
+    ['what sold', () => itemSales(db, P)],
   ];
 
   it.each(cases)('%s', (_name, run) => {

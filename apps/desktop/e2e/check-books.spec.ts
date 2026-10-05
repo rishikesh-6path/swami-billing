@@ -11,7 +11,7 @@ test('the owner checks the books and is told all is well', async () => {
     await page.getByRole('button', { name: 'Check my books now' }).click();
     await expect(page.getByText('All is well. Your books add up.')).toBeVisible();
     await expect(page.locator('.check-bad')).toHaveCount(0);
-    await expect(page.locator('.check-ok')).toHaveCount(8);
+    await expect(page.locator('.check-ok')).toHaveCount(10);
   } finally {
     await shop.close();
   }

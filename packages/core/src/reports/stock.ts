@@ -79,6 +79,12 @@ export function averageCosts(db: Db, asOn: string): Map<number, CostBasis> {
   return out;
 }
 
+/** True when the item has a known cost: it was bought, or its opening stock has a rate. */
+export function costKnown(costs: Map<number, CostBasis>, itemId: number): boolean {
+  const basis = costs.get(itemId);
+  return basis !== undefined && ((basis.qty > 0 && basis.cost > 0) || basis.openingRatePaise > 0);
+}
+
 /** What `qty` of an item is worth at its average cost (opening rate when nothing was ever bought). */
 export function costOf(costs: Map<number, CostBasis>, itemId: number, qty: Milli): Paise {
   const basis = costs.get(itemId);

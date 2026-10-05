@@ -1,7 +1,7 @@
 import type { Db } from '../db/connection.ts';
 import { formatMoney, formatQty, mulDivRound, type Milli, type Paise } from '../money.ts';
 import { toCsv } from './csv.ts';
-import { averageCosts, costOf } from './stock.ts';
+import { averageCosts, costKnown, costOf } from './stock.ts';
 
 export interface ItemSalesRow {
   itemId: number;
@@ -16,8 +16,10 @@ export interface ItemSalesRow {
   /** What those goods cost, at the average purchase cost (as stock is valued). */
   costPaise: Paise;
   profitPaise: Paise;
-  /** Profit as a share of the sales value, in basis points; null when nothing was sold. */
+  /** Profit as a share of the sales value, in basis points; null when nothing was sold or the cost is not known. */
   marginBp: number | null;
+  /** False when the item was never bought and has no opening rate: its cost shows as 0. */
+  costKnown: boolean;
 }
 
 export interface ItemSales {
@@ -65,6 +67,7 @@ export function itemSales(
     const qty = Number(r['qty']);
     const value = Number(r['value']);
     const cost = costOf(costs, Number(r['id']), qty);
+    const known = costKnown(costs, Number(r['id']));
     return {
       itemId: Number(r['id']),
       name: String(r['name']),
@@ -75,7 +78,8 @@ export function itemSales(
       valuePaise: value,
       costPaise: cost,
       profitPaise: value - cost,
-      marginBp: margin(value - cost, value),
+      marginBp: known ? margin(value - cost, value) : null,
+      costKnown: known,
     };
   });
   const valuePaise = out.reduce((t, r) => t + r.valuePaise, 0);
@@ -107,6 +111,7 @@ export function itemSalesToCsv(report: ItemSales): string {
       'Cost',
       'Profit',
       'Margin %',
+      'Note',
     ],
     [
       ...report.rows.map((r) => [
@@ -119,6 +124,7 @@ export function itemSalesToCsv(report: ItemSales): string {
         formatMoney(r.costPaise),
         formatMoney(r.profitPaise),
         pct(r.marginBp),
+        r.costKnown ? '' : 'Cost not known (never bought, no opening rate)',
       ]),
       [
         'Total',
@@ -130,6 +136,7 @@ export function itemSalesToCsv(report: ItemSales): string {
         formatMoney(report.totals.costPaise),
         formatMoney(report.totals.profitPaise),
         pct(report.totals.marginBp),
+        '',
       ],
     ],
   );

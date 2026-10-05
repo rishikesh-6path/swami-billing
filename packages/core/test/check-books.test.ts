@@ -40,7 +40,7 @@ describe('check my books', () => {
     seedDemoShop(demo, { today: '2026-10-15' });
     const health = checkBooks(demo);
     expect(health.ok).toBe(true);
-    expect(health.checks.length).toBeGreaterThanOrEqual(8);
+    expect(health.checks.length).toBeGreaterThanOrEqual(10);
   });
 
   it('finds an entry that does not balance, and names the bill', () => {
@@ -78,6 +78,18 @@ describe('check my books', () => {
     const { s } = withBills();
     s.db.exec("UPDATE voucher_counter SET last_no = last_no + 1 WHERE voucher_type = 'sales'");
     expect(failing(s)).toEqual(['Bill numbers have no gaps']);
+  });
+
+  it('finds a bill with nothing in the accounts', () => {
+    const { s, saleId } = withBills();
+    s.db
+      .prepare(
+        `INSERT INTO voucher (voucher_type, series_id, number, date, fy_id, party_account_id, status, created_at, modified_at)
+         SELECT voucher_type, series_id, 99, date, fy_id, party_account_id, 'posted', created_at, modified_at
+         FROM voucher WHERE id = ?`,
+      )
+      .run(saleId);
+    expect(failing(s)).toContain('Every entry is in the accounts');
   });
 
   it('finds a cancelled bill that still counts', () => {

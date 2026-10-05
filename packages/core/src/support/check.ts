@@ -88,6 +88,29 @@ export function checkBooks(db: Db): BookHealth {
   checks.push(
     check(
       db,
+      'Every entry is in the accounts',
+      `SELECT v.id FROM voucher v
+       WHERE v.status <> 'draft' AND v.voucher_type NOT IN ('physical_stock', 'stock_journal')
+         AND NOT EXISTS (SELECT 1 FROM journal_line j WHERE j.voucher_id = v.id AND j.is_reversal = 0)`,
+      'Every bill and entry has its lines in the accounts.',
+      (n) => `${plural(n, 'bill has', 'bills have')} nothing in the accounts.`,
+    ),
+  );
+
+  const links = db.prepare('PRAGMA foreign_key_check').all();
+  checks.push({
+    title: 'Links between records',
+    ok: links.length === 0,
+    message:
+      links.length === 0
+        ? 'Every record points at records that exist.'
+        : `${plural(links.length, 'record points', 'records point')} at something that no longer exists. Please take a backup and call support.`,
+    examples: [],
+  });
+
+  checks.push(
+    check(
+      db,
       'Cancelled bills are fully undone',
       `SELECT DISTINCT id FROM (
          SELECT j.voucher_id AS id FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
@@ -124,11 +147,15 @@ export function checkBooks(db: Db): BookHealth {
     check(
       db,
       'Stock follows the bills',
-      `SELECT v.id FROM voucher v
+      // one pass over each table (a lookup per bill took seconds on a big shop)
+      `WITH lines AS (SELECT voucher_id, SUM(qty) AS q FROM voucher_item GROUP BY voucher_id),
+            moved AS (SELECT voucher_id, SUM(qty_in + qty_out) AS q FROM stock_movement
+                      WHERE is_reversal = 0 GROUP BY voucher_id)
+       SELECT v.id FROM voucher v
+       LEFT JOIN lines l ON l.voucher_id = v.id
+       LEFT JOIN moved m ON m.voucher_id = v.id
        WHERE v.status = 'posted' AND v.voucher_type IN ('sales','purchase','sales_return','purchase_return')
-         AND (SELECT COALESCE(SUM(qty), 0) FROM voucher_item WHERE voucher_id = v.id)
-          <> (SELECT COALESCE(SUM(qty_in + qty_out), 0) FROM stock_movement
-              WHERE voucher_id = v.id AND is_reversal = 0)`,
+         AND COALESCE(l.q, 0) <> COALESCE(m.q, 0)`,
       'The stock moved by every bill matches its quantities.',
       (n) =>
         `${plural(n, 'bill has', 'bills have')} stock that does not match the quantities on the bill.`,

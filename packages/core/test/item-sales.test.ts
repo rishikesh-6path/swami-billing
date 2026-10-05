@@ -83,14 +83,29 @@ describe('what sold', () => {
     expect(itemSales(s.db, P).totals.valuePaise).toBe(salesRegister(s.db, P).totals.taxablePaise);
   });
 
+  it('says when an item was never bought and has no opening rate, instead of a 100% margin', () => {
+    const s = shop();
+    postVoucher(s.db, {
+      type: 'sales',
+      seriesId: s.seriesId.sales,
+      date: '2026-10-05',
+      partyAccountId: s.partyA,
+      taxMode: 'local',
+      lines: [{ itemId: 2, qty: 1000, unitId: 2, listPricePaise: 5000 }],
+    });
+    const pipe = itemSales(s.db, P).rows.find((r) => r.itemId === 2)!;
+    expect(pipe).toMatchObject({ costKnown: false, costPaise: 0, marginBp: null });
+    expect(itemSalesToCsv(itemSales(s.db, P))).toContain('Cost not known');
+  });
+
   it('can be limited to a group, and the spreadsheet adds up', () => {
     const s = shop();
     sale(s, 5000, 12000);
     expect(itemSales(s.db, { ...P, groupId: 99 }).rows).toEqual([]);
     const csv = itemSalesToCsv(itemSales(s.db, { ...P, groupId: 1 }));
     expect(csv.split('\n')[0]).toBe(
-      'Group,Item,Alias,Unit,Quantity,Sales before GST,Cost,Profit,Margin %',
+      'Group,Item,Alias,Unit,Quantity,Sales before GST,Cost,Profit,Margin %,Note',
     );
-    expect(csv).toContain('Total,,,,,600.00,450.00,150.00,25.00');
+    expect(csv).toContain('Total,,,,,600.00,450.00,150.00,25.00,');
   });
 });

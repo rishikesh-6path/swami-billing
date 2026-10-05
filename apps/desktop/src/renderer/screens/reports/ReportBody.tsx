@@ -574,7 +574,11 @@ export function ReportBody({ result }: { result: ReportResult }) {
               { header: 'Sales', num: true, cell: (x) => formatMoney(x.valuePaise) },
               { header: 'Cost', num: true, cell: (x) => formatMoney(x.costPaise) },
               { header: 'Profit', num: true, cell: (x) => formatMoney(x.profitPaise) },
-              { header: 'Margin', num: true, cell: (x) => pct(x.marginBp) },
+              {
+                header: 'Margin',
+                num: true,
+                cell: (x) => (x.costKnown ? pct(x.marginBp) : 'cost not known'),
+              },
             ]}
             footer={[
               'Total',
