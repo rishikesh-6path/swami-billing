@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { labelItems, labelsHtml, MAX_LABELS, ValidationError } from '../src/index.ts';
+import {
+  calibrationHtml,
+  getLabelSettings,
+  labelItems,
+  labelsHtml,
+  MAX_LABELS,
+  saveLabelSettings,
+  ValidationError,
+} from '../src/index.ts';
 import { seedShop } from './helpers/shop.ts';
 
 const item = (over: object = {}) => ({
@@ -72,5 +80,31 @@ describe('item labels', () => {
     const html = labelsHtml([{ item: item({ name: long }), count: 1 }]).html;
     expect(html).toContain('…');
     expect(html).toContain('@media screen { .label { outline');
+  });
+
+  it('moves the print by the offset the owner set, and keeps it within 5 mm', () => {
+    const moved = labelsHtml([{ item: item(), count: 1 }], '3x8', {
+      topTenthMm: 15,
+      leftTenthMm: -5,
+    });
+    expect(moved.html).toContain('top: 1.5mm; left: -0.5mm;');
+    expect(() => calibrationHtml('3x8', { topTenthMm: 51, leftTenthMm: 0 })).toThrow(/5 mm/);
+    const test = calibrationHtml('4x10', { topTenthMm: 0, leftTenthMm: 0 });
+    expect(test.match(/class="label test"/g)).toHaveLength(40);
+    expect(test).toContain('>40</div>');
+  });
+
+  it('remembers the sheet and position, with an audit row', () => {
+    const s = seedShop();
+    expect(getLabelSettings(s.db)).toEqual({ layout: '3x8', topTenthMm: 0, leftTenthMm: 0 });
+    saveLabelSettings(s.db, { layout: '4x10', topTenthMm: -12, leftTenthMm: 7 });
+    expect(getLabelSettings(s.db)).toEqual({ layout: '4x10', topTenthMm: -12, leftTenthMm: 7 });
+    expect(() =>
+      saveLabelSettings(s.db, { layout: '3x8', topTenthMm: 0, leftTenthMm: 1.5 }),
+    ).toThrow(ValidationError);
+    const n = s.db
+      .prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'label_settings_changed'")
+      .get();
+    expect(Number(n?.['n'])).toBe(1);
   });
 });

@@ -1,4 +1,6 @@
-import type { Db } from '../db/connection.ts';
+import { writeAudit, type Ctx } from '../audit.ts';
+import { transaction, type Db } from '../db/connection.ts';
+import { getSetting, setSetting } from '../settings.ts';
 import { ValidationError } from '../errors.ts';
 import { taxOn } from '../money.ts';
 import { esc, inr } from './invoice.ts';
@@ -75,8 +77,9 @@ export function labelItems(
 export function labelsHtml(
   items: { item: LabelItem; count: number }[],
   layout: LabelLayout = '3x8',
+  offset: LabelOffset = NO_OFFSET,
 ): { html: string; labels: number; pages: number } {
-  const { cols, rows, w, h, top } = GRID[layout];
+  const { cols, rows } = GRID[layout];
   const perPage = cols * rows;
   const all: LabelItem[] = [];
   for (const { item, count } of items) {
@@ -110,7 +113,24 @@ export function labelsHtml(
     );
     pages.push(`<section class="sheet">${cells.join('\n')}</section>`);
   }
-  const html = `<!doctype html>
+  const html = sheetPage(pages, layout, offset);
+  return { html, labels: all.length, pages: pages.length };
+}
+
+/** Moves the whole print on the sheet, in tenths of a millimetre (down and right are positive). */
+export interface LabelOffset {
+  topTenthMm: number;
+  leftTenthMm: number;
+}
+
+export const NO_OFFSET: LabelOffset = { topTenthMm: 0, leftTenthMm: 0 };
+/** The furthest the print can be moved: 5 mm either way. */
+export const MAX_OFFSET_TENTH_MM = 50;
+
+function sheetPage(pages: string[], layout: LabelLayout, offset: LabelOffset): string {
+  const { cols, w, h, top } = GRID[layout];
+  const mm = (tenths: number) => `${(tenths / 10).toFixed(1)}mm`;
+  return `<!doctype html>
 <html><head><meta charset="utf-8"><title>Labels</title>
 <style>
   @page { size: A4; margin: 0; }
@@ -118,6 +138,7 @@ export function labelsHtml(
   body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #000; }
   .sheet { display: grid; grid-template-columns: repeat(${cols}, ${w}mm);
     grid-auto-rows: ${h}mm; width: 210mm; padding-top: ${top}mm;
+    position: relative; top: ${mm(offset.topTenthMm)}; left: ${mm(offset.leftTenthMm)};
     page-break-after: always; break-after: page; }
   .sheet:last-child { page-break-after: auto; break-after: auto; }
   .label { padding: 2.5mm 3.5mm; overflow: hidden; overflow-wrap: anywhere;
@@ -128,10 +149,66 @@ export function labelsHtml(
   .price { font-size: ${layout === '3x8' ? '14pt' : '11pt'}; font-weight: bold; }
   .gst { font-size: 7pt; font-weight: normal; }
   .mrp { font-size: 8pt; }
+  .test { outline: 0.3mm solid #000; outline-offset: -0.15mm; align-items: center; font-size: 16pt; }
   /* the outline of each label shows on screen only, never on the labels */
   @media screen { .label { outline: 1px dashed #bbb; outline-offset: -1px; } }
 </style></head><body>
 ${pages.join('\n')}
 </body></html>`;
-  return { html, labels: all.length, pages: pages.length };
+}
+
+/** Checks an offset typed by the owner. */
+export function checkLabelOffset(offset: LabelOffset): LabelOffset {
+  for (const v of [offset.topTenthMm, offset.leftTenthMm]) {
+    if (!Number.isInteger(v) || Math.abs(v) > MAX_OFFSET_TENTH_MM) {
+      throw new ValidationError('The print can be moved by at most 5 mm each way.');
+    }
+  }
+  return offset;
+}
+
+/**
+ * A test sheet: every label drawn as a box with its number, so the owner can hold the print
+ * against a sheet of labels and see how far, and which way, to move it.
+ */
+export function calibrationHtml(layout: LabelLayout, offset: LabelOffset): string {
+  checkLabelOffset(offset);
+  const { cols, rows } = GRID[layout];
+  const cells = Array.from(
+    { length: cols * rows },
+    (_, i) => `<div class="label test">${i + 1}</div>`,
+  ).join('\n');
+  return sheetPage([`<section class="sheet">${cells}</section>`], layout, offset);
+}
+
+const LAYOUT_KEY = 'labels.layout';
+const OFFSET_KEY = 'labels.offset';
+
+/** The label sheet and position the owner chose (the usual 24-label sheet, not moved, until then). */
+export function getLabelSettings(db: Db): { layout: LabelLayout } & LabelOffset {
+  const layout = getSetting(db, LAYOUT_KEY) === '4x10' ? '4x10' : '3x8';
+  const [top, left] = (getSetting(db, OFFSET_KEY) ?? '0,0').split(',').map(Number);
+  const safe = (n: number | undefined) =>
+    Number.isInteger(n) && Math.abs(n!) <= MAX_OFFSET_TENTH_MM ? n! : 0;
+  return { layout, topTenthMm: safe(top), leftTenthMm: safe(left) };
+}
+
+export function saveLabelSettings(
+  db: Db,
+  settings: { layout: LabelLayout } & LabelOffset,
+  ctx: Ctx = {},
+): void {
+  checkLabelOffset(settings);
+  transaction(db, () => {
+    const before = getLabelSettings(db);
+    setSetting(db, LAYOUT_KEY, settings.layout);
+    setSetting(db, OFFSET_KEY, `${settings.topTenthMm},${settings.leftTenthMm}`);
+    writeAudit(db, ctx, {
+      action: 'label_settings_changed',
+      table: 'setting',
+      rowId: 0,
+      before,
+      after: settings,
+    });
+  });
 }

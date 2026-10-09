@@ -83,7 +83,7 @@ P9-05 | done | Review of round 6, fixes, docs, packaged smoke test | unit + E2E,
 P10-01 | done | Estimate from the sale screen (Alt+E) | unit + E2E | P0-kickoff
 P10-02 | done | Customer statement (Ctrl+P on the party page) | unit + E2E | P0-kickoff
 P10-03 | done | Money to collect list | unit + E2E | P0-kickoff
-P10-04 | todo | Label position adjustment and test sheet | unit + E2E |
+P10-04 | done | Label position adjustment and test sheet | unit + E2E | P0-kickoff
 P10-05 | todo | Review, docs, packaged smoke test | |
 
 ## Waiting on Tony (not blocking)

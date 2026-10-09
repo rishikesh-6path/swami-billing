@@ -316,6 +316,13 @@ const estimateRequest = z.object({
   size: z.enum(['a4', 'thermal']),
 });
 
+const labelSettings = z.object({
+  layout: z.enum(['3x8', '4x10']),
+  topTenthMm: z.number().int().min(-50).max(50),
+  leftTenthMm: z.number().int().min(-50).max(50),
+});
+export type LabelSettings = z.infer<typeof labelSettings>;
+
 const labelsRequest = z.object({
   items: z.array(z.object({ itemId: id, count: z.number().int().min(0).max(1000) })).max(300),
   layout: z.enum(['3x8', '4x10']),
@@ -727,6 +734,12 @@ export const contract = {
   'estimate.preview': ch<{ html: string; totalPaise: number }>()('bill', estimateRequest),
   'estimate.print': ch<{ printed: boolean }>()('bill', estimateRequest),
   'estimate.pdf': ch<{ saved: string | null }>()('bill', estimateRequest),
+  'labels.settings': ch<LabelSettings>()('bill', none),
+  'labels.saveSettings': ch<null>()('manage_settings', labelSettings),
+  'labels.calibrate': ch<{ printed: boolean; saved: string | null }>()(
+    'manage_settings',
+    labelSettings.extend({ action: z.enum(['print', 'pdf']) }),
+  ),
   'labels.preview': ch<{ html: string; labels: number; pages: number }>()('bill', labelsRequest),
   'labels.print': ch<{ printed: boolean }>()('bill', labelsRequest),
   'labels.pdf': ch<{ saved: string | null }>()('bill', labelsRequest),

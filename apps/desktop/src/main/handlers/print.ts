@@ -6,6 +6,9 @@ import {
   renderDocument,
   renderEstimate,
   renderStatement,
+  calibrationHtml,
+  getLabelSettings,
+  saveLabelSettings,
   type ItemVoucherInput,
   labelItems,
   labelsHtml,
@@ -46,7 +49,7 @@ function page(ctx: HandlerContext, id: number, size: 'a4' | 'thermal') {
 const labelSheet = (
   ctx: HandlerContext,
   req: { items: { itemId: number; count: number }[]; layout: LabelLayout },
-) => labelsHtml(labelItems(ctx.db, req.items, ctx.today()), req.layout);
+) => labelsHtml(labelItems(ctx.db, req.items, ctx.today()), req.layout, getLabelSettings(ctx.db));
 
 /** A statement of account for a customer or supplier over a period. */
 function statementPage(ctx: HandlerContext, req: { partyId: number; from: string; to: string }) {
@@ -94,7 +97,25 @@ export const printHandlers: Pick<
   | 'statement.preview'
   | 'statement.print'
   | 'statement.pdf'
+  | 'labels.settings'
+  | 'labels.saveSettings'
+  | 'labels.calibrate'
 > = {
+  'labels.settings': (_req, ctx) => getLabelSettings(ctx.db),
+  'labels.saveSettings': (req, ctx) => {
+    saveLabelSettings(ctx.db, req, { userId: ctx.user().id });
+    return null;
+  },
+  'labels.calibrate': async (req, ctx) => {
+    const html = calibrationHtml(req.layout, req);
+    if (req.action === 'pdf') {
+      return {
+        printed: false,
+        saved: await ctx.savePdf(html, { size: 'a4', defaultName: 'label-test-sheet.pdf' }),
+      };
+    }
+    return { printed: await ctx.printHtml(html, { size: 'a4' }), saved: null };
+  },
   'statement.preview': (req, ctx) => ({ html: statementPage(ctx, req).html }),
   'statement.print': async (req, ctx) => {
     const { html } = statementPage(ctx, req);

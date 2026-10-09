@@ -41,6 +41,19 @@ export function LabelsScreen({
   const { today } = useSession();
   const [rows, setRows] = useState<LabelRow[]>([]);
   const [layout, setLayout] = useState<'3x8' | '4x10'>('3x8');
+  // the sheet the owner set up in Settings > Printing, until changed here
+  useEffect(() => {
+    let live = true;
+    call('labels.settings', {}).then(
+      (saved) => {
+        if (live) setLayout(saved.layout);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<{
     html: string;

@@ -18,6 +18,10 @@ For the owner only. Sign in with an owner PIN. The home screen has two extra til
 - **Settings > Closing days and years > Close the day**. Staff can then no longer change that day's bills. You still can. If one of the latest days must be changed, use "keep closed up to" to reopen only the days after a date.
 - Switch off the computer from the Windows Start menu, not the power button. ShopLedger makes a backup when it closes.
 
+## Setting up label sheets
+
+Before the first labels, open **Settings > Printing > Label sheets**. Choose the sheet you bought (24 labels of 70 x 37 mm, or 40 of 52.5 x 29.7 mm) and press **Print a test sheet** on plain paper. Hold it against a sheet of labels in front of a light. If the boxes sit lower than the labels, type a minus number in **Move down** (for example -1.5); if they sit to the right, a minus number in **Move right**. Save, print the test again, and repeat until the boxes match the labels. All label printing then uses these settings.
+
 ## Collecting money
 
 Each morning open **Reports (R) > Money to Collect**. It lists only customers whose bills are late (older than their credit days, or 30 days when none are set), the largest first, with the phone number. Call them; when one pays, open them from the list (Enter on the name) and take the receipt with F6. Give a customer a printed statement with **Ctrl+P** on their page.
