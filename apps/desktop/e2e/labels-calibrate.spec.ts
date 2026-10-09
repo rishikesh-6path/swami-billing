@@ -16,9 +16,10 @@ test('the owner moves the label print and makes a test sheet', async () => {
     await page.getByRole('button', { name: 'Save label settings' }).click();
     await expect(page.getByText(/from -5 to 5/)).toBeVisible();
     await page.getByLabel('Move down (mm)').fill('1.5');
-    await page.getByLabel('Move right (mm)').fill('-0.5');
-    await page.getByRole('button', { name: 'Save label settings' }).click();
-    await expect(page.getByText('Label sheet settings saved.')).toBeVisible();
+    await page.getByLabel('Move right (mm)').fill('-.5');
+    // F2 saves the printing card and the label card together
+    await page.keyboard.press('F2');
+    await expect(page.getByText('Printing and label sheet settings saved.')).toBeVisible();
     await page.getByRole('button', { name: 'Save the test sheet as PDF' }).click();
     await expect(page.getByText(/^Saved to /)).toBeVisible();
     const pdf = readFileSync(join(shop.exportPath, 'label-test-sheet.pdf'));

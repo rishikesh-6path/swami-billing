@@ -507,12 +507,8 @@ export function ItemVoucher({
   };
 
   // ---- saving ----
-  const save = async (confirmedCredit = false) => {
-    if (saving || !ready) return;
-    setError(null);
-    if (!party) return setError(`Please choose the ${kind.partyLabel.toLowerCase()}.`);
-    if (kind.returnsAgainst && !refId)
-      return setError('Please choose the bill that is being returned.');
+  /** The typed rows as bill lines, or null after pointing at the first row that is not right. */
+  const checkedLines = () => {
     const lines: {
       itemId: number;
       qty: number;
@@ -524,13 +520,18 @@ export function ItemVoucher({
       if (isBlank(r)) continue;
       if (!r.item) {
         cells.focus(r.key, 'item');
-        return setError(`Row ${i + 1}: please pick the item from the list.`);
+        setError(`Row ${i + 1}: please pick the item from the list.`);
+        return null;
       }
       const { parsed, error: rowError } = parseRow(r, i);
-      if (rowError) return setError(rowError);
+      if (rowError) {
+        setError(rowError);
+        return null;
+      }
       if (parsed.qty <= 0) {
         cells.focus(r.key, 'qty');
-        return setError(`Row ${i + 1}: please enter the quantity.`);
+        setError(`Row ${i + 1}: please enter the quantity.`);
+        return null;
       }
       lines.push({
         itemId: r.item.id,
@@ -540,6 +541,16 @@ export function ItemVoucher({
         discBp: parsed.disc,
       });
     }
+    return lines;
+  };
+  const save = async (confirmedCredit = false) => {
+    if (saving || !ready) return;
+    setError(null);
+    if (!party) return setError(`Please choose the ${kind.partyLabel.toLowerCase()}.`);
+    if (kind.returnsAgainst && !refId)
+      return setError('Please choose the bill that is being returned.');
+    const lines = checkedLines();
+    if (!lines) return;
     if (lines.length === 0) return setError('Please add at least one item.');
     const received = parseMoney(settleText);
     if (settleText.trim() !== '' && (received === null || received < 0))
@@ -702,11 +713,14 @@ export function ItemVoucher({
     ...(kindName === 'sales' && !edit
       ? {
           'Alt+E': () => {
-            if (!rows.some((r) => r.item && !isBlank(r)))
-              return setError('Please add at least one item before making an estimate.');
             setError(null);
+            const lines = checkedLines();
+            if (!lines) return;
+            if (lines.length === 0)
+              return setError('Please add at least one item before making an estimate.');
             setEstimate({
               ...(JSON.parse(previewKey) as Req<'estimate.preview'>['draft']),
+              lines,
               ...(narration.trim() ? { narration: narration.trim() } : {}),
             });
           },
@@ -1262,10 +1276,8 @@ export function ItemVoucher({
         <EstimateDialog
           draft={estimate}
           initialSize={ready.printSize}
-          onClose={() => {
-            setEstimate(null);
-            cells.focusId('party');
-          }}
+          // the focus goes back to the box it was in when Alt+E was pressed
+          onClose={() => setEstimate(null)}
         />
       )}
       {printAfter !== null && ready && (

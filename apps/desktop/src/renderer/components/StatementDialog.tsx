@@ -3,7 +3,7 @@ import { call } from '../lib/api.ts';
 import { useHotkeys } from '../lib/hotkeys.tsx';
 import { PRESET_LABELS, presetRange, type Preset } from '../lib/periods.ts';
 import { useSession } from '../lib/session.tsx';
-import { useFocusTrap } from './focus.ts';
+import { useFocusTrap, useFrameFocusBack } from './focus.ts';
 import { Button, Notice, useToast } from './ui.tsx';
 
 const PERIODS: Exclude<Preset, 'custom' | 'today'>[] = [
@@ -22,10 +22,12 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
   const to = range.to > today ? today : range.to;
   const req = { partyId, from: range.from, to };
   const key = JSON.stringify(req);
-  const [page, setPage] = useState<{ key: string; html: string } | null>(null);
+  // the preview for each period, or why it could not be made
+  const [page, setPage] = useState<{ key: string; html?: string; problem?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const trap = useFocusTrap<HTMLDivElement>('#statement-go');
+  useFrameFocusBack('statement-go');
 
   useEffect(() => {
     let live = true;
@@ -34,7 +36,11 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
         if (live) setPage({ key, html: p.html });
       },
       (e: unknown) => {
-        if (live) setError(e instanceof Error ? e.message : 'The statement could not be shown.');
+        if (live)
+          setPage({
+            key,
+            problem: e instanceof Error ? e.message : 'The statement could not be shown.',
+          });
       },
     );
     return () => {
@@ -42,9 +48,11 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
     };
   }, [key]);
 
+  const current = page?.key === key ? page : null;
   const print = () => {
     if (busy) return;
     setBusy(true);
+    setError(null);
     call('statement.print', req).then(
       ({ printed }) => {
         setBusy(false);
@@ -66,6 +74,7 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
   const savePdf = () => {
     if (busy) return;
     setBusy(true);
+    setError(null);
     call('statement.pdf', req).then(
       ({ saved }) => {
         setBusy(false);
@@ -80,7 +89,11 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
       },
     );
   };
-  useHotkeys({ Escape: onClose, Enter: print, 'Ctrl+S': savePdf }, true, true);
+  const close = () => {
+    // a print window or save box may still be open; wait for it rather than lose the answer
+    if (!busy) onClose();
+  };
+  useHotkeys({ Escape: close, Enter: print, 'Ctrl+S': savePdf }, true, true);
 
   return (
     <div className="overlay">
@@ -98,7 +111,10 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
             <select
               id="statement-period"
               value={preset}
-              onChange={(e) => setPreset(e.target.value as (typeof PERIODS)[number])}
+              onChange={(e) => {
+                setError(null);
+                setPreset(e.target.value as (typeof PERIODS)[number]);
+              }}
             >
               {PERIODS.map((p) => (
                 <option key={p} value={p}>
@@ -109,17 +125,21 @@ export function StatementDialog({ partyId, onClose }: { partyId: number; onClose
           </div>
         </div>
         {error && <Notice>{error}</Notice>}
-        {page && page.key === key && (
+        {current?.problem && <Notice>{current.problem}</Notice>}
+        {!current && <p className="muted">Getting the statement ready...</p>}
+        {current?.html !== undefined && (
           <iframe
             title="Statement preview"
             tabIndex={-1}
             className="print-frame"
             sandbox=""
-            srcDoc={page.html}
+            srcDoc={current.html}
           />
         )}
         <div className="dialog-actions">
-          <Button onClick={onClose}>Close (Esc)</Button>
+          <Button onClick={close} disabled={busy}>
+            Close (Esc)
+          </Button>
           <Button onClick={savePdf} disabled={busy}>
             Save as PDF (Ctrl+S)
           </Button>

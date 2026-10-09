@@ -4,6 +4,7 @@ import {
   getSetting,
   getVoucherDetail,
   renderDocument,
+  recordEstimate,
   renderEstimate,
   renderStatement,
   calibrationHtml,
@@ -17,6 +18,22 @@ import {
 import type { z } from 'zod';
 import type { itemVoucherDraft } from '../../ipc/contract.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
+
+/** The shop's heading for printouts; staff cannot fill it in, so the message says who can. */
+function shopDetails(ctx: HandlerContext) {
+  const company = getCompany(ctx.db);
+  if (!company) {
+    throw new ValidationError(
+      "The shop's name and address have not been entered yet. The owner can enter them in Settings.",
+    );
+  }
+  return company;
+}
+
+/** A name that is safe in a file name, keeping letters in any language. */
+function fileWord(text: string, fallback: string): string {
+  return text.replace(/[^\p{L}\p{M}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || fallback;
+}
 
 const PRINTABLE = [
   'sales',
@@ -37,8 +54,7 @@ function page(ctx: HandlerContext, id: number, size: 'a4' | 'thermal') {
       'This kind of entry has no printout. Use the Day Book or the ledger instead.',
     );
   }
-  const company = getCompany(ctx.db);
-  if (!company) throw new ValidationError("Please enter your shop's details in Settings first.");
+  const company = shopDetails(ctx);
   const label = `${detail.voucherType.replace('_', '-')}-${detail.displayNumber}`.replace(
     /[^A-Za-z0-9._-]+/g,
     '-',
@@ -53,8 +69,7 @@ const labelSheet = (
 
 /** A statement of account for a customer or supplier over a period. */
 function statementPage(ctx: HandlerContext, req: { partyId: number; from: string; to: string }) {
-  const company = getCompany(ctx.db);
-  if (!company) throw new ValidationError("Please enter your shop's details in Settings first.");
+  const company = shopDetails(ctx);
   if (req.from > req.to) throw new ValidationError('The first date is after the last date.');
   return renderStatement(ctx.db, req, company);
 }
@@ -63,10 +78,8 @@ function statementPage(ctx: HandlerContext, req: { partyId: number; from: string
 function estimatePage(
   ctx: HandlerContext,
   req: { draft: z.infer<typeof itemVoucherDraft>; size: 'a4' | 'thermal' },
-  record: boolean,
 ) {
-  const company = getCompany(ctx.db);
-  if (!company) throw new ValidationError("Please enter your shop's details in Settings first.");
+  const company = shopDetails(ctx);
   if (req.draft.type !== 'sales') throw new ValidationError('Estimates are made from a sale.');
   const cash = ctx.db.prepare("SELECT id FROM account WHERE name = 'Cash' AND is_system = 1").get();
   const draft = {
@@ -74,13 +87,7 @@ function estimatePage(
     seriesId: req.draft.seriesId ?? 0,
     partyAccountId: req.draft.partyAccountId ?? Number(cash?.['id']),
   } as ItemVoucherInput;
-  return renderEstimate(
-    ctx.db,
-    draft,
-    company,
-    req.size,
-    record ? { userId: ctx.user().id } : undefined,
-  );
+  return renderEstimate(ctx.db, draft, company, req.size);
 }
 
 export const printHandlers: Pick<
@@ -123,28 +130,32 @@ export const printHandlers: Pick<
   },
   'statement.pdf': async (req, ctx) => {
     const { html, partyName } = statementPage(ctx, req);
-    const name = partyName.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'party';
     return {
       saved: await ctx.savePdf(html, {
         size: 'a4',
-        defaultName: `statement-${name}-${req.to}.pdf`,
+        defaultName: `statement-${fileWord(partyName, 'party')}-${req.to}.pdf`,
       }),
     };
   },
-  'estimate.preview': (req, ctx) => estimatePage(ctx, req, false),
+  'estimate.preview': (req, ctx) => {
+    const { html, totalPaise } = estimatePage(ctx, req);
+    return { html, totalPaise };
+  },
   'estimate.print': async (req, ctx) => {
-    const { html } = estimatePage(ctx, req, true);
+    const estimate = estimatePage(ctx, req);
     // through the print window, so the person can choose the paper and copies
-    return { printed: await ctx.printHtml(html, { size: req.size }) };
+    const printed = await ctx.printHtml(estimate.html, { size: req.size });
+    if (printed) recordEstimate(ctx.db, { userId: ctx.user().id }, estimate);
+    return { printed };
   },
   'estimate.pdf': async (req, ctx) => {
-    const { html } = estimatePage(ctx, req, true);
-    return {
-      saved: await ctx.savePdf(html, {
-        size: req.size,
-        defaultName: `estimate-${ctx.today()}.pdf`,
-      }),
-    };
+    const estimate = estimatePage(ctx, req);
+    const saved = await ctx.savePdf(estimate.html, {
+      size: req.size,
+      defaultName: `estimate-${fileWord(estimate.partyName ?? 'cash', 'cash')}-${req.draft.date}.pdf`,
+    });
+    if (saved) recordEstimate(ctx.db, { userId: ctx.user().id }, estimate);
+    return { saved };
   },
   'labels.preview': (req, ctx) => labelSheet(ctx, req),
   'labels.print': async (req, ctx) => {

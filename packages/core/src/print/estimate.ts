@@ -127,14 +127,13 @@ export function buildEstimate(db: Db, draft: ItemVoucherInput): VoucherDetail {
   };
 }
 
-/** The estimate as a page to print or save, and a record that it was given. */
+/** The estimate as a page to print or save. */
 export function renderEstimate(
   db: Db,
   draft: ItemVoucherInput,
   company: Company,
   size: PaperSize,
-  ctx?: Ctx,
-): { html: string; totalPaise: number } {
+): { html: string; totalPaise: number; partyName: string | null } {
   const estimate = buildEstimate(db, draft);
   const until = showDate(addDays(draft.date, ESTIMATE_DAYS));
   const html = renderDocument(
@@ -143,13 +142,19 @@ export function renderEstimate(
     size,
     `This is an estimate, not a bill. Prices are offered until ${until}.`,
   );
-  if (ctx) {
-    writeAudit(db, ctx, {
-      action: 'estimate_printed',
-      table: 'voucher',
-      rowId: 0,
-      after: { party: estimate.party?.name ?? 'Cash', totalPaise: estimate.totalPaise },
-    });
-  }
-  return { html, totalPaise: estimate.totalPaise };
+  return { html, totalPaise: estimate.totalPaise, partyName: estimate.party?.name ?? null };
+}
+
+/** Records in Who Did What that an estimate was printed or saved (not when it was only shown). */
+export function recordEstimate(
+  db: Db,
+  ctx: Ctx,
+  given: { partyName: string | null; totalPaise: number },
+): void {
+  writeAudit(db, ctx, {
+    action: 'estimate_printed',
+    table: 'voucher',
+    rowId: 0,
+    after: { party: given.partyName ?? 'Cash', totalPaise: given.totalPaise },
+  });
 }

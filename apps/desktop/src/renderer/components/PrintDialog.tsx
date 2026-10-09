@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { call, useCall } from '../lib/api.ts';
 import { useHotkeys } from '../lib/hotkeys.tsx';
-import { useFocusTrap } from './focus.ts';
+import { useFocusTrap, useFrameFocusBack } from './focus.ts';
 import { Button, LoadState, Notice, useToast } from './ui.tsx';
 
 /**
@@ -24,16 +24,7 @@ export function PrintDialog({
   const preview = useCall('print.preview', { id, size });
   // opens on the Print button, so Enter prints as the dialog says
   const trap = useFocusTrap<HTMLDivElement>('#print-go');
-  // a mouse click inside the preview puts the keyboard in that frame; bring it back to the dialog
-  useEffect(() => {
-    const back = () =>
-      setTimeout(() => {
-        if (document.activeElement?.tagName === 'IFRAME')
-          document.getElementById('print-go')?.focus();
-      }, 0);
-    window.addEventListener('blur', back);
-    return () => window.removeEventListener('blur', back);
-  }, []);
+  useFrameFocusBack('print-go');
 
   const print = () => {
     if (busy) return;

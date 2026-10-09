@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -58,4 +58,19 @@ export function useFocusTrap<T extends HTMLElement>(initialFocus?: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return ref;
+}
+
+/**
+ * A mouse click inside a print preview frame puts the keyboard in that frame, where the dialog's
+ * keys (Enter, Esc) no longer work; this brings the focus back to the control with id `backTo`.
+ */
+export function useFrameFocusBack(backTo: string) {
+  useEffect(() => {
+    const back = () =>
+      setTimeout(() => {
+        if (document.activeElement?.tagName === 'IFRAME') document.getElementById(backTo)?.focus();
+      }, 0);
+    window.addEventListener('blur', back);
+    return () => window.removeEventListener('blur', back);
+  }, [backTo]);
 }

@@ -41,12 +41,13 @@ export function LabelsScreen({
   const { today } = useSession();
   const [rows, setRows] = useState<LabelRow[]>([]);
   const [layout, setLayout] = useState<'3x8' | '4x10'>('3x8');
-  // the sheet the owner set up in Settings > Printing, until changed here
+  const picked = useRef(false);
+  // the sheet the owner set up in Settings > Printing, unless one was already picked here
   useEffect(() => {
     let live = true;
     call('labels.settings', {}).then(
       (saved) => {
-        if (live) setLayout(saved.layout);
+        if (live && !picked.current) setLayout(saved.layout);
       },
       () => undefined,
     );
@@ -307,7 +308,10 @@ export function LabelsScreen({
           <select
             id="label-layout"
             value={layout}
-            onChange={(e) => setLayout(e.target.value === '4x10' ? '4x10' : '3x8')}
+            onChange={(e) => {
+              picked.current = true;
+              setLayout(e.target.value === '4x10' ? '4x10' : '3x8');
+            }}
           >
             <option value="3x8">24 labels a sheet, 70 x 37 mm (3 across, 8 down)</option>
             <option value="4x10">

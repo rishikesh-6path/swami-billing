@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { postVoucher } from '../src/domain/posting/post.ts';
-import { buildEstimate, renderEstimate, ValidationError, type Company } from '../src/index.ts';
+import {
+  buildEstimate,
+  recordEstimate,
+  renderEstimate,
+  ValidationError,
+  type Company,
+} from '../src/index.ts';
 import { seedShop, type Shop } from './helpers/shop.ts';
 
 const company: Company = {
@@ -43,15 +49,22 @@ describe('estimate', () => {
 
   it('says it is not a bill, has no number, escapes names and is recorded', () => {
     const s = seedShop();
-    const { html } = renderEstimate(s.db, draft(s), company, 'a4', { userId: undefined });
+    const shown = renderEstimate(s.db, draft(s), company, 'a4');
+    const { html } = shown;
     expect(html).toContain('ESTIMATE');
     expect(html).toContain('not a bill. Prices are offered until 12-10-2026.');
     expect(html).toContain('Swami &lt;Hardware&gt;');
     expect(html).not.toContain('No.:');
-    const audits = s.db
-      .prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'estimate_printed'")
-      .get();
-    expect(Number(audits?.['n'])).toBe(1);
+    const audits = () =>
+      Number(
+        s.db
+          .prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'estimate_printed'")
+          .get()?.['n'],
+      );
+    // only shown so far: nothing recorded until it is printed or saved
+    expect(audits()).toBe(0);
+    recordEstimate(s.db, { userId: undefined }, shown);
+    expect(audits()).toBe(1);
     expect(renderEstimate(s.db, draft(s), company, 'thermal').html).toContain('ESTIMATE');
   });
 

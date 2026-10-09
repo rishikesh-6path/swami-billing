@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ShopSettings } from '../../../ipc/contract.ts';
 import {
   Button,
@@ -12,33 +12,59 @@ import {
 import { call, useCall } from '../../lib/api.ts';
 import { useHotkeys } from '../../lib/hotkeys.tsx';
 
+/** Each card saves itself and says whether it worked; `quiet` leaves the message to F2. */
+type Saver = RefObject<((quiet?: boolean) => Promise<boolean>) | null>;
+
 export function PrintSection() {
+  const toast = useToast();
   const settings = useCall('settings.get', {});
+  const savePrintRef: Saver = useRef(null);
+  const saveLabelsRef: Saver = useRef(null);
+  // F2 saves both cards, so nothing typed on the page is left unsaved
+  useHotkeys({
+    F2: () => {
+      void Promise.all([savePrintRef.current?.(true), saveLabelsRef.current?.(true)]).then(
+        ([a, b]) => {
+          if (a && b) toast.show('Printing and label sheet settings saved.');
+          else if (a) toast.show('Printing settings saved.');
+          else if (b) toast.show('Label sheet settings saved.');
+        },
+      );
+    },
+  });
   return (
     <LoadState state={settings}>
       {settings.status === 'ready' && (
         <>
-          <PrintForm initial={settings.data.print} />
-          <LabelSheetCard />
+          <PrintForm initial={settings.data.print} saverRef={savePrintRef} />
+          <LabelSheetCard saverRef={saveLabelsRef} />
         </>
       )}
     </LoadState>
   );
 }
 
-function PrintForm({ initial }: { initial: ShopSettings['print'] }) {
+function PrintForm({ initial, saverRef }: { initial: ShopSettings['print']; saverRef: Saver }) {
   const toast = useToast();
   const [form, setForm] = useState(initial);
   const printers = useCall('print.printers', {});
   const [error, setError] = useState<string | null>(null);
-  const save = () => {
+  const save = (quiet = false) => {
     setError(null);
-    call('settings.savePrint', form).then(
-      () => toast.show('Printing settings saved.'),
-      (e: unknown) => setError(e instanceof Error ? e.message : 'The settings could not be saved.'),
+    return call('settings.savePrint', form).then(
+      () => {
+        if (!quiet) toast.show('Printing settings saved.');
+        return true;
+      },
+      (e: unknown) => {
+        setError(e instanceof Error ? e.message : 'The settings could not be saved.');
+        return false;
+      },
     );
   };
-  useHotkeys({ F2: save });
+  useEffect(() => {
+    saverRef.current = save;
+  });
   return (
     <Card title="Printing">
       {error && <Notice>{error}</Notice>}
@@ -84,7 +110,7 @@ function PrintForm({ initial }: { initial: ShopSettings['print'] }) {
         Show the print screen right after saving a sale
       </label>
       <p>
-        <Button variant="primary" onClick={save}>
+        <Button variant="primary" onClick={() => void save()}>
           Save (F2)
         </Button>
       </p>
@@ -96,13 +122,14 @@ function PrintForm({ initial }: { initial: ShopSettings['print'] }) {
 function tenths(text: string): number | null {
   const t = text.trim().replace(',', '.');
   if (t === '' || t === '-' || t === '+') return 0;
-  if (!/^[+-]?\d+(\.\d)?$/.test(t)) return null;
+  if (!/^[+-]?(\d+(\.\d)?|\.\d)$/.test(t)) return null;
   return Math.round(Number(t) * 10);
 }
 
 /** Which label sheets the shop uses, and how far to move the print so it sits on the labels. */
-function LabelSheetCard() {
+function LabelSheetCard({ saverRef }: { saverRef: Saver }) {
   const toast = useToast();
+  const [busy, setBusy] = useState(false);
   const loaded = useCall('labels.settings', {});
   const [form, setForm] = useState<{ layout: '3x8' | '4x10'; top: string; left: string } | null>(
     null,
@@ -115,8 +142,8 @@ function LabelSheetCard() {
       left: String(loaded.data.leftTenthMm / 10),
     });
   }
-  if (!form) return null;
   const values = () => {
+    if (!form) return null;
     const top = tenths(form.top);
     const left = tenths(form.left);
     if (top === null || left === null || Math.abs(top) > 50 || Math.abs(left) > 50) {
@@ -125,28 +152,43 @@ function LabelSheetCard() {
     }
     return { layout: form.layout, topTenthMm: top, leftTenthMm: left };
   };
-  const save = () => {
+  const save = (quiet = false) => {
     setError(null);
     const v = values();
-    if (!v) return;
-    call('labels.saveSettings', v).then(
-      () => toast.show('Label sheet settings saved.'),
-      (e: unknown) => setError(e instanceof Error ? e.message : 'The settings could not be saved.'),
+    if (!v) return Promise.resolve(false);
+    return call('labels.saveSettings', v).then(
+      () => {
+        if (!quiet) toast.show('Label sheet settings saved.');
+        return true;
+      },
+      (e: unknown) => {
+        setError(e instanceof Error ? e.message : 'The settings could not be saved.');
+        return false;
+      },
     );
   };
+  useEffect(() => {
+    saverRef.current = form ? save : null;
+  });
   const test = (action: 'print' | 'pdf') => {
+    if (busy) return;
     setError(null);
     const v = values();
     if (!v) return;
+    setBusy(true);
     call('labels.calibrate', { ...v, action }).then(
       ({ printed, saved }) => {
+        setBusy(false);
         if (saved) toast.show(`Saved to ${saved}`);
         else if (printed) toast.show('The test sheet was sent to the printer.');
       },
-      (e: unknown) =>
-        setError(e instanceof Error ? e.message : 'The test sheet could not be made.'),
+      (e: unknown) => {
+        setBusy(false);
+        setError(e instanceof Error ? e.message : 'The test sheet could not be made.');
+      },
     );
   };
+  if (!form) return null;
   return (
     <Card title="Label sheets">
       <p className="muted">
@@ -180,10 +222,14 @@ function LabelSheetCard() {
         />
       </div>
       <p>
-        <Button onClick={() => test('print')}>Print a test sheet</Button>{' '}
-        <Button onClick={() => test('pdf')}>Save the test sheet as PDF</Button>{' '}
-        <Button variant="primary" onClick={save}>
-          Save label settings
+        <Button onClick={() => test('print')} disabled={busy}>
+          Print a test sheet
+        </Button>{' '}
+        <Button onClick={() => test('pdf')} disabled={busy}>
+          Save the test sheet as PDF
+        </Button>{' '}
+        <Button variant="primary" onClick={() => void save()}>
+          Save label settings (F2)
         </Button>
       </p>
     </Card>

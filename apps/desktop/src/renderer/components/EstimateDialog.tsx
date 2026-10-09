@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import type { Req } from '../../ipc/contract.ts';
 import { call } from '../lib/api.ts';
 import { useHotkeys } from '../lib/hotkeys.tsx';
-import { useFocusTrap } from './focus.ts';
+import { useFocusTrap, useFrameFocusBack } from './focus.ts';
 import { Button, Notice, useToast } from './ui.tsx';
 
 type Draft = Req<'estimate.preview'>['draft'];
+type Size = 'a4' | 'thermal';
 
 /**
  * Shows, prints or saves an estimate of the sale on the screen. Nothing is saved to the books:
@@ -17,24 +18,30 @@ export function EstimateDialog({
   onClose,
 }: {
   draft: Draft;
-  initialSize: 'a4' | 'thermal';
+  initialSize: Size;
   onClose: () => void;
 }) {
   const toast = useToast();
-  const [size, setSize] = useState(initialSize);
-  const [html, setHtml] = useState<{ size: string; html: string } | null>(null);
+  const [size, setSize] = useState<Size>(initialSize);
+  // the preview of each paper size, or why it could not be made
+  const [shown, setShown] = useState<{ size: Size; html?: string; problem?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const trap = useFocusTrap<HTMLDivElement>('#estimate-go');
+  useFrameFocusBack('estimate-go');
 
   useEffect(() => {
     let live = true;
     call('estimate.preview', { draft, size }).then(
       (p) => {
-        if (live) setHtml({ size, html: p.html });
+        if (live) setShown({ size, html: p.html });
       },
       (e: unknown) => {
-        if (live) setError(e instanceof Error ? e.message : 'The estimate could not be shown.');
+        if (live)
+          setShown({
+            size,
+            problem: e instanceof Error ? e.message : 'The estimate could not be shown.',
+          });
       },
     );
     return () => {
@@ -42,9 +49,11 @@ export function EstimateDialog({
     };
   }, [draft, size]);
 
+  const current = shown?.size === size ? shown : null;
   const print = () => {
-    if (busy || error) return;
+    if (busy) return;
     setBusy(true);
+    setError(null);
     call('estimate.print', { draft, size }).then(
       ({ printed }) => {
         setBusy(false);
@@ -64,8 +73,9 @@ export function EstimateDialog({
     );
   };
   const savePdf = () => {
-    if (busy || error) return;
+    if (busy) return;
     setBusy(true);
+    setError(null);
     call('estimate.pdf', { draft, size }).then(
       ({ saved }) => {
         setBusy(false);
@@ -80,7 +90,11 @@ export function EstimateDialog({
       },
     );
   };
-  useHotkeys({ Escape: onClose, Enter: print, 'Ctrl+S': savePdf }, true, true);
+  const close = () => {
+    // a print window or save box may still be open; wait for it rather than lose the answer
+    if (!busy) onClose();
+  };
+  useHotkeys({ Escape: close, Enter: print, 'Ctrl+S': savePdf }, true, true);
 
   return (
     <div className="overlay">
@@ -98,7 +112,10 @@ export function EstimateDialog({
             <select
               id="estimate-paper"
               value={size}
-              onChange={(e) => setSize(e.target.value === 'thermal' ? 'thermal' : 'a4')}
+              onChange={(e) => {
+                setError(null);
+                setSize(e.target.value === 'thermal' ? 'thermal' : 'a4');
+              }}
             >
               <option value="a4">A4 sheet</option>
               <option value="thermal">Receipt roll (80 mm)</option>
@@ -109,26 +126,25 @@ export function EstimateDialog({
           An estimate is not a bill: it has no number and is not saved in the accounts.
         </p>
         {error && <Notice>{error}</Notice>}
-        {html && html.size === size && (
+        {current?.problem && <Notice>{current.problem}</Notice>}
+        {!current && <p className="muted">Getting the estimate ready...</p>}
+        {current?.html !== undefined && (
           <iframe
             title="Estimate preview"
             tabIndex={-1}
             className={`print-frame print-frame-${size}`}
             sandbox=""
-            srcDoc={html.html}
+            srcDoc={current.html}
           />
         )}
         <div className="dialog-actions">
-          <Button onClick={onClose}>Close (Esc)</Button>
-          <Button onClick={savePdf} disabled={busy || Boolean(error)}>
+          <Button onClick={close} disabled={busy}>
+            Close (Esc)
+          </Button>
+          <Button onClick={savePdf} disabled={busy}>
             Save as PDF (Ctrl+S)
           </Button>
-          <Button
-            id="estimate-go"
-            variant="primary"
-            disabled={busy || Boolean(error)}
-            onClick={print}
-          >
+          <Button id="estimate-go" variant="primary" disabled={busy} onClick={print}>
             {busy ? 'Working...' : 'Print (Enter)'}
           </Button>
         </div>

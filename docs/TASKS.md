@@ -84,7 +84,7 @@ P10-01 | done | Estimate from the sale screen (Alt+E) | unit + E2E | P0-kickoff
 P10-02 | done | Customer statement (Ctrl+P on the party page) | unit + E2E | P0-kickoff
 P10-03 | done | Money to collect list | unit + E2E | P0-kickoff
 P10-04 | done | Label position adjustment and test sheet | unit + E2E | P0-kickoff
-P10-05 | todo | Review, docs, packaged smoke test | |
+P10-05 | done | Review, docs, packaged smoke test | Books review (estimate refusals, printed bill numbers on statements and ledgers) and screen review (Alt+E row checks, dialog errors and focus, F2 on label settings, file names, print styling) fixed with tests |
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

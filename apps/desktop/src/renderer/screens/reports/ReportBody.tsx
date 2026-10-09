@@ -721,7 +721,7 @@ function CollectionBody({ rows }: { rows: CollectionRow[] }) {
   const router = useRouter();
   return (
     <>
-      <p className="muted">
+      <p className="muted screen-only">
         Late means older than the customer's credit days, or 30 days when none are set. Press Tab to
         reach a name and Enter to open that customer.
       </p>

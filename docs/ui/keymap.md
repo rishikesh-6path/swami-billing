@@ -45,6 +45,7 @@ Purchase bill view | Alt+L | Print labels for the goods on the bill
 Print Labels | F2, Ctrl+S, Esc | Print, save as PDF, back (Enter in a count goes back to add the next item)
 Items list (owner) | Alt+P | Change prices of many items at once
 New sale | Alt+E | Estimate of the bill on screen (print or PDF; nothing is saved)
+Estimate | Enter, Ctrl+S, Esc | Print, save as PDF, close (back to the bill)
 Sale, purchase, returns | Alt+H | Set the bill aside and start a fresh one
 Sale, purchase, returns | Alt+R | Bring back a bill that was set aside
 Bill view (sale, purchase) | Alt+N | Copy as new bill: same party and lines, today's date
@@ -63,10 +64,11 @@ Items list | F2 | Add an item
 Customer and supplier lists | F3 | Add one
 Customer and supplier lists | Enter | Open the summary page (balance, late amount, latest bills and payments)
 Party summary | Ctrl+P | Statement of account (print or PDF, choose the period)
+Statement | Enter, Ctrl+S, Esc | Print, save as PDF, close
 Party summary | L, F2, F8, F9, F6, F5, Esc | Full ledger, change details, new sale or receipt (customer), new purchase or payment (supplier) already filled in for that party, back
 Item and party forms | F2 | Save
 Item and party forms | Enter | Next box
 Settings | Alt+1 to Alt+6 | Shop details, Printing, People, Standard notes, Closing, Backup
-Settings | F2 | Save the current section
+Settings | F2 | Save the current section (on Printing, saves the printing and the label sheet settings)
 Add from a Spreadsheet | I, C, S | Choose a file for items, customers, suppliers
 Confirm questions | Y / N, Enter, Esc | Yes, no, confirm the highlighted button, cancel
