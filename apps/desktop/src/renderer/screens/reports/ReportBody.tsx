@@ -34,7 +34,7 @@ export function ReportBody({ result }: { result: ReportResult }) {
             columns={[
               { header: 'Date', cell: (r) => formatDate(r.date) },
               { header: 'Type', cell: (r) => VOUCHER_LABELS[r.voucherType] ?? r.voucherType },
-              { header: 'No.', cell: (r) => r.number },
+              { header: 'No.', cell: (r) => r.displayNumber },
               { header: 'Particulars', cell: (r) => r.particulars },
               { header: 'Debit', num: true, cell: (r) => m(r.drPaise) },
               { header: 'Credit', num: true, cell: (r) => m(r.crPaise) },
@@ -763,7 +763,7 @@ function CollectionBody({ rows }: { rows: CollectionRow[] }) {
           },
         ]}
         footer={[
-          'Total',
+          'Total for these customers',
           '',
           formatMoney(rows.reduce((t, r) => t + r.latePaise, 0)),
           formatMoney(rows.reduce((t, r) => t + r.duePaise, 0)),

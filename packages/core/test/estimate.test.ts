@@ -65,4 +65,41 @@ describe('estimate', () => {
       ),
     ).toThrow(ValidationError);
   });
+
+  it('refuses rather than quote a wrong price', () => {
+    const s = seedShop();
+    // a picked item without a quantity
+    expect(() =>
+      buildEstimate(
+        s.db,
+        draft(s, { lines: [{ itemId: 1, qty: 0, unitId: 1, listPricePaise: 4500 }] }),
+      ),
+    ).toThrow(/Row 1: please enter the quantity/);
+    // half a piece of an item sold in whole units
+    expect(() =>
+      buildEstimate(
+        s.db,
+        draft(s, { lines: [{ itemId: 1, qty: 1500, unitId: 1, listPricePaise: 4500 }] }),
+      ),
+    ).toThrow(/whole units/);
+    // an item with no GST rate would be quoted without GST
+    s.db.exec('DELETE FROM item_tax_rate WHERE item_id = 1');
+    expect(() => buildEstimate(s.db, draft(s))).toThrow(/no GST rate/);
+  });
+
+  it('gives the reason when the figures cannot be worked out', () => {
+    const s = seedShop();
+    expect(() =>
+      buildEstimate(
+        s.db,
+        draft(s, { sundries: [{ billSundryId: s.sundry.discount, amountPaise: 99_999_999 }] }),
+      ),
+    ).toThrow(ValidationError);
+    expect(() =>
+      buildEstimate(
+        s.db,
+        draft(s, { sundries: [{ billSundryId: s.sundry.discount, amountPaise: 99_999_999 }] }),
+      ),
+    ).not.toThrow(/at least one item/);
+  });
 });

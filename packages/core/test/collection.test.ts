@@ -61,6 +61,6 @@ describe('money to collect', () => {
     expect(csv.split('\n')[0]).toBe(
       'Customer,Phone,Late,Total due,Oldest late bill,Bill date,Days,Last paid on,Last paid',
     );
-    expect(csv).toContain('Total,,590.00,590.00');
+    expect(csv).toContain('Total for these customers,,590.00,590.00');
   });
 });

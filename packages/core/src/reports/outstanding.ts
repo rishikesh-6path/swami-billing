@@ -283,7 +283,7 @@ export function collectionToCsv(rows: CollectionRow[]): string {
         r.lastPayment ? formatMoneyOrEmpty(r.lastPayment.amountPaise) : '',
       ]),
       [
-        'Total',
+        'Total for these customers',
         '',
         formatMoneyOrEmpty(rows.reduce((t, r) => t + r.latePaise, 0)),
         formatMoneyOrEmpty(rows.reduce((t, r) => t + r.duePaise, 0)),

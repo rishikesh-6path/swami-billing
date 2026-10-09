@@ -8,6 +8,8 @@ export interface LedgerRow {
   date: string;
   voucherType: string;
   number: number;
+  /** Prefix and number as printed on the bill, e.g. "S83". */
+  displayNumber: string;
   particulars: string;
   drPaise: Paise;
   crPaise: Paise;
@@ -58,9 +60,10 @@ export function accountLedger(
 
   const movements = db
     .prepare(
-      `SELECT v.id, v.date, v.voucher_type, v.number,
+      `SELECT v.id, v.date, v.voucher_type, v.number, s.prefix,
               SUM(j.dr_paise) AS dr, SUM(j.cr_paise) AS cr
        FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
+       JOIN voucher_series s ON s.id = v.series_id
        WHERE j.account_id = ? AND v.status = 'posted' AND v.date BETWEEN ? AND ?
        GROUP BY v.id ORDER BY v.date, v.id`,
     )
@@ -86,6 +89,7 @@ export function accountLedger(
       date: String(m['date']),
       voucherType: String(m['voucher_type']),
       number: Number(m['number']),
+      displayNumber: `${String(m['prefix'] ?? '')}${Number(m['number'])}`,
       particulars: others
         .all(voucherId, args.accountId)
         .map((o) => String(o['name']))

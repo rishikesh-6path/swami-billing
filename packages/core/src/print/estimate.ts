@@ -20,7 +20,21 @@ function addDays(iso: string, days: number): string {
  * as the bill would be, but nothing is saved: it has no number and touches no account or stock.
  */
 export function buildEstimate(db: Db, draft: ItemVoucherInput): VoucherDetail {
+  // every row with an item must be complete, as saving would demand: an estimate never quietly
+  // leaves out a line the customer asked about
+  const unit = db.prepare('SELECT decimals FROM unit WHERE id = ?');
+  draft.lines.forEach((l, i) => {
+    if (l.itemId <= 0) return;
+    if (l.qty <= 0) throw new ValidationError(`Row ${i + 1}: please enter the quantity.`);
+    if (Number(unit.get(l.unitId)?.['decimals']) === 0 && l.qty % 1000 !== 0) {
+      throw new ValidationError(`Row ${i + 1}: this item is sold in whole units.`);
+    }
+  });
   const preview = previewItemVoucher(db, draft);
+  // a missing GST rate or figures that cannot be worked out would give a wrong price; the HSN code
+  // and stock are not needed for a quotation
+  const blocking = preview.problems.find((p) => p.kind === 'error' && !/HSN/.test(p.message));
+  if (blocking) throw new ValidationError(blocking.message);
   const item = db.prepare(
     'SELECT i.name, i.alias, i.hsn, u.name AS unit_name FROM item i JOIN unit u ON u.id = i.unit_id WHERE i.id = ?',
   );

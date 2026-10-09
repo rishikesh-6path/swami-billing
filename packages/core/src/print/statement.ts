@@ -42,7 +42,7 @@ export function renderStatement(
   const rows = ledger.rows
     .map(
       (r) =>
-        `<tr><td>${esc(showDate(r.date))}</td><td>${esc(label(r.voucherType))} ${r.number}</td><td>${esc(r.particulars)}</td><td class="n">${money(r.drPaise)}</td><td class="n">${money(r.crPaise)}</td><td class="n">${bal(r.balancePaise)}</td></tr>`,
+        `<tr><td>${esc(showDate(r.date))}</td><td>${esc(label(r.voucherType))} ${esc(r.displayNumber)}</td><td>${esc(r.particulars)}</td><td class="n">${money(r.drPaise)}</td><td class="n">${money(r.crPaise)}</td><td class="n">${bal(r.balancePaise)}</td></tr>`,
     )
     .join('\n');
   const ageing =

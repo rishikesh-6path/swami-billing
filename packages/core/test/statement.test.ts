@@ -45,6 +45,13 @@ describe('statement of account', () => {
     expect(r.closingPaise).toBe(accountBalance(s.db, s.partyA, '2026-10-31'));
     expect(r.closingPaise).toBe(11800 + 23600 - 5000);
     expect(r.html).toContain('STATEMENT OF ACCOUNT');
+    // bills appear with the number printed on them, prefix included
+    const prefix = String(
+      s.db.prepare('SELECT prefix FROM voucher_series WHERE id = ?').get(s.seriesId.sales)?.[
+        'prefix'
+      ] ?? '',
+    );
+    expect(r.html).toContain(`Sales ${prefix}1</td>`);
     expect(r.html).toContain('Amount due: ₹ 304.00');
     expect(r.html).toContain('Unpaid bills by age');
     // the ageing adds up to what is still unpaid
