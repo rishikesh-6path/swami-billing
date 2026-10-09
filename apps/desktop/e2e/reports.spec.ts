@@ -173,3 +173,23 @@ test('the purchases file for the CA has the supplier invoices, and the items to 
     await shop.close();
   }
 });
+
+test('money to collect lists late customers and opens the customer page by keyboard', async () => {
+  const shop = await launch({ demo: true });
+  try {
+    const { page } = shop;
+    await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
+    await page.keyboard.press('R');
+    await page.getByRole('button', { name: /Money to Collect/ }).click();
+    await expect(page.getByRole('heading', { name: 'Money to Collect' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Late', exact: true })).toBeVisible();
+    const first = page.locator('table.data tbody tr').first().getByRole('button');
+    const name = (await first.textContent()) ?? '';
+    await first.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name })).toBeVisible();
+  } finally {
+    await shop.close();
+  }
+});

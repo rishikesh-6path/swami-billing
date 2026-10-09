@@ -87,6 +87,7 @@ Press **R** for the list. Every report can be saved as a spreadsheet (**Ctrl+E**
 - **Outstanding**: who owes you and whom you owe, with how many days overdue.
 - **Account Ledger**: every entry for one customer or account. Press **L**.
 - **Item History**: every movement of one item. Press **G**.
+- **Money to Collect**: customers whose bills are late, the largest first, with the phone number, the oldest late bill and when they last paid. Tab to a name and press Enter to open the customer; F6 there takes the money.
 - **Items to Order**: items below their minimum stock, with how much is needed and who you last bought them from, at what price and when.
 
 Press **Ctrl+S** on any report to save it as a PDF. To give a customer a statement, open the customer (Enter in Customers) and press **Ctrl+P**: choose the period, check the preview, then print (Enter) or save a PDF (Ctrl+S). It shows your shop's heading, every bill and payment with the running balance, the amount due and how old the unpaid bills are.

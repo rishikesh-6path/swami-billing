@@ -201,3 +201,98 @@ export function outstandingToCsv(rows: PartyOutstanding[]): string {
     ]),
   );
 }
+
+export interface CollectionRow {
+  accountId: number;
+  name: string;
+  phone: string | null;
+  /** Unpaid bills older than the customer's credit days (or `minDays` when none are given). */
+  latePaise: Paise;
+  /** Everything still unpaid, late or not. */
+  duePaise: Paise;
+  oldestLate: { label: string; date: string | null; ageDays: number } | null;
+  lastPayment: { date: string; amountPaise: Paise } | null;
+}
+
+/**
+ * Who to call today: customers with money that is late, the largest first, with their phone, the
+ * oldest late bill and when they last paid. A customer with no credit days counts as late once a
+ * bill is older than `minDays` (30 unless given).
+ */
+export function collectionList(
+  db: Db,
+  args: { asOn: string; minDays?: number | undefined },
+): CollectionRow[] {
+  const minDays = args.minDays ?? 30;
+  const lastPaid = db.prepare(
+    `SELECT v.date, SUM(j.cr_paise) AS amount FROM journal_line j JOIN voucher v ON v.id = j.voucher_id
+     WHERE j.account_id = ? AND j.cr_paise > 0 AND j.is_reversal = 0 AND v.status = 'posted'
+       AND v.voucher_type IN ('receipt', 'sales') AND v.date <= ?
+     GROUP BY v.id ORDER BY v.date DESC, v.id DESC LIMIT 1`,
+  );
+  const rows: CollectionRow[] = [];
+  for (const p of outstanding(db, { asOn: args.asOn, side: 'receivable' })) {
+    const allowed = p.creditDays > 0 ? p.creditDays : minDays;
+    const late = p.bills.filter((b) => b.ageDays > allowed);
+    const latePaise = late.reduce((t, b) => t + b.amountPaise, 0);
+    if (latePaise <= 0) continue;
+    const oldest = late.reduce((a, b) => (b.ageDays > a.ageDays ? b : a), late[0]!);
+    const paid = lastPaid.get(p.accountId, args.asOn);
+    rows.push({
+      accountId: p.accountId,
+      name: p.accountName,
+      phone: p.phone,
+      latePaise,
+      duePaise: p.outstandingPaise,
+      oldestLate: {
+        label: oldest.displayNumber ?? 'Balance from before',
+        date: oldest.date,
+        ageDays: oldest.ageDays,
+      },
+      lastPayment: paid
+        ? { date: String(paid['date']), amountPaise: Number(paid['amount']) }
+        : null,
+    });
+  }
+  return rows.sort((a, b) => b.latePaise - a.latePaise || a.name.localeCompare(b.name));
+}
+
+export function collectionToCsv(rows: CollectionRow[]): string {
+  return toCsv(
+    [
+      'Customer',
+      'Phone',
+      'Late',
+      'Total due',
+      'Oldest late bill',
+      'Bill date',
+      'Days',
+      'Last paid on',
+      'Last paid',
+    ],
+    [
+      ...rows.map((r) => [
+        r.name,
+        r.phone,
+        formatMoneyOrEmpty(r.latePaise),
+        formatMoneyOrEmpty(r.duePaise),
+        r.oldestLate?.label ?? '',
+        r.oldestLate?.date ?? '',
+        r.oldestLate ? String(r.oldestLate.ageDays) : '',
+        r.lastPayment?.date ?? '',
+        r.lastPayment ? formatMoneyOrEmpty(r.lastPayment.amountPaise) : '',
+      ]),
+      [
+        'Total',
+        '',
+        formatMoneyOrEmpty(rows.reduce((t, r) => t + r.latePaise, 0)),
+        formatMoneyOrEmpty(rows.reduce((t, r) => t + r.duePaise, 0)),
+        '',
+        '',
+        '',
+        '',
+        '',
+      ],
+    ],
+  );
+}

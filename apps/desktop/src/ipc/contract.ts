@@ -33,6 +33,7 @@ import type {
   LastPrice,
   HeldBill,
   CreditCheck,
+  CollectionRow,
   BookHealth,
   ItemSales,
   PriceChangeRow,
@@ -367,6 +368,7 @@ export const reportRequest = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('gstr3b'), ...period }),
   z.object({ kind: z.literal('purchasesForCa'), ...period }),
   z.object({ kind: z.literal('reorder'), asOn: isoDate }),
+  z.object({ kind: z.literal('collection'), asOn: isoDate }),
   z.object({ kind: z.literal('profitAndLoss'), ...period }),
   z.object({ kind: z.literal('itemSales'), ...period, groupId: id.optional() }),
   z.object({ kind: z.literal('balanceSheet'), asOn: isoDate }),
@@ -388,6 +390,7 @@ export type ReportResult =
   | { kind: 'gstr3b'; data: Gstr3b }
   | { kind: 'purchasesForCa'; data: PurchasesForCa }
   | { kind: 'reorder'; data: ReorderRow[] }
+  | { kind: 'collection'; data: CollectionRow[] }
   | { kind: 'profitAndLoss'; data: ProfitAndLoss }
   | { kind: 'itemSales'; data: ItemSales }
   | { kind: 'balanceSheet'; data: BalanceSheet };

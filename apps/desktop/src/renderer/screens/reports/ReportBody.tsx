@@ -1,4 +1,6 @@
+import type { CollectionRow } from '@shopledger/core';
 import type { ReportResult } from '../../../ipc/contract.ts';
+import { useRouter } from '../../lib/router.tsx';
 import { DataTable } from '../../components/DataTable.tsx';
 import { Card } from '../../components/ui.tsx';
 import {
@@ -242,6 +244,8 @@ export function ReportBody({ result }: { result: ReportResult }) {
           ]}
         />
       );
+    case 'collection':
+      return <CollectionBody rows={result.data} />;
     case 'reorder':
       return (
         <DataTable
@@ -710,4 +714,63 @@ export function ReportBody({ result }: { result: ReportResult }) {
       );
     }
   }
+}
+
+/** Who to call: each name opens the customer's page, where F6 takes the money. */
+function CollectionBody({ rows }: { rows: CollectionRow[] }) {
+  const router = useRouter();
+  return (
+    <>
+      <p className="muted">
+        Late means older than the customer's credit days, or 30 days when none are set. Press Tab to
+        reach a name and Enter to open that customer.
+      </p>
+      <DataTable
+        rowKey={(r) => r.accountId}
+        rows={rows}
+        empty="Nobody's bills are late. Nothing to collect today."
+        columns={[
+          {
+            header: 'Customer',
+            cell: (r) => (
+              <button
+                type="button"
+                className="link-button"
+                onClick={() =>
+                  router.go({ name: 'partySummary', id: r.accountId, kind: 'customer' })
+                }
+              >
+                {r.name}
+              </button>
+            ),
+          },
+          { header: 'Phone', cell: (r) => r.phone },
+          { header: 'Late', num: true, cell: (r) => formatMoney(r.latePaise) },
+          { header: 'Total due', num: true, cell: (r) => formatMoney(r.duePaise) },
+          {
+            header: 'Oldest late bill',
+            cell: (r) =>
+              r.oldestLate
+                ? `${r.oldestLate.label}${r.oldestLate.date ? `, ${formatDate(r.oldestLate.date)}` : ''} (${r.oldestLate.ageDays} days)`
+                : '',
+          },
+          {
+            header: 'Last paid',
+            cell: (r) =>
+              r.lastPayment
+                ? `${formatMoney(r.lastPayment.amountPaise)} on ${formatDate(r.lastPayment.date)}`
+                : 'Never',
+          },
+        ]}
+        footer={[
+          'Total',
+          '',
+          formatMoney(rows.reduce((t, r) => t + r.latePaise, 0)),
+          formatMoney(rows.reduce((t, r) => t + r.duePaise, 0)),
+          '',
+          '',
+        ]}
+      />
+    </>
+  );
 }

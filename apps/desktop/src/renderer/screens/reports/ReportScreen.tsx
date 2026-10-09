@@ -84,6 +84,12 @@ export const REPORT_INFO: Record<
       "Every purchase with the supplier's own invoice number, date and GST, ready to match against their filings.",
     shape: 'period',
   },
+  collection: {
+    title: 'Money to Collect',
+    about:
+      'Customers whose bills are late, the largest first, with their phone number. Who to call today.',
+    shape: 'asOn',
+  },
   reorder: {
     title: 'Items to Order',
     about: 'Items that are running below their minimum, with who you last bought them from.',
@@ -165,6 +171,7 @@ export function ReportScreen({
       break;
     case 'balanceSheet':
     case 'reorder':
+    case 'collection':
       request = { kind, asOn };
       break;
     case 'daySummary':

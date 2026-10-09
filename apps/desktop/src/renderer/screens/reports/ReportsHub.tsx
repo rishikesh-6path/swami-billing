@@ -8,7 +8,10 @@ import { useSession } from '../../lib/session.tsx';
 import { REPORT_INFO } from './ReportScreen.tsx';
 
 const GROUPS: { title: string; kinds: ReportKind[]; ownerOnly?: boolean }[] = [
-  { title: 'Every day', kinds: ['daySummary', 'dayBook', 'stock', 'reorder', 'outstanding'] },
+  {
+    title: 'Every day',
+    kinds: ['daySummary', 'dayBook', 'stock', 'reorder', 'collection', 'outstanding'],
+  },
   {
     title: 'Customers, suppliers and items',
     kinds: ['ledger', 'itemLedger', 'salesRegister', 'purchaseRegister'],

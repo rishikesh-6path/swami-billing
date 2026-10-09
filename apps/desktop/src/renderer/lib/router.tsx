@@ -31,7 +31,8 @@ export type ReportKind =
   | 'reorder'
   | 'profitAndLoss'
   | 'balanceSheet'
-  | 'itemSales';
+  | 'itemSales'
+  | 'collection';
 
 export type Route =
   | { name: 'bills'; voucherType?: string }
