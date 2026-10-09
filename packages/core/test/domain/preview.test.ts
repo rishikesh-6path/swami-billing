@@ -84,7 +84,8 @@ describe('previewItemVoucher', () => {
       ),
       { numRuns: 500 },
     );
-  });
+    // 500 fresh shops take about 5 seconds alone and longer while other test files run
+  }, 60_000);
 
   it('skips unfinished lines, and never throws on an empty bill', () => {
     const s = seedShop();

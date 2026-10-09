@@ -18,6 +18,8 @@ import {
   useToast,
 } from '../../components/ui.tsx';
 import { PrintDialog } from '../../components/PrintDialog.tsx';
+import { EstimateDialog } from '../../components/EstimateDialog.tsx';
+import type { Req } from '../../../ipc/contract.ts';
 import { HeldBillsDialog } from './HeldBillsDialog.tsx';
 import { Typeahead } from '../../components/Typeahead.tsx';
 import { useCellFocus } from './cells.ts';
@@ -143,6 +145,7 @@ export function ItemVoucher({
   const [narrationPicker, setNarrationPicker] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [printAfter, setPrintAfter] = useState<number | null>(null);
+  const [estimate, setEstimate] = useState<Req<'estimate.preview'>['draft'] | null>(null);
 
   const cells = useCellFocus();
   const ready = useKept(setup);
@@ -696,6 +699,19 @@ export function ItemVoucher({
     F12: () => void pasteLast(),
     'Alt+H': () => void holdThis(),
     'Alt+R': () => void openHeld(),
+    ...(kindName === 'sales' && !edit
+      ? {
+          'Alt+E': () => {
+            if (!rows.some((r) => r.item && !isBlank(r)))
+              return setError('Please add at least one item before making an estimate.');
+            setError(null);
+            setEstimate({
+              ...(JSON.parse(previewKey) as Req<'estimate.preview'>['draft']),
+              ...(narration.trim() ? { narration: narration.trim() } : {}),
+            });
+          },
+        }
+      : {}),
   });
   useHints([
     'F2 Save',
@@ -709,6 +725,7 @@ export function ItemVoucher({
     'F4 Standard note',
     'Alt+H Set aside',
     'Alt+R Bring back',
+    ...(kindName === 'sales' && !edit ? ['Alt+E Estimate'] : []),
   ]);
 
   if (!ready) {
@@ -1241,6 +1258,16 @@ export function ItemVoucher({
         </aside>
       </div>
 
+      {estimate && ready && (
+        <EstimateDialog
+          draft={estimate}
+          initialSize={ready.printSize}
+          onClose={() => {
+            setEstimate(null);
+            cells.focusId('party');
+          }}
+        />
+      )}
       {printAfter !== null && ready && (
         <PrintDialog
           id={printAfter}

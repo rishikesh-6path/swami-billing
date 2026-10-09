@@ -4,10 +4,14 @@ import {
   getSetting,
   getVoucherDetail,
   renderDocument,
+  renderEstimate,
+  type ItemVoucherInput,
   labelItems,
   labelsHtml,
   type LabelLayout,
 } from '@shopledger/core';
+import type { z } from 'zod';
+import type { itemVoucherDraft } from '../../ipc/contract.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
 
 const PRINTABLE = [
@@ -43,10 +47,57 @@ const labelSheet = (
   req: { items: { itemId: number; count: number }[]; layout: LabelLayout },
 ) => labelsHtml(labelItems(ctx.db, req.items, ctx.today()), req.layout);
 
+/** The estimate of a sale still on the screen; the draft becomes a bill only when it is saved. */
+function estimatePage(
+  ctx: HandlerContext,
+  req: { draft: z.infer<typeof itemVoucherDraft>; size: 'a4' | 'thermal' },
+  record: boolean,
+) {
+  const company = getCompany(ctx.db);
+  if (!company) throw new ValidationError("Please enter your shop's details in Settings first.");
+  if (req.draft.type !== 'sales') throw new ValidationError('Estimates are made from a sale.');
+  const cash = ctx.db.prepare("SELECT id FROM account WHERE name = 'Cash' AND is_system = 1").get();
+  const draft = {
+    ...req.draft,
+    seriesId: req.draft.seriesId ?? 0,
+    partyAccountId: req.draft.partyAccountId ?? Number(cash?.['id']),
+  } as ItemVoucherInput;
+  return renderEstimate(
+    ctx.db,
+    draft,
+    company,
+    req.size,
+    record ? { userId: ctx.user().id } : undefined,
+  );
+}
+
 export const printHandlers: Pick<
   Handlers,
-  'print.preview' | 'print.run' | 'print.pdf' | 'labels.preview' | 'labels.print' | 'labels.pdf'
+  | 'print.preview'
+  | 'print.run'
+  | 'print.pdf'
+  | 'labels.preview'
+  | 'labels.print'
+  | 'labels.pdf'
+  | 'estimate.preview'
+  | 'estimate.print'
+  | 'estimate.pdf'
 > = {
+  'estimate.preview': (req, ctx) => estimatePage(ctx, req, false),
+  'estimate.print': async (req, ctx) => {
+    const { html } = estimatePage(ctx, req, true);
+    // through the print window, so the person can choose the paper and copies
+    return { printed: await ctx.printHtml(html, { size: req.size }) };
+  },
+  'estimate.pdf': async (req, ctx) => {
+    const { html } = estimatePage(ctx, req, true);
+    return {
+      saved: await ctx.savePdf(html, {
+        size: req.size,
+        defaultName: `estimate-${ctx.today()}.pdf`,
+      }),
+    };
+  },
   'labels.preview': (req, ctx) => labelSheet(ctx, req),
   'labels.print': async (req, ctx) => {
     const { html } = labelSheet(ctx, req);

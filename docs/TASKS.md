@@ -79,5 +79,12 @@ P9-03 | done | Plain item labels | unit + E2E | P0-kickoff
 P9-04 | done | Tidy-ups and small-screen check | E2E | P0-kickoff
 P9-05 | done | Review of round 6, fixes, docs, packaged smoke test | unit + E2E, packaged check | P0-kickoff
 
+## Phase 10 — Estimates, statements, collection, label position
+P10-01 | done | Estimate from the sale screen (Alt+E) | unit + E2E | P0-kickoff
+P10-02 | todo | Customer statement (Ctrl+P on the party page) | unit + E2E |
+P10-03 | todo | Money to collect list | unit + E2E |
+P10-04 | todo | Label position adjustment and test sheet | unit + E2E |
+P10-05 | todo | Review, docs, packaged smoke test | |
+
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.

@@ -52,6 +52,8 @@ const place = (code: string | null): string => (code ? `${code}-${STATE_NAMES[co
 
 function titleOf(detail: VoucherDetail, company: Company): string {
   switch (detail.voucherType) {
+    case 'estimate':
+      return 'ESTIMATE';
     case 'sales':
       // a registered shop issues a Bill of Supply when nothing on the bill carries tax
       return company.gstin &&
@@ -143,6 +145,7 @@ body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #111;
 h1 { font-size: 20px; margin: 0; }
 .head { text-align: center; border-bottom: 2px solid #111; padding-bottom: 6px; }
 .title { text-align: center; font-weight: 700; letter-spacing: 1px; margin: 6px 0; font-size: 14px; }
+.notice { text-align: center; border: 1px solid #000; padding: 3px; margin: 0 0 6px; }
 .cols { display: flex; gap: 12px; margin-bottom: 8px; }
 .cols > div { flex: 1; border: 1px solid #999; padding: 6px 8px; }
 .cols h3 { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; color: #555; }
@@ -188,7 +191,7 @@ function partyBlock(d: VoucherDetail): string {
     .join('<br>');
 }
 
-function renderA4(d: VoucherDetail, c: Company): string {
+function renderA4(d: VoucherDetail, c: Company, notice?: string): string {
   const interstate = d.taxMode === 'interstate';
   const isNote = d.voucherType === 'credit_note' || d.voucherType === 'debit_note';
   const tax = taxSummary(d);
@@ -232,10 +235,11 @@ ${d.status === 'cancelled' ? '<div class="watermark">CANCELLED</div>' : ''}
 <div>${esc(c.address)}</div>
 <div>${c.phone ? `Phone: ${esc(c.phone)}` : ''}${c.gstin ? ` &nbsp; GSTIN: ${esc(c.gstin)}` : ''}${c.stateCode ? ` &nbsp; State: ${esc(place(c.stateCode))}` : ''}</div></div>
 <div class="title">${esc(titleOf(d, c))}</div>
+${notice ? `<div class="notice">${esc(notice)}</div>` : ''}
 <div class="cols">
 <div><h3>${partyHeading(d.voucherType)}</h3>${partyBlock(d)}</div>
 <div><h3>Details</h3>
-No.: <b>${esc(d.displayNumber)}</b><br>Date: <b>${esc(dmy(d.date))}</b>
+${d.displayNumber ? `No.: <b>${esc(d.displayNumber)}</b><br>` : ''}Date: <b>${esc(dmy(d.date))}</b>
 ${d.posStateCode ? `<br>Place of supply: ${esc(place(d.posStateCode))}` : ''}
 ${d.refVoucher ? `<br>Against bill: ${esc(d.refVoucher.displayNumber)} dated ${esc(dmy(d.refVoucher.date))}` : ''}
 ${d.partyBillNo ? `<br>Supplier invoice: ${esc(d.partyBillNo)}${d.partyBillDate ? ` dated ${esc(dmy(d.partyBillDate))}` : ''}` : ''}
@@ -250,7 +254,7 @@ ${d.narration ? `<div class="muted">${esc(d.narration)}</div>` : ''}
 </div>`;
 }
 
-function renderThermal(d: VoucherDetail, c: Company): string {
+function renderThermal(d: VoucherDetail, c: Company, notice?: string): string {
   const itemBill = isItemBill(d);
   const isNote = d.voucherType === 'credit_note' || d.voucherType === 'debit_note';
   const tax = taxSummary(d).filter((t) => t.rateBp > 0);
@@ -293,8 +297,9 @@ ${d.roundOffPaise ? `<div class="row"><span>Round off</span><span>${inr(d.roundO
 <div class="c">${esc(c.address)}</div>
 ${c.phone ? `<div class="c">Phone: ${esc(c.phone)}</div>` : ''}${c.gstin ? `<div class="c">GSTIN: ${esc(c.gstin)}</div>` : ''}
 <hr><div class="c b">${esc(titleOf(d, c))}</div>
+${notice ? `<div class="c">${esc(notice)}</div>` : ''}
 ${d.status === 'cancelled' ? '<div class="watermark">*** CANCELLED ***</div>' : ''}
-<div class="row"><span>No: ${esc(d.displayNumber)}</span><span>${esc(dmy(d.date))}</span></div>
+<div class="row"><span>${d.displayNumber ? `No: ${esc(d.displayNumber)}` : ''}</span><span>${esc(dmy(d.date))}</span></div>
 ${d.posStateCode ? `<div>Place of supply: ${esc(place(d.posStateCode))}</div>` : ''}
 ${d.refVoucher ? `<div>Against bill: ${esc(d.refVoucher.displayNumber)} dated ${esc(dmy(d.refVoucher.date))}</div>` : ''}
 ${d.partyBillNo ? `<div>Supplier invoice: ${esc(d.partyBillNo)}${d.partyBillDate ? ` dated ${esc(dmy(d.partyBillDate))}` : ''}</div>` : ''}
@@ -318,9 +323,12 @@ export function renderDocument(
   detail: VoucherDetail,
   currentCompany: Company,
   size: PaperSize,
+  /** A line printed under the title, for example on an estimate. */
+  notice?: string,
 ): string {
   // the shop's details as they were on the day of the bill; today's settings only for older entries
   const company = detail.company ?? currentCompany;
-  const body = size === 'a4' ? renderA4(detail, company) : renderThermal(detail, company);
+  const body =
+    size === 'a4' ? renderA4(detail, company, notice) : renderThermal(detail, company, notice);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(titleOf(detail, company))} ${esc(detail.displayNumber)}</title><style>${size === 'a4' ? CSS_A4 : CSS_THERMAL}</style></head><body>${body}</body></html>`;
 }

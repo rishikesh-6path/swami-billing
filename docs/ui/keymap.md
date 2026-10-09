@@ -44,6 +44,7 @@ Items list | Alt+L | Print labels for the chosen item
 Purchase bill view | Alt+L | Print labels for the goods on the bill
 Print Labels | F2, Ctrl+S, Esc | Print, save as PDF, back (Enter in a count goes back to add the next item)
 Items list (owner) | Alt+P | Change prices of many items at once
+New sale | Alt+E | Estimate of the bill on screen (print or PDF; nothing is saved)
 Sale, purchase, returns | Alt+H | Set the bill aside and start a fresh one
 Sale, purchase, returns | Alt+R | Bring back a bill that was set aside
 Bill view (sale, purchase) | Alt+N | Copy as new bill: same party and lines, today's date

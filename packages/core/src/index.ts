@@ -39,6 +39,7 @@ export * from './import/csv.ts';
 export * from './demo/seed.ts';
 export * from './print/invoice.ts';
 export * from './print/labels.ts';
+export * from './print/estimate.ts';
 export * from './print/words.ts';
 export * from './backup/backup.ts';
 export * from './calc.ts';

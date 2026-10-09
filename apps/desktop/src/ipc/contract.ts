@@ -308,6 +308,11 @@ export const heldPayload = z.object({
 });
 export type HeldPayload = z.infer<typeof heldPayload>;
 
+const estimateRequest = z.object({
+  draft: itemVoucherDraft,
+  size: z.enum(['a4', 'thermal']),
+});
+
 const labelsRequest = z.object({
   items: z.array(z.object({ itemId: id, count: z.number().int().min(0).max(1000) })).max(300),
   layout: z.enum(['3x8', '4x10']),
@@ -711,6 +716,9 @@ export const contract = {
   ),
   'bill.finish': ch<null>()('bill', z.object({ id })),
   'bill.discard': ch<null>()('bill', z.object({ id })),
+  'estimate.preview': ch<{ html: string; totalPaise: number }>()('bill', estimateRequest),
+  'estimate.print': ch<{ printed: boolean }>()('bill', estimateRequest),
+  'estimate.pdf': ch<{ saved: string | null }>()('bill', estimateRequest),
   'labels.preview': ch<{ html: string; labels: number; pages: number }>()('bill', labelsRequest),
   'labels.print': ch<{ printed: boolean }>()('bill', labelsRequest),
   'labels.pdf': ch<{ saved: string | null }>()('bill', labelsRequest),
