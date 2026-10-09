@@ -137,7 +137,7 @@ function settlementLabel(type: string): string {
   }
 }
 
-const CSS_A4 = `
+export const CSS_A4 = `
 @page { size: A4; margin: 10mm; }
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }

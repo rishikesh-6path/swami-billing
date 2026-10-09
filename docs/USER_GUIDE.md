@@ -89,7 +89,7 @@ Press **R** for the list. Every report can be saved as a spreadsheet (**Ctrl+E**
 - **Item History**: every movement of one item. Press **G**.
 - **Items to Order**: items below their minimum stock, with how much is needed and who you last bought them from, at what price and when.
 
-Press **Ctrl+S** on any report to save it as a PDF. To give a customer a statement, open the customer (Enter in Customers), press **L**, choose the period and save or print it.
+Press **Ctrl+S** on any report to save it as a PDF. To give a customer a statement, open the customer (Enter in Customers) and press **Ctrl+P**: choose the period, check the preview, then print (Enter) or save a PDF (Ctrl+S). It shows your shop's heading, every bill and payment with the running balance, the amount due and how old the unpaid bills are.
 
 The owner also sees **What Sold**: each item sold in a period with the sales before GST, what it cost, the profit and the margin (choose an item group to narrow it).
 

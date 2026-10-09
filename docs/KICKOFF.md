@@ -131,7 +131,7 @@ Global: `F1` help, `F2` add item master, `F3` add account/master, `F5` add payme
 
 Inside a voucher: `Esc` quit (confirm if dirty), `F2` save/done, `F4` standard narration, `F5` list/lookup popup on the current field, `F7` repeat previous line, `F9` delete current line, `F11` orders, `F12` paste from last voucher, `Enter` moves to the next field in Busy's order, `Shift+Enter` previous field, `Alt+B` modify sales.
 
-Added after the first release (full list in `docs/ui/keymap.md`): inside a bill `F3` last price, `Alt+H` set the bill aside, `Alt+R` bring a set-aside bill back; on a bill being viewed `Alt+N` copy as new bill; on the Items list `Alt+P` change prices (owner); on any report `Ctrl+S` save as PDF; `Alt+L` print labels (Items list, purchase bill).
+Added after the first release (full list in `docs/ui/keymap.md`): inside a bill `F3` last price, `Alt+H` set the bill aside, `Alt+R` bring a set-aside bill back; on a bill being viewed `Alt+N` copy as new bill; on the Items list `Alt+P` change prices (owner); on any report `Ctrl+S` save as PDF; `Alt+L` print labels (Items list, purchase bill); on a new sale `Alt+E` estimate; on the party page `Ctrl+P` statement.
 
 Item lookup: typing in the Item cell searches `alias` exact first, then `name` prefix, then name contains; `Enter` picks the highlighted row. Numeric alias entry must resolve without opening the popup.
 

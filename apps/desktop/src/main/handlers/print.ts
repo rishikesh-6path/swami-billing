@@ -5,6 +5,7 @@ import {
   getVoucherDetail,
   renderDocument,
   renderEstimate,
+  renderStatement,
   type ItemVoucherInput,
   labelItems,
   labelsHtml,
@@ -47,6 +48,14 @@ const labelSheet = (
   req: { items: { itemId: number; count: number }[]; layout: LabelLayout },
 ) => labelsHtml(labelItems(ctx.db, req.items, ctx.today()), req.layout);
 
+/** A statement of account for a customer or supplier over a period. */
+function statementPage(ctx: HandlerContext, req: { partyId: number; from: string; to: string }) {
+  const company = getCompany(ctx.db);
+  if (!company) throw new ValidationError("Please enter your shop's details in Settings first.");
+  if (req.from > req.to) throw new ValidationError('The first date is after the last date.');
+  return renderStatement(ctx.db, req, company);
+}
+
 /** The estimate of a sale still on the screen; the draft becomes a bill only when it is saved. */
 function estimatePage(
   ctx: HandlerContext,
@@ -82,7 +91,25 @@ export const printHandlers: Pick<
   | 'estimate.preview'
   | 'estimate.print'
   | 'estimate.pdf'
+  | 'statement.preview'
+  | 'statement.print'
+  | 'statement.pdf'
 > = {
+  'statement.preview': (req, ctx) => ({ html: statementPage(ctx, req).html }),
+  'statement.print': async (req, ctx) => {
+    const { html } = statementPage(ctx, req);
+    return { printed: await ctx.printHtml(html, { size: 'a4' }) };
+  },
+  'statement.pdf': async (req, ctx) => {
+    const { html, partyName } = statementPage(ctx, req);
+    const name = partyName.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'party';
+    return {
+      saved: await ctx.savePdf(html, {
+        size: 'a4',
+        defaultName: `statement-${name}-${req.to}.pdf`,
+      }),
+    };
+  },
   'estimate.preview': (req, ctx) => estimatePage(ctx, req, false),
   'estimate.print': async (req, ctx) => {
     const { html } = estimatePage(ctx, req, true);

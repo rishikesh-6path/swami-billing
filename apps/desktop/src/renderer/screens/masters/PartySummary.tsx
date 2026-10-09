@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { StatementDialog } from '../../components/StatementDialog.tsx';
 import { DataTable } from '../../components/DataTable.tsx';
 import { Button, Card, LoadState, PageHeader } from '../../components/ui.tsx';
 import { useCall } from '../../lib/api.ts';
@@ -33,19 +35,33 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
     router.go({ name: 'entry', kind: entryKind, ...(start ? { party: start } : {}) });
   const ledger = () =>
     data && router.go({ name: 'report', kind: 'ledger', accountId: id, accountName: data.name });
-  useHotkeys({
-    F2: edit,
-    L: ledger,
-    // a customer is sold to and pays in; a supplier is bought from and paid
-    ...(customer
-      ? { F8: newBill('sales'), F6: newEntry('receipt') }
-      : { F9: newBill('purchase'), F5: newEntry('payment') }),
-  });
+  const [statement, setStatement] = useState(false);
+  useHotkeys(
+    statement
+      ? {}
+      : {
+          F2: edit,
+          L: ledger,
+          'Ctrl+P': () => setStatement(true),
+          // a customer is sold to and pays in; a supplier is bought from and paid
+          ...(customer
+            ? { F8: newBill('sales'), F6: newEntry('receipt') }
+            : { F9: newBill('purchase'), F5: newEntry('payment') }),
+        },
+  );
   useHints(
     customer
-      ? ['L Statement and full ledger', 'F2 Change details', 'F8 Sale', 'F6 Receipt', 'Esc Back']
+      ? [
+          'Ctrl+P Statement',
+          'L Full ledger',
+          'F2 Change details',
+          'F8 Sale',
+          'F6 Receipt',
+          'Esc Back',
+        ]
       : [
-          'L Statement and full ledger',
+          'Ctrl+P Statement',
+          'L Full ledger',
           'F2 Change details',
           'F9 Purchase',
           'F5 Payment',
@@ -61,8 +77,11 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
         actions={
           <>
             <Button onClick={router.back}>Back (Esc)</Button>
+            <Button onClick={() => setStatement(true)} disabled={!data}>
+              Statement (Ctrl+P)
+            </Button>
             <Button onClick={ledger} disabled={!data}>
-              Statement and full ledger (L)
+              Full ledger (L)
             </Button>
             {customer ? (
               <>
@@ -166,6 +185,7 @@ export function PartySummaryScreen({ id, kind }: { id: number; kind: PartyKind }
           </>
         )}
       </LoadState>
+      {statement && <StatementDialog partyId={id} onClose={() => setStatement(false)} />}
     </main>
   );
 }
