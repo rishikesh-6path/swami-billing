@@ -99,7 +99,8 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     // The shop PC opens ShopLedger when Windows starts, so billing is never blocked by a closed app.
-    if (app.isPackaged && process.platform === 'win32') {
+    // (not during automated tests of the packaged app, which would register the test copy)
+    if (app.isPackaged && process.platform === 'win32' && !testKnob('SHOPLEDGER_E2E')) {
       app.setLoginItemSettings({ openAtLogin: true });
     }
     // The app never needs the camera, location, notifications and so on: refuse every request.
@@ -350,7 +351,7 @@ if (!app.requestSingleInstanceLock()) {
     const backupNow = async (slot?: string, timeoutMs?: number) => {
       try {
         const { date, time } = clock();
-        await runBackup(opened.db, backupPlace, opened.path, date, time, slot, timeoutMs);
+        await runBackup(opened.db, backupPlace, opened.path, date, time, { slot, timeoutMs });
       } catch (error) {
         log('error', 'backup failed', error);
         try {

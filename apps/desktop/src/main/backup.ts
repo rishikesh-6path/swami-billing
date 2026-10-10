@@ -1,15 +1,8 @@
 import { join } from 'node:path';
-import {
-  ValidationError,
-  checkBackupFile,
-  getSetting,
-  listBackups,
-  setSetting,
-  type Db,
-} from '@shopledger/core';
+import { ValidationError, getSetting, listBackups, setSetting, type Db } from '@shopledger/core';
 import { log } from './log.ts';
 import BackupWorker from './backup-worker?nodeWorker';
-import type { BackupJob, BackupJobResult } from './backup-worker.ts';
+import type { BackupJob, BackupJobResult, ReadBack } from './backup-worker.ts';
 import type { BackupStatus } from '../ipc/contract.ts';
 
 const FOLDER = 'backup.folder';
@@ -79,17 +72,20 @@ export function runBackup(
   dbPath: string,
   date: string,
   time: string,
-  slot?: string,
-  timeoutMs = 120_000,
-): Promise<{ copied: boolean | null; name: string }> {
+  opts: { slot?: string | undefined; timeoutMs?: number | undefined; readBack?: boolean } = {},
+): Promise<BackupDone> {
   waiting += 1;
-  const mine = queue.then(
-    () => backupOnce(db, place, dbPath, date, time, slot, timeoutMs),
-    () => backupOnce(db, place, dbPath, date, time, slot, timeoutMs),
-  );
+  const once = () => backupOnce(db, place, dbPath, date, time, opts);
+  const mine = queue.then(once, once);
   queue = mine.catch(() => undefined).finally(() => (waiting -= 1));
   return mine;
 }
+
+type BackupDone = {
+  copied: boolean | null;
+  name: string;
+  readBack?: { main: ReadBack; copy: ReadBack | null } | undefined;
+};
 
 async function backupOnce(
   db: Db,
@@ -97,15 +93,16 @@ async function backupOnce(
   dbPath: string,
   date: string,
   time: string,
-  slot: string | undefined,
-  timeoutMs: number,
-): Promise<{ copied: boolean | null; name: string }> {
+  opts: { slot?: string | undefined; timeoutMs?: number | undefined; readBack?: boolean },
+): Promise<BackupDone> {
+  const { slot, timeoutMs = 120_000 } = opts;
   const job: BackupJob = {
     dbPath,
     folder: backupFolder(db, place),
     copyFolder: getSetting(db, COPY_FOLDER) || null,
     date,
     time,
+    ...(opts.readBack ? { readBack: true } : {}),
   };
   const result = await new Promise<BackupJobResult>((resolve) => {
     const worker = BackupWorker({ workerData: job });
@@ -147,12 +144,13 @@ async function backupOnce(
   // remembered so the home screen can say the second copy did not happen
   setSetting(db, COPY_FAILED, result.copied === false ? date : '');
   if (slot) setSetting(db, LAST_SLOT, slot);
-  return { copied: result.copied, name: result.name };
+  return { copied: result.copied, name: result.name, readBack: result.readBack };
 }
 
 /**
- * For "Check this computer": makes a backup, then opens the file it made (and the second copy,
- * if one is set up) and checks it could be restored. Says in plain words what was found.
+ * For "Check this computer": makes a backup, then (in the background thread) opens the file it
+ * made, and the second copy if one is set up, as a restore would. Says in plain words what was
+ * found.
  */
 export async function backupAndReadBack(
   db: Db,
@@ -161,37 +159,33 @@ export async function backupAndReadBack(
   date: string,
   time: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const { copied, name } = await runBackup(db, place, dbPath, date, time);
-  const main = checkBackupFile(join(backupFolder(db, place), name));
-  if (!main.ok) {
+  const { copied, readBack } = await runBackup(db, place, dbPath, date, time, { readBack: true });
+  const main = readBack?.main;
+  if (!main?.ok) {
     return {
       ok: false,
-      message: `A backup was made but it cannot be read back (${main.message.toLowerCase()}). Please call support.`,
+      message:
+        'A backup was made, but it could not be opened again to check it. Please make another backup, and call support if this happens again.',
     };
   }
   const held = `It holds ${main.vouchers.toLocaleString('en-IN')} bills and entries.`;
-  const copyFolder = getSetting(db, COPY_FOLDER) || null;
-  if (!copyFolder) {
+  if (copied === null) {
     return {
       ok: false,
-      message: `A backup was made and read back. ${held} No second copy is set up: please choose a pen drive in Settings > Backup and restore.`,
+      message: `A backup was made and checked. ${held} No second copy is set up: please choose a pen drive in Settings > Backup and restore.`,
     };
   }
-  if (copied !== true) {
+  if (!copied) {
     return {
       ok: false,
-      message: `A backup was made and read back. ${held} The second copy could not be made: please check the pen drive is plugged in.`,
+      message: `A backup was made and checked. ${held} The second copy could not be made: please check the pen drive is plugged in.`,
     };
   }
-  const copy = checkBackupFile(join(copyFolder, name));
-  return copy.ok
-    ? {
-        ok: true,
-        message: `A backup was made, and it and the second copy were read back. ${held}`,
-      }
+  return readBack?.copy?.ok
+    ? { ok: true, message: `A backup was made, and it and the second copy were checked. ${held}` }
     : {
         ok: false,
-        message: `A backup was made and read back, but the second copy cannot be read (${copy.message.toLowerCase()}). Please try another pen drive.`,
+        message: `A backup was made and checked, but the copy on the pen drive could not be opened again. Please try another pen drive.`,
       };
 }
 

@@ -165,7 +165,7 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .muted { color: #555; }
 `;
 
-const CSS_THERMAL = `
+export const CSS_THERMAL = `
 @page { size: 80mm auto; margin: 3mm; }
 * { box-sizing: border-box; }
 body { font-family: 'Courier New', monospace; font-size: 11px; width: 72mm; margin: 0; color: #000; }

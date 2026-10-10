@@ -7,6 +7,16 @@ const [cmd, args] = headlessLinux
   ? ['xvfb-run', ['-a', ...playwright]]
   : [playwright[0], playwright.slice(1)];
 
-// on Windows pnpm is a .cmd file, which Node starts only through the shell
-const result = spawnSync(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+// On Windows pnpm is a .cmd file, which Node starts only through the shell; the command is then
+// one line, so arguments with spaces (e.g. -g "Find a bill") are quoted
+const result =
+  process.platform === 'win32'
+    ? spawnSync(
+        [cmd, ...args].map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)).join(' '),
+        {
+          stdio: 'inherit',
+          shell: true,
+        },
+      )
+    : spawnSync(cmd, args, { stdio: 'inherit' });
 process.exit(result.status ?? 1);

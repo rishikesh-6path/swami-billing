@@ -20,23 +20,27 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
   const [withCancelled, setWithCancelled] = useState(false);
   const [selected, setSelected] = useState(0);
   const range = preset === 'custom' ? custom : presetRange(preset, today, financialYear);
-  const found = useCall('voucher.list', {
+  const request = {
     ...(type ? { voucherType: type } : {}),
     from: range.from,
     to: range.to,
     ...(text.trim() ? { search: text.trim() } : {}),
     includeCancelled: withCancelled,
-  });
+  };
+  const requestKey = JSON.stringify(request);
+  const found = useCall('voucher.list', request);
   const rows = found.status === 'ready' ? found.data : [];
-  // Enter pressed while the list is still being looked up opens the bill once it is there
-  const openWhenReady = useRef(false);
+  // Enter pressed while the list is still being looked up opens the bill once it is there, but
+  // only for the search it was pressed on: if the words or filters change first, it is dropped
+  const openWhenReady = useRef<string | null>(null);
   const open = (id: number) => router.go({ name: 'bill', id });
   useEffect(() => {
-    if (found.status === 'loading' || !openWhenReady.current) return;
-    openWhenReady.current = false;
+    const pending = openWhenReady.current;
+    if (pending === null || found.status === 'loading') return;
+    openWhenReady.current = null;
     const row = found.status === 'ready' ? found.data[selected] : undefined;
-    if (row) router.go({ name: 'bill', id: row.id });
-  }, [found, selected, router]);
+    if (pending === requestKey && row) router.go({ name: 'bill', id: row.id });
+  }, [found, selected, router, requestKey]);
   useHotkeys({ Escape: router.back });
   useHints(['Type to search', 'Up/Down Choose', 'Enter Open', 'Esc Back']);
 
@@ -63,13 +67,13 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSelected((s) => Math.min(s + 1, rows.length - 1));
+                setSelected((s) => Math.max(0, Math.min(s + 1, rows.length - 1)));
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setSelected((s) => Math.max(s - 1, 0));
               } else if (e.key === 'Enter') {
                 e.preventDefault();
-                if (found.status === 'loading') openWhenReady.current = true;
+                if (found.status === 'loading') openWhenReady.current = requestKey;
                 else if (rows[selected]) open(rows[selected].id);
               }
             }}
@@ -119,13 +123,19 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
               label="From"
               value={custom.from}
               today={today}
-              onChange={(v) => setCustom((c) => ({ ...c, from: v }))}
+              onChange={(v) => {
+                setCustom((c) => ({ ...c, from: v }));
+                setSelected(0);
+              }}
             />
             <DateField
               label="To"
               value={custom.to}
               today={today}
-              onChange={(v) => setCustom((c) => ({ ...c, to: v }))}
+              onChange={(v) => {
+                setCustom((c) => ({ ...c, to: v }));
+                setSelected(0);
+              }}
             />
           </>
         )}
@@ -133,7 +143,10 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
           <input
             type="checkbox"
             checked={withCancelled}
-            onChange={(e) => setWithCancelled(e.target.checked)}
+            onChange={(e) => {
+              setWithCancelled(e.target.checked);
+              setSelected(0);
+            }}
           />{' '}
           Also show cancelled bills
         </label>

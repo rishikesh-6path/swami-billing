@@ -17,10 +17,11 @@ describe('printer test page', () => {
     expect(a4).toContain('PRINTER TEST PAGE');
     expect(a4).toContain('This is not a bill.');
     expect(a4).toContain('Printed on 10-10-2026 at 09:05, on A4 paper.');
-    expect(a4).toContain('₹ 1,234.50');
+    expect(a4).toContain('Amount as printed on a bill: 1,234.50');
     expect(a4).toContain('size: A4');
     const roll = testPageHtml(company, 'thermal', { date: '2026-10-10', time: '09:05:33' });
     expect(roll).toContain('size: 80mm auto');
+    expect(roll).toContain('width: 72mm'); // the same width as a receipt
     expect(roll).toContain('the 80 mm receipt roll');
   });
 });

@@ -33,7 +33,7 @@ test('the owner checks this computer: test page, backup read back, books', async
     await page.keyboard.press('Alt+7');
     await page.getByRole('button', { name: 'Check this computer' }).click();
     await expect(page.getByText('All three checks passed.')).toBeVisible({ timeout: 20_000 });
-    await expect(results.getByText(/it and the second copy were read back/)).toBeVisible();
+    await expect(results.getByText(/it and the second copy were checked/)).toBeVisible();
   } finally {
     await shop.close();
   }
