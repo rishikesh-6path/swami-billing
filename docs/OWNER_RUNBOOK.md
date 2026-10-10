@@ -26,6 +26,10 @@ Before the first labels, open **Settings > Printing > Label sheets**. Choose the
 
 Each morning open **Reports (R) > Money to Collect**. It lists only customers whose bills are late (older than their credit days, or 30 days when none are set), the largest first, with the phone number. Call them; when one pays, open them from the list (Enter on the name) and take the receipt with F6. Give a customer a printed statement with **Ctrl+P** on their page.
 
+## Checking this computer
+
+On the first day, and after a new printer, pen drive or computer, open **Settings > Locking, limits and support > Check this computer**. It prints a test page on the bill printer, makes a backup and reads it back (also from the pen drive), and checks the books, with one line for each. Fix anything marked "Problem" (the line says what to do) and run it again.
+
 ## Checking your books
 
 Once a month, or whenever a figure looks wrong, open **Settings > Locking, limits and support > Check my books now**. It reads every bill and checks that the accounts, stock and bill numbers still add up; it changes nothing. If it says all is well, there is nothing to do. If it finds a problem: take a backup at once, do not change the bills it lists, and send the support file (same page) to whoever supports you.
@@ -90,10 +94,26 @@ Practise this once on a spare computer before you need it.
 
 Have ready: the message, and from **F1 > About this computer** the data file location and data version.
 
-## Checks that need doing on the shop PC (not possible during development)
+## Go-live checklist (on the shop PC, before 1 April 2027)
 
-- Print a real bill on the shop's printer, on A4 and on the receipt roll.
-- Run the installer, restart Windows and confirm ShopLedger opens by itself.
-- Take a backup to the pen drive, then run a full restore on a spare computer.
-- Pull the power while a bill is being saved, start again, and confirm the bill is either complete or absent, never half there (an automated process-kill version of this runs in the test suite).
-- Have the accountant check the GST outputs against one month of real bills.
+These checks could not be done during development because they need the shop's own computer, printers and pen drive. Do them in this order. Print this page and fill in the last column (date, your initials, and Pass or Fail). If a step fails, stop, write down exactly what you saw, and send it with the support file (**Settings > Locking, limits and support > Save information for support**).
+
+Where the installer comes from: on GitHub, open the repository's **Actions** tab, the newest green **CI** run, and download **ShopLedger-Setup** at the bottom of the page (kept for 14 days). Unzip it to get `ShopLedger-Setup-<version>.exe`.
+
+| # | What to do | Passes when | Date, initials, result |
+| --- | --- | --- | --- |
+| 1 | Right-click `ShopLedger-Setup-<version>.exe` and choose **Run as administrator**. Windows may say it protected the PC: press **More info**, then **Run anyway** (the installer is not signed). | ShopLedger installs and opens on the welcome screen. A desktop icon is there. | |
+| 2 | Finish the welcome screen and the **First day** steps above. Then restart Windows. | ShopLedger opens by itself after Windows starts. | |
+| 3 | Double-click the desktop icon while ShopLedger is already open. | No second copy opens; the open window comes to the front. | |
+| 4 | **Settings > Printing**: choose the receipt printer. Make a small cash bill (F8) and print it on the 80 mm roll. Open it again (D, Enter, Ctrl+P), choose A4 and print on the A4 printer. | Both printouts show the shop name, GST number, items, tax and total, nothing cut off at the edges. | |
+| 5 | On a new sale, press **Alt+E** and print an estimate. Open a customer's page and press **Ctrl+P** to print a statement. | Estimate says "ESTIMATE" and "not a bill". Statement shows the right amount due. | |
+| 6 | **Settings > Printing > Label sheets**: print a test sheet on plain paper, adjust **Move down** and **Move right** until it matches a sheet of labels (see **Setting up label sheets**), then print one real sheet of labels. | Every price sits inside its label. | |
+| 7 | **Settings > Backup and restore**: choose the pen drive as the second copy and press **Back up now**. | The page shows the new backup with today's time, and the file is on the pen drive. | |
+| 8 | **Settings > Locking, limits and support > Check this computer** (choose the paper of the bill printer). | It says "All three checks passed": the test page prints with its border on all four sides, the backup and the pen drive copy read back, and the books add up. | |
+| 9 | Restore drill on a spare computer (not the shop PC): install ShopLedger there and follow **Restoring** above with the backup from step 7. | It shows the same number of bills, and **Reports > Trial Balance** for today shows the same totals as the shop PC. | |
+| 10 | Power-cut test on the shop PC: make a bill and, while pressing F2 to save it, switch off the power at the wall. Switch on and start ShopLedger. | ShopLedger opens normally. The bill is either fully there (Find a Bill) or not there at all. **Check my books now** says all is well. | |
+| 11 | Year change on the spare computer from step 9 (never on the shop PC): set the Windows date to 1 April 2027 and open ShopLedger. Make one bill. Then set the date back. | The bill is number 1 of 2027-28. Customer balances and stock are the same as on 31 March. | |
+| 12 | Give your accountant one full month (**Reports > Data for the accountant**, and the GSTR-1 and GSTR-3B files) and ask them to check it against the paper bills. | The accountant agrees with the GST totals and the way tax is rounded on each line. | |
+| 13 | Run the shop on ShopLedger for a few days alongside Busy, then decide. | You are happy to stop using Busy for new bills from 1 April 2027 (Busy stays installed to look things up). | |
+
+Steps 10 and 11 are also tested automatically during development (a forced stop while saving, and a clock set to 1 April), but only the real PC can prove them.

@@ -771,6 +771,11 @@ export const contract = {
   'auth.lock': ch<null>()('user', none),
   'support.save': ch<{ saved: string | null }>()('manage_settings', none),
   'support.checkBooks': ch<BookHealth>()('manage_settings', none),
+  'selftest.print': ch<{ printed: boolean }>()(
+    'manage_settings',
+    z.object({ size: z.enum(['a4', 'thermal']) }),
+  ),
+  'selftest.backup': ch<{ ok: boolean; message: string }>()('manage_settings', none),
   'calc.eval': ch<{ result: string }>()('user', z.object({ expression: z.string().max(200) })),
   'import.run': ch<ImportOutcome>()(
     'manage_settings',

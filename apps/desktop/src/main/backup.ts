@@ -1,5 +1,12 @@
 import { join } from 'node:path';
-import { ValidationError, getSetting, listBackups, setSetting, type Db } from '@shopledger/core';
+import {
+  ValidationError,
+  checkBackupFile,
+  getSetting,
+  listBackups,
+  setSetting,
+  type Db,
+} from '@shopledger/core';
 import { log } from './log.ts';
 import BackupWorker from './backup-worker?nodeWorker';
 import type { BackupJob, BackupJobResult } from './backup-worker.ts';
@@ -141,6 +148,51 @@ async function backupOnce(
   setSetting(db, COPY_FAILED, result.copied === false ? date : '');
   if (slot) setSetting(db, LAST_SLOT, slot);
   return { copied: result.copied, name: result.name };
+}
+
+/**
+ * For "Check this computer": makes a backup, then opens the file it made (and the second copy,
+ * if one is set up) and checks it could be restored. Says in plain words what was found.
+ */
+export async function backupAndReadBack(
+  db: Db,
+  place: BackupPlace,
+  dbPath: string,
+  date: string,
+  time: string,
+): Promise<{ ok: boolean; message: string }> {
+  const { copied, name } = await runBackup(db, place, dbPath, date, time);
+  const main = checkBackupFile(join(backupFolder(db, place), name));
+  if (!main.ok) {
+    return {
+      ok: false,
+      message: `A backup was made but it cannot be read back (${main.message.toLowerCase()}). Please call support.`,
+    };
+  }
+  const held = `It holds ${main.vouchers.toLocaleString('en-IN')} bills and entries.`;
+  const copyFolder = getSetting(db, COPY_FOLDER) || null;
+  if (!copyFolder) {
+    return {
+      ok: false,
+      message: `A backup was made and read back. ${held} No second copy is set up: please choose a pen drive in Settings > Backup and restore.`,
+    };
+  }
+  if (copied !== true) {
+    return {
+      ok: false,
+      message: `A backup was made and read back. ${held} The second copy could not be made: please check the pen drive is plugged in.`,
+    };
+  }
+  const copy = checkBackupFile(join(copyFolder, name));
+  return copy.ok
+    ? {
+        ok: true,
+        message: `A backup was made, and it and the second copy were read back. ${held}`,
+      }
+    : {
+        ok: false,
+        message: `A backup was made and read back, but the second copy cannot be read (${copy.message.toLowerCase()}). Please try another pen drive.`,
+      };
 }
 
 /** The scheduled slot that is due now and has not been done yet, e.g. "2026-10-15 14:00". */

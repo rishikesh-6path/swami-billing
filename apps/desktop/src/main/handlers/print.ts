@@ -7,6 +7,7 @@ import {
   recordEstimate,
   renderEstimate,
   renderStatement,
+  testPageHtml,
   calibrationHtml,
   getLabelSettings,
   saveLabelSettings,
@@ -107,7 +108,17 @@ export const printHandlers: Pick<
   | 'labels.settings'
   | 'labels.saveSettings'
   | 'labels.calibrate'
+  | 'selftest.print'
 > = {
+  'selftest.print': async (req, ctx) => {
+    const clock = ctx.clock();
+    const html = testPageHtml(shopDetails(ctx), req.size, clock);
+    // the same printer the bills go to, so the test proves what billing will do
+    const printerName = getSetting(ctx.db, 'print.printer');
+    return {
+      printed: await ctx.printHtml(html, { size: req.size, printerName: printerName || undefined }),
+    };
+  },
   'labels.settings': (_req, ctx) => getLabelSettings(ctx.db),
   'labels.saveSettings': (req, ctx) => {
     saveLabelSettings(ctx.db, req, { userId: ctx.user().id });

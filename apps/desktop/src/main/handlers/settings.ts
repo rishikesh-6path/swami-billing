@@ -41,7 +41,7 @@ import { basename, join } from 'node:path';
 import type { ShopSettings } from '../../ipc/contract.ts';
 import { logDir } from '../log.ts';
 import { lockMinutes } from './session.ts';
-import { backupStatus, runBackup, setBackupFolder } from '../backup.ts';
+import { backupAndReadBack, backupStatus, runBackup, setBackupFolder } from '../backup.ts';
 import type { HandlerContext, Handlers } from '../ipc.ts';
 
 const books = (db: Db): ShopSettings['books'] => ({
@@ -101,6 +101,7 @@ export const settingsHandlers: Pick<
   | 'settings.saveLimits'
   | 'support.save'
   | 'support.checkBooks'
+  | 'selftest.backup'
   | 'users.list'
   | 'users.create'
   | 'users.update'
@@ -161,6 +162,10 @@ export const settingsHandlers: Pick<
     return null;
   },
   'support.checkBooks': (_req, ctx) => checkBooks(ctx.db),
+  'selftest.backup': (_req, ctx) => {
+    const clock = ctx.clock();
+    return backupAndReadBack(ctx.db, ctx.backupPlace, ctx.dbPath, clock.date, clock.time);
+  },
   'support.save': async (_req, ctx) => {
     const text = buildSupportReport(ctx.db, {
       appVersion: ctx.appVersion,

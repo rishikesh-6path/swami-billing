@@ -68,7 +68,7 @@ Statement | Enter, Ctrl+S, Esc | Print, save as PDF, close
 Party summary | L, F2, F8, F9, F6, F5, Esc | Full ledger, change details, new sale or receipt (customer), new purchase or payment (supplier) already filled in for that party, back
 Item and party forms | F2 | Save
 Item and party forms | Enter | Next box
-Settings | Alt+1 to Alt+6 | Shop details, Printing, People, Standard notes, Closing, Backup
+Settings | Alt+1 to Alt+7 | Shop details, Printing, People, Standard notes, Closing, Backup, Locking limits and support
 Settings | F2 | Save the current section (on Printing, saves the printing and the label sheet settings)
 Add from a Spreadsheet | I, C, S | Choose a file for items, customers, suppliers
 Confirm questions | Y / N, Enter, Esc | Yes, no, confirm the highlighted button, cancel

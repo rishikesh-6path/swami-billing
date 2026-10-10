@@ -88,8 +88,8 @@ P10-05 | done | Review, docs, packaged smoke test | Books review (estimate refus
 
 ## Phase 11 — Go-live readiness
 P11-01 | done | CI: fix the E2E races seen on GitHub; Windows job builds the installer, runs core tests and starts the packaged app | CI green on Linux and Windows | P0-kickoff
-P11-02 | todo | Go-live checklist in OWNER_RUNBOOK (shop-PC steps, pass/fail, where to record) | doc review | 
-P11-03 | todo | "Check this computer" self-test for the owner (test print, backup and read back, Check my books) | unit + E2E | 
+P11-02 | done | Go-live checklist in OWNER_RUNBOOK (shop-PC steps, pass/fail, where to record) | claims checked against the code | P0-kickoff
+P11-03 | done | "Check this computer" self-test for the owner (test print, backup and read back, Check my books) | unit + E2E | P0-kickoff
 
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.
