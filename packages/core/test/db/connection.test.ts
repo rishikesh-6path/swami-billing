@@ -33,7 +33,10 @@ describe('openDatabase', () => {
     const db = openDatabase(path);
     db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
     const insert = db.prepare('INSERT INTO t (v) VALUES (?)');
+    // one transaction: 2,000 separate disk syncs take half a minute on a Windows disk
+    db.exec('BEGIN');
     for (let i = 0; i < 2000; i++) insert.run(`row-${i}-${'x'.repeat(50)}`);
+    db.exec('COMMIT');
     db.close();
 
     const bytes = readFileSync(path);

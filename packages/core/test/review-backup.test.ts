@@ -58,13 +58,16 @@ describe('review: backup and restore', () => {
     restoreDatabaseFile(join(dir, 'b.db'), live);
     const holders = readdirSync(dir).filter((n) => {
       if (n === 'shop.db' || n === 'a.db' || n === 'b.db') return false;
+      let raw: DatabaseSync | undefined;
       try {
-        const raw = new DatabaseSync(join(dir, n), { readOnly: true });
+        raw = new DatabaseSync(join(dir, n), { readOnly: true });
         const v = raw.prepare("SELECT value FROM setting WHERE key = 'marker'").get()?.['value'];
-        raw.close();
         return v === 'original';
       } catch {
         return false;
+      } finally {
+        // a file left open cannot be deleted on Windows
+        raw?.close();
       }
     });
     expect(holders).not.toEqual([]); // currently .before-restore is overwritten with the state "backup-a"

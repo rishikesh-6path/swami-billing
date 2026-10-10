@@ -250,16 +250,18 @@ describe('large imports', () => {
 
   it('stays quick with 8,000 items (name checks use an index)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'import-speed-'));
+    const db = openDatabase(join(dir, 'shop.db'));
     try {
-      const db = openDatabase(join(dir, 'shop.db'));
       migrate(db, loadMigrationsFromDir(MIGRATIONS_DIR));
       const lines = ['Name,Alias,HSN,GST %,Price'];
       for (let i = 1; i <= 8000; i++) lines.push(`Big Item ${i},B${i},7307,18,10`);
       const started = Date.now();
       expect(importItemsCsv(db, lines.join('\n')).created).toBe(8000);
-      expect((Date.now() - started) / 1000).toBeLessThan(8);
-      db.close();
+      // one disk sync per row would take minutes; the Windows test machine is slower overall
+      expect((Date.now() - started) / 1000).toBeLessThan(process.platform === 'win32' ? 30 : 8);
     } finally {
+      // closed before the folder is removed: Windows cannot delete an open file
+      db.close();
       rmSync(dir, { recursive: true, force: true });
     }
   }, 60_000);
