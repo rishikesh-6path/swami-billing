@@ -7,5 +7,6 @@ const [cmd, args] = headlessLinux
   ? ['xvfb-run', ['-a', ...playwright]]
   : [playwright[0], playwright.slice(1)];
 
-const result = spawnSync(cmd, args, { stdio: 'inherit' });
+// on Windows pnpm is a .cmd file, which Node starts only through the shell
+const result = spawnSync(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32' });
 process.exit(result.status ?? 1);

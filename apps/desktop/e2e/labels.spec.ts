@@ -8,6 +8,7 @@ test('labels are made from a purchase bill and saved as a PDF, by keyboard', asy
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('D');
     await expect(page.getByRole('heading', { name: 'Find a Bill' })).toBeVisible();
     await page.getByLabel('Period').selectOption('thisYear');

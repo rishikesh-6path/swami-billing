@@ -3,14 +3,15 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -21,3 +22,31 @@ jobs:
       - name: Install display server for Electron tests
         run: sudo apt-get update && sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64
       - run: pnpm e2e
+
+  # The shop runs Windows: the core tests run there too, the installer is built, and the
+  # packaged app is started once to prove it opens and can make a backup.
+  windows:
+    needs: checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Build the installer (not code-signed)
+        run: pnpm build:win
+      - name: Start the packaged app
+        working-directory: apps/desktop
+        env:
+          SHOPLEDGER_PACKAGED_EXE: ${{ github.workspace }}\dist\win-unpacked\ShopLedger.exe
+        run: node scripts/run-e2e.mjs e2e/packaged.spec.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShopLedger-Setup
+          path: dist/ShopLedger-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14

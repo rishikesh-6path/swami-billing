@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DateField } from '../../components/DateField.tsx';
 import { DataTable } from '../../components/DataTable.tsx';
 import { Button, LoadState, PageHeader } from '../../components/ui.tsx';
@@ -28,6 +28,15 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
     includeCancelled: withCancelled,
   });
   const rows = found.status === 'ready' ? found.data : [];
+  // Enter pressed while the list is still being looked up opens the bill once it is there
+  const openWhenReady = useRef(false);
+  const open = (id: number) => router.go({ name: 'bill', id });
+  useEffect(() => {
+    if (found.status === 'loading' || !openWhenReady.current) return;
+    openWhenReady.current = false;
+    const row = found.status === 'ready' ? found.data[selected] : undefined;
+    if (row) router.go({ name: 'bill', id: row.id });
+  }, [found, selected, router]);
   useHotkeys({ Escape: router.back });
   useHints(['Type to search', 'Up/Down Choose', 'Enter Open', 'Esc Back']);
 
@@ -58,9 +67,10 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 setSelected((s) => Math.max(s - 1, 0));
-              } else if (e.key === 'Enter' && rows[selected]) {
+              } else if (e.key === 'Enter') {
                 e.preventDefault();
-                router.go({ name: 'bill', id: rows[selected].id });
+                if (found.status === 'loading') openWhenReady.current = true;
+                else if (rows[selected]) open(rows[selected].id);
               }
             }}
           />
@@ -68,7 +78,14 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
         </div>
         <div className="field">
           <label htmlFor="bill-type">Kind</label>
-          <select id="bill-type" value={type} onChange={(e) => setType(e.target.value)}>
+          <select
+            id="bill-type"
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value);
+              setSelected(0);
+            }}
+          >
             <option value="">All</option>
             {Object.entries(VOUCHER_LABELS).map(([k, label]) => (
               <option key={k} value={k}>
@@ -83,7 +100,10 @@ export function BillList({ voucherType }: { voucherType?: string | undefined }) 
           <select
             id="bill-period"
             value={preset}
-            onChange={(e) => setPreset(e.target.value as Preset)}
+            onChange={(e) => {
+              setPreset(e.target.value as Preset);
+              setSelected(0);
+            }}
           >
             {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
               <option key={p} value={p}>

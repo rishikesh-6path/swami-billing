@@ -6,6 +6,7 @@ test('Tab stays inside a dialog and focus returns to the screen when it closes',
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('D');
     await page.getByLabel('Kind').selectOption('sales');
     await page.getByLabel('Words to look for').press('Enter');

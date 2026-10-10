@@ -49,6 +49,7 @@ test('Enter on a focused button presses that button, not the screen shortcut', a
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('D');
     await page.getByLabel('Kind').selectOption('sales');
     await page.getByLabel('Words to look for').press('Enter');
@@ -81,6 +82,7 @@ test('Ctrl+P then Enter prints', async () => {
   try {
     const { page } = shop;
     await signIn(page);
+    await expect(page.getByText('Sales today')).toBeVisible();
     await page.keyboard.press('D');
     await page.getByLabel('Kind').selectOption('sales');
     await page.getByLabel('Words to look for').press('Enter');

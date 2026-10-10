@@ -86,5 +86,10 @@ P10-03 | done | Money to collect list | unit + E2E | P0-kickoff
 P10-04 | done | Label position adjustment and test sheet | unit + E2E | P0-kickoff
 P10-05 | done | Review, docs, packaged smoke test | Books review (estimate refusals, printed bill numbers on statements and ledgers) and screen review (Alt+E row checks, dialog errors and focus, F2 on label settings, file names, print styling) fixed with tests |
 
+## Phase 11 — Go-live readiness
+P11-01 | done | CI: fix the E2E races seen on GitHub; Windows job builds the installer, runs core tests and starts the packaged app | CI green on Linux and Windows | P0-kickoff
+P11-02 | todo | Go-live checklist in OWNER_RUNBOOK (shop-PC steps, pass/fail, where to record) | doc review | 
+P11-03 | todo | "Check this computer" self-test for the owner (test print, backup and read back, Check my books) | unit + E2E | 
+
 ## Waiting on Tony (not blocking)
 Review of autonomous decisions in DECISIONS.md; Windows shop-PC checks (printer, installer, power-cut, restore drill); CA review of GST outputs.
